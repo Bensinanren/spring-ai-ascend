@@ -227,6 +227,19 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!--
+            Post-Phase-C (ADR-0078): agent-service is BOTH a runnable Spring Boot
+            application (via PlatformApplication) AND a library that
+            spring-ai-ascend-graphmemory-starter depends on. The default
+            repackage goal turns the main jar into an executable jar with
+            classes under BOOT-INF/classes/, which breaks downstream compile.
+            Attach the executable jar under the `boot` classifier instead so
+            the main jar stays a normal library jar consumable by downstream
+            Maven modules.
+          -->
+          <classifier>boot</classifier>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
