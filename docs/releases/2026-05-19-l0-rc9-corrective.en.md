@@ -7,6 +7,9 @@ retracts_tag: null
 authority: docs/reviews/2026-05-18-l0-rc8-post-corrective-architecture-review.en.md
 response_doc: docs/reviews/2026-05-19-l0-rc8-post-corrective-architecture-review-response.en.md
 adr: docs/adr/0083-rc9-corpus-truth-and-ci-acceptance.yaml
+ci_run: https://github.com/chaosxingxc-orion/spring-ai-ascend/actions/runs/26055792484
+release_sha: 3ab9c0e49fa5fab1e93d3ded4d72d7a437ccf7d0
+ci_evidence: gate/release-ci-evidence/2026-05-19-l0-rc9-corrective.json
 ---
 
 # v2.0.0-rc9 — rc8 post-corrective review response + CI-green restoration (2026-05-19)
