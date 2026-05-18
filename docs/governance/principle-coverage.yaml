@@ -58,10 +58,14 @@ principles:
       Every domain module ships an SPI; every platform/domain module declares
       its Design-for-X posture (releasability, resilience, availability,
       vulnerability, observability); contracts precede implementation;
-      alternative implementations must pass a TCK to be conformant.
+      alternative implementations must pass a TCK to be conformant. Evidence
+      flows in both directions: failures cite specs only AFTER observable
+      evidence is captured (Rule 79, added 2026-05-18 from the Beyond-SDD
+      review response).
     operationalised_by_rules:
       - Rule-4
       - Rule-32
+      - Rule-79
     deferred_operationalisers:
       - Rule-22   # PayloadCodec — deferred
 

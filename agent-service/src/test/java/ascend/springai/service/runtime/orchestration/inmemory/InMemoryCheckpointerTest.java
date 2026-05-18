@@ -7,6 +7,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// TCK-promotion-candidate: when agent-runtime-tck is created on Rule 32.b trigger
+// (first alternative Checkpointer SPI implementation proposed), this class lifts-
+// and-shifts as the Checkpointer conformance suite. Assertions stay framework-
+// free (no Spring, no Testcontainers) so the lift is mechanical. See
+// docs/CLAUDE-deferred.md Rule 32.b "Pre-promotion holding tank".
 class InMemoryCheckpointerTest {
 
     private final InMemoryCheckpointer checkpointer = new InMemoryCheckpointer();

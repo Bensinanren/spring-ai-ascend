@@ -87,6 +87,13 @@ Enforced by [`rule-09.md`](docs/governance/rules/rule-09.md).
 Enforced by [`rule-10.md`](docs/governance/rules/rule-10.md).
 
 ---
+#### Rule 79 — Evidence-First Debug Sequence
+
+**When a Run fails, a test regresses, or a self-audit finding is opened, the first artefact captured MUST be observable evidence — the failing test class FQN, the trace ID (if present), the MDC slice (runId, tenantId, fromStatus→toStatus), and the raw error message including stack frame line numbers. ARCHITECTURE.md / ADR consultation is permitted only AFTER evidence is recorded in the finding. Self-audit findings under Rule 9 that omit evidence citation are blocked. Operationalised by `docs/runbooks/debug-first-evidence.md`.**
+
+Enforced by [`rule-79.md`](docs/governance/rules/rule-79.md).
+
+---
 
 ### Architectural enforcement
 #### Rule 11 — Contract Spine Completeness

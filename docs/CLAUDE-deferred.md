@@ -226,7 +226,14 @@ Composes with: ARCHITECTURE.md §4 #62; ADR-0066; Rule 31 (Independent Module Ev
 
 **Rule (draft)**: A sibling `agent-runtime-tck` reactor module MUST exist with a single `@TckSurfaceMarker` test asserting the SPI interface signatures it covers. Adding the module bumps `module_count_invariant` (Gate Rule 28e) from 4 to 5.
 
-Composes with: ARCHITECTURE.md §4 #63; ADR-0067; Rule 32 (SPI + DFX + TCK Co-Design).
+**Pre-promotion holding tank** (added 2026-05-18 by the Beyond-SDD review response, see [`docs/reviews/spring-ai-ascend-beyond-sdd-response.en.md`](reviews/spring-ai-ascend-beyond-sdd-response.en.md) §4): the SPI-contract semantics that the future TCK module will assert are already executable today, in two locations that lift-and-shift cleanly when the trigger fires:
+
+1. **`agent-runtime-core/src/test/java/...`** — pure-JUnit library-mode tests (`RunStateMachineLibraryTest`, `SuspendSignalLibraryTest`, `S2cCallbackEnvelopeLibraryTest`, `RunRecordTenantLibraryTest`) exercise the SPI value-type algebra with no Spring context. These tests are universal — they apply to every conformant impl.
+2. **`agent-service/src/test/java/.../inmemory/`** — `InMemoryCheckpointerTest`, `InMemoryCheckpointerSizeCapTest`, `InMemoryRunRegistryFindRootRunsTest` carry a `// TCK-promotion-candidate` class-level marker. On Rule 32.b trigger they move to `agent-runtime-tck/src/main/java/.../tck/` and the in-memory impl becomes one test target alongside Postgres/Temporal/Redis.
+
+This holding tank honours Rule 2 (Simplicity) — no module is scaffolded today for a single implementation — while making the W2 promotion mechanical.
+
+Composes with: ARCHITECTURE.md §4 #63; ADR-0067; Rule 32 (SPI + DFX + TCK Co-Design); Rule 79 (Evidence-First Debug Sequence) — the library-mode tests above ARE the evidence layer Rule 79 calls for.
 
 ---
 

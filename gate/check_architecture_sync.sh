@@ -3617,6 +3617,42 @@ while IFS= read -r _r78_meta; do
 done <<< "${_SCAN_MODULE_METADATA:-$(find . -maxdepth 3 -name module-metadata.yaml -not -path './target/*' -not -path './.claude/*' 2>/dev/null)}"
 if [[ $_r78_fail -eq 0 ]]; then pass_rule "dfx_spi_packages_match_module_metadata"; fi
 
+# ===========================================================================
+# 2026-05-18 beyond-SDD review response wave -- Rule 79
+# Authority: docs/governance/rules/rule-79.md
+#            + D:/.claude/plans/d-chao-workspace-spring-ai-ascend-docs-shimmering-milner.md
+# Operationalises the "Telemetry-First Debugging" remediation proposal from
+# docs/reviews/spring-ai-ascend-beyond-sdd-en.md by requiring an executable
+# debug-sequence runbook to exist on disk, cited by the rule card, with the
+# canonical title string present (so the file cannot drift to a different
+# topic while still passing the gate by name alone).
+# ===========================================================================
+
+# Rule 79 — rule_79_runbook_present_and_cited (enforcer E112)
+#
+# Three invariants:
+#   1. docs/runbooks/debug-first-evidence.md exists.
+#   2. docs/runbooks/debug-first-evidence.md contains the literal string
+#      "Evidence-First Debug Sequence" (catches drift-by-replacement).
+#   3. docs/governance/rules/rule-79.md references the runbook path
+#      (catches card-runbook link breakage on rename).
+# ---------------------------------------------------------------------------
+_r79_fail=0
+_r79_runbook="docs/runbooks/debug-first-evidence.md"
+_r79_card="docs/governance/rules/rule-79.md"
+if [[ ! -f "$_r79_runbook" ]]; then
+  fail_rule "rule_79_runbook_present_and_cited" "$_r79_runbook missing — Rule 79 / E112 (runbook required by docs/governance/rules/rule-79.md)"
+  _r79_fail=1
+elif ! grep -qF 'Evidence-First Debug Sequence' "$_r79_runbook" 2>/dev/null; then
+  fail_rule "rule_79_runbook_present_and_cited" "$_r79_runbook missing the canonical title string 'Evidence-First Debug Sequence' — Rule 79 / E112"
+  _r79_fail=1
+fi
+if [[ -f "$_r79_card" ]] && ! grep -qF 'docs/runbooks/debug-first-evidence.md' "$_r79_card" 2>/dev/null; then
+  fail_rule "rule_79_runbook_present_and_cited" "$_r79_card does not reference docs/runbooks/debug-first-evidence.md — Rule 79 / E112 (card-runbook link broken)"
+  _r79_fail=1
+fi
+if [[ $_r79_fail -eq 0 ]]; then pass_rule "rule_79_runbook_present_and_cited"; fi
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------

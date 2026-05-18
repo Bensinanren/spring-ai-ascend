@@ -38,3 +38,4 @@ observability:
   metric_namespace: "n/a (library module; consumers emit metrics)"
   trace_carrier: "RunContext exposes traceId()/spanId()/sessionId()/traceContext()"
   log_field_shape: "n/a"
+  test_layer: "library-mode pure-JUnit tests under src/test/ exercise SPI value-type algebra (RunStateMachineLibraryTest, SuspendSignalLibraryTest, S2cCallbackEnvelopeLibraryTest, RunRecordTenantLibraryTest); 64 tests run in <2s with no Spring context — the millisecond-feedback path Rule 79 / Beyond-SDD review response §3 calls for"

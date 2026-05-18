@@ -66,4 +66,14 @@ while IFS= read -r _r78_meta; do
 done <<< "${_SCAN_MODULE_METADATA:-$(find . -maxdepth 3 -name module-metadata.yaml -not -path './target/*' -not -path './.claude/*' 2>/dev/null)}"
 if [[ $_r78_fail -eq 0 ]]; then pass_rule "dfx_spi_packages_match_module_metadata"; fi
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# 2026-05-18 beyond-SDD review response wave -- Rule 79
+# Authority: docs/governance/rules/rule-79.md
+#            + D:/.claude/plans/d-chao-workspace-spring-ai-ascend-docs-shimmering-milner.md
+# Operationalises the "Telemetry-First Debugging" remediation proposal from
+# docs/reviews/spring-ai-ascend-beyond-sdd-en.md by requiring an executable
+# debug-sequence runbook to exist on disk, cited by the rule card, with the
+# canonical title string present (so the file cannot drift to a different
+# topic while still passing the gate by name alone).
+# ===========================================================================
+

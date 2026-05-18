@@ -31,6 +31,7 @@ The architecture lives in **two coupled forms** (per ADR-0068):
 | 6 | `docs/governance/architecture-status.yaml` | ALWAYS-LOAD | Capability ledger (what is shipped / verified) |
 | 7 | `docs/CLAUDE-deferred.md` | (ON-DEMAND) | Rules deferred to W1/W2/W3/W4 with re-introduction triggers — load only when re-introducing a deferred rule |
 | 8 | the ADR YAML referenced by the edge you are traversing | ON-DEMAND | rationale and `extends:` / `relates_to:` |
+| 9 | `docs/runbooks/debug-first-evidence.md` | ON-DEMAND (Rule 79) | Evidence-First Debug Sequence — open when a Run fails, a test regresses, or a self-audit finding is being drafted. Required by Rule 79. |
 
 The always-loaded budget per file is declared in [`gate/always-loaded-budget.txt`](../../gate/always-loaded-budget.txt) and policed by Gate Rule 70 (`always_loaded_budget_enforced`). To measure the current state: `bash gate/measure_always_loaded_tokens.sh`.
 

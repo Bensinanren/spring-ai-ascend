@@ -109,6 +109,18 @@ for the full matrix.
 - Module metadata (kind / version / semver): each module's
   `module-metadata.yaml`.
 
+## 7. When a test fails
+
+Before you start reasoning about the failure, run the six-step **Evidence-First
+Debug Sequence** in [`docs/runbooks/debug-first-evidence.md`](runbooks/debug-first-evidence.md).
+Authority: CLAUDE.md Rule 79. The runbook tells you what to capture (failing
+FQN → trace ID → MDC slice → raw error → transition history) BEFORE you open
+`ARCHITECTURE.md`. Spec reading is allowed in step 6, after evidence is recorded.
+
+For library-mode pure-JUnit tests (`./mvnw -pl agent-runtime-core test`), the
+full module runs in under 2 seconds. Use this loop when you want sub-second
+feedback on the SPI value-type algebra.
+
 If anything in this quickstart requires modifying platform source to make it
 work — file an issue tagged `decoupling-defect`. Rule 29 says: developers
 build agents against the platform, not into the platform.

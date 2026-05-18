@@ -1,5 +1,7 @@
 # W2.x Engine Contract Structural Wave — Release Note (v2.0.0-rc1)
 
+> **Historical artifact frozen at SHA 0d73a3b (v2.0.0-rc3 + SPI integrity wave).** Baseline counts in this document (63 gate rules / 92 self-tests / 34 active engineering rules / 93 enforcer rows) reflect the corpus state at the W2.x release through rc3 and are NOT retroactively updated. The current canonical baseline (after the 2026-05-18 Beyond-SDD review response: 64 gate rules / 94 self-tests / 35 active engineering rules / 94 enforcer rows) is tracked in `docs/governance/architecture-status.yaml.architecture_sync_gate.allowed_claim` and `README.md`.
+
 **Date:** 2026-05-16 (W2.x Phase 7 audit committed 18:36; v2.0.0-rc1 post-review hotfix committed evening)
 **Driver review:** 2026-05-15 LucioIT L0 proposal *"Runtime-Engine Contract for Heterogeneous Agent Execution"* (`docs/reviews/2026-05-15-l0architecture-lucio It-wave-1-supplement-runtime-engine-contract.en.md`)
 **Response doctrine:** [docs/reviews/2026-05-16-engine-contract-structural-response.en.md](../reviews/2026-05-16-engine-contract-structural-response.en.md)

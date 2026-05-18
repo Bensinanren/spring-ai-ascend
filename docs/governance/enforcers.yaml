@@ -1005,3 +1005,11 @@
   view: development
   artifact: gate/check_architecture_sync.sh#dfx_spi_packages_match_module_metadata
   asserts: "For every kind={platform,domain} module, docs/dfx/<module>.yaml declares a top-level spi_packages: matching the non-placeholder entries of module-metadata.yaml#spi_packages."
+
+- id: E112
+  constraint_ref: "CLAUDE.md Rule 79 (rule_79_runbook_present_and_cited); Beyond-SDD review response wave 2026-05-18"
+  kind: gate-script
+  level: L0
+  view: process
+  artifact: gate/check_architecture_sync.sh#rule_79_runbook_present_and_cited
+  asserts: "docs/runbooks/debug-first-evidence.md exists with the canonical title 'Evidence-First Debug Sequence', AND docs/governance/rules/rule-79.md references the runbook path — catches both runbook deletion and card↔runbook link breakage."

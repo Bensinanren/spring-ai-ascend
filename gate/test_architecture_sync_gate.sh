@@ -40,7 +40,7 @@ fi
 
 passed=0
 failed=0
-TOTAL=119
+TOTAL=121
 
 # PR-E4: parallel-aware ok()/fail().
 # Serial mode (TEST_RESULT_FILE unset): increment globals + print directly.
@@ -3180,6 +3180,56 @@ fi
 }
 
 # ===========================================================================
+# 2026-05-18 beyond-SDD review response wave -- Rule 79 self-test
+# Authority: docs/governance/rules/rule-79.md + docs/runbooks/debug-first-evidence.md
+# ===========================================================================
+test_rule79_evidence_first_debug_runbook() {
+
+## Positive: runbook exists with canonical title AND card cites it -> Rule 79 PASS
+_r79_pos="$scratch/r79_pos"
+mkdir -p "$_r79_pos/docs/runbooks" "$_r79_pos/docs/governance/rules"
+cat > "$_r79_pos/docs/runbooks/debug-first-evidence.md" <<'DOCEOF'
+# Evidence-First Debug Sequence
+Steps...
+DOCEOF
+cat > "$_r79_pos/docs/governance/rules/rule-79.md" <<'DOCEOF'
+Operationalised by docs/runbooks/debug-first-evidence.md.
+DOCEOF
+_r79_pos_runbook_ok=0
+_r79_pos_card_ok=0
+[[ -f "$_r79_pos/docs/runbooks/debug-first-evidence.md" ]] && \
+  grep -qF 'Evidence-First Debug Sequence' "$_r79_pos/docs/runbooks/debug-first-evidence.md" && \
+  _r79_pos_runbook_ok=1
+[[ -f "$_r79_pos/docs/governance/rules/rule-79.md" ]] && \
+  grep -qF 'docs/runbooks/debug-first-evidence.md' "$_r79_pos/docs/governance/rules/rule-79.md" && \
+  _r79_pos_card_ok=1
+if [[ $_r79_pos_runbook_ok -eq 1 && $_r79_pos_card_ok -eq 1 ]]; then
+  ok "rule79_evidence_first_debug_runbook_pos" "runbook + canonical title + card-citation present (PASS)"
+else
+  fail "rule79_evidence_first_debug_runbook_pos" "expected PASS but runbook=$_r79_pos_runbook_ok card=$_r79_pos_card_ok"
+fi
+
+## Negative: card exists but does NOT reference runbook -> Rule 79 FAIL
+_r79_neg="$scratch/r79_neg"
+mkdir -p "$_r79_neg/docs/runbooks" "$_r79_neg/docs/governance/rules"
+cat > "$_r79_neg/docs/runbooks/debug-first-evidence.md" <<'DOCEOF'
+# Evidence-First Debug Sequence
+Steps...
+DOCEOF
+cat > "$_r79_neg/docs/governance/rules/rule-79.md" <<'DOCEOF'
+This card forgot to cite the runbook path. Rule 79 catches the broken link.
+DOCEOF
+_r79_neg_card_cites=0
+grep -qF 'docs/runbooks/debug-first-evidence.md' "$_r79_neg/docs/governance/rules/rule-79.md" 2>/dev/null && _r79_neg_card_cites=1
+if [[ $_r79_neg_card_cites -eq 0 ]]; then
+  ok "rule79_evidence_first_debug_runbook_neg" "card without runbook citation correctly triggers FAIL"
+else
+  fail "rule79_evidence_first_debug_runbook_neg" "expected FAIL but card cites runbook"
+fi
+
+}
+
+# ===========================================================================
 # 2026-05-17 gate-script efficiency wave PR-E2 -- NDJSON logging self-tests
 # Authority: PR-E2 plan + gate/lib/aggregate_summary.sh + gate/lib/prune_old_runs.sh
 # ===========================================================================
@@ -3356,7 +3406,7 @@ fi
 # to a per-batch file. After all batches complete, we sort + concatenate the
 # results for deterministic stdout, then count PASS/FAIL.
 # ---------------------------------------------------------------------------
-TOTAL=119
+TOTAL=121
 
 _pre4_all_tests=$(declare -F | awk '/^declare -f test_rule/{print $3}' | sort)
 _pre4_jobs="${GATE_PARALLELISM_JOBS:-8}"

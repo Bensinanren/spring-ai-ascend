@@ -13,6 +13,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * InMemoryCheckpointer had no enforcement. Oversize payloads silently bloated in-memory
  * state and would violate the contract when W2 Postgres checkpointer enforces it (HD-A.10).
  * Fix: posture-aware precommit check — dev posture warns; research/prod posture throws.
+ *
+ * <p>TCK-promotion-candidate: when agent-runtime-tck is created on Rule 32.b trigger,
+ * this class lifts-and-shifts as the Checkpointer payload-cap conformance test.
+ * The dev/research/prod posture branching MUST be honoured by any alternative impl.
+ * See docs/CLAUDE-deferred.md Rule 32.b "Pre-promotion holding tank".
  */
 class InMemoryCheckpointerSizeCapTest {
 
