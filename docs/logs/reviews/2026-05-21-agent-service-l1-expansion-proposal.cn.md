@@ -43,7 +43,7 @@ status: proposed
   - **下一阶段**：全面落地支持**业务中心模式 (Business-Centric Mode)**。虽然该模式在本阶段暂不交付，但**当前阶段的 L1 架构与 SPI 接口设计必须前置深度考虑该模式的隔离和多态调用语义**，确保未来切换时业务零改动。
 
 ### 1.3 设计原则与核心形态
-`agent-service` 在 L1 层的设计中必须严格遵循以下原则，以支撑核心的智能体形态和业务演进诉求：
+`agent-service` 在 L1 层的设计中必须严格遵循以下原则，以支撑核心的智能体形态 and 业务演进诉求：
 
 #### 1.3.1 两种智能体形态的封装
 1. **工作流智能体 (Workflow Agent)**：封装图模式（Graph）执行的智能体，对应确定性强、有向无环或带有复杂拓扑的分支流程。
@@ -53,7 +53,7 @@ status: proposed
 1. **共进程函数调用 (Embedded Co-process)**：`agent-service` 与 `agent-execution-engine` 共进程部署（如同一 JVM），采用直接的方法/函数级调用。追求极低的延迟和极致的计算性能。
 2. **无状态服务级调用 (Stateless Service-level)**：将智能体作为完全无状态的服务化节点运行在独立的执行引擎中。`agent-service` 作为管控层，通过 RPC、gRPC 或 A2A 总线向执行引擎下发控制指令。
 
-#### 1.3.3 异构智能体兼容设计原则
+#### 1.3.3异构智能体兼容设计原则
 - **向后兼容与生态解耦 (Heterogeneous Compatibility)**：支持对客户系统内现存、已在运行态的异构/存量智能体进行无缝收口。通过 `agent-service` 的服务级封装和适配器，将老系统中的智能体转化为标准服务形态，实现平滑演进与统一治理。
 
 #### 1.3.4 服务级背压与无状态原则（Reactive & Stateless）
@@ -95,7 +95,7 @@ status: proposed
 ### 3.1 多态派发器 (Polymorphic Dispatcher)
 - 智能体调用的统一物理入口。它根据注册表配置，判断当前被调用的智能体类型 and 运行环境。
 - 提供本地分支（`LocalDirectExecutor`）和服务化远程分支（`RemoteServiceExecutor`）的两路多态派发，向北向调用方屏蔽底层的部署差异。
-- **集成 A2A 路由**：当识别到目标调用地址为异构/跨节点的其他智能体时，自动转由内置的 A2A 客户端管道进行协议封包与跨节点派发。
+- **集成 A2A 路由**：当识别到目标调用地址为异构/跨节点的其他智能体时，自动转由内置 of A2A 客户端管道进行协议封包与跨节点派发。
 
 ### 3.2 引擎适配器 (Engine Adapter)
 - 屏蔽 Workflow（图）与 ReAct（循环）引擎的具体执行语义，抽象出统一的无状态计算接口。
@@ -144,6 +144,42 @@ status: proposed
    - 将任务重新丢入内部事件队列排队，拉起执行线程继续执行。
 
 ## 5. 开发视图 (Development View)
+本章节严格遵循军规 **Rule G-1.c（代码包映射约束）**，清晰界定自研代码结构与对外部开源 **`a2a-java`** 协议栈的依赖，秉持“绝不重复造轮子”的敏捷落地原则。
+
+### 5.1 依赖开源与自研边界定界
+我们全面整合谷歌官方 **`a2a-java`** SDK。以下核心机制已由开源库完备实现，我们直接复用其内核：
+1. **响应式背压流控通道**：使用 `a2a-java` 内置的响应式连接、Reactor Sinks 缓冲区。
+2. **双向 C/S 总线底座**：使用其对等的 `A2AClient` 与 `A2AServer` 通信套接字，处理网络级建链、通道加密与多路由。
+3. **Task-Centric 状态控制机**：使用 `a2a-java` 的标准任务状态生命周期状态及控制原语。
+
+因此，我们的 **自研攻坚重心** 聚焦在：**本地多态路由派发、会话数据上下文的高性能动态投影算法、微服务北向接入、以及 a2a-java SPI 数据持久化适配**。
+
+### 5.2 自研代码包目录映射与依赖集成
+```text
+agent-service/src/main/java/com/huawei/ascend/agent/service/
+├── api/                        # [自研 + a2a-java 适配] 北向通信网关
+│   ├── rest/                   # 业务侧 Push 模式接入端点
+│   └── a2a/                    # A2A-Server 服务端，拦截外部 a2a-java 协作包
+├── dispatcher/                 # [100% 自研] 本地多态派发逻辑
+│   ├── PolymorphicDispatcher.java # 多态路由核心，决策本地 JVM 直连或是 A2A 网络调用
+│   └── strategy/               # 静态与动态派发规则决策树
+├── orchestrator/               # [a2a-java 深度集成] 核心任务生命周期控制
+│   ├── ReactiveOrchestrator.java  # 绑定 a2a-java 调度引擎，驱动 Task 事件流
+│   └── handler/                # A2A 中断信号(InterruptSignal)强类型处理拦截器
+├── task/                       # [部分自研] 状态与控制数据存储
+│   ├── TaskCenter.java         # 任务中心管理入口
+│   └── repository/             # [自研实现] 实现 a2a-java 的 TaskStore SPI 绑定 Redis/JPA
+├── session/                    # [100% 纯自研] 会话数据域与动态投影 (核心算法创新)
+│   ├── SessionManager.java     # 管理多轮对话上下文交互数据生命周期
+│   └── projection/             # 核心语义投影算法：提取最相关上下文装配为 InjectedContext
+├── engine/                     # [自研适配] 智能体无状态计算适配层
+│   ├── workflow/               # 图模式（Workflow）执行引擎 SDK 适配
+│   ├── react/                  # 循环模式（ReAct）执行引擎 SDK 适配
+│   └── spi/                    # 引擎计算标准接口 StatelessEngineExecutor
+└── infrastructure/             # [自研粘合] 中间件适配与自动配置
+    ├── config/                 # Spring Boot 与 a2a-java 协议栈 AutoConfiguration 配置包
+    └── persistence/            # Redis/NATS 适配器、序列化与网络层连接池管理
+```
 
 ## 6. 物理视图 (Physical View)
 双模态集成在部署上的拓扑映射：
