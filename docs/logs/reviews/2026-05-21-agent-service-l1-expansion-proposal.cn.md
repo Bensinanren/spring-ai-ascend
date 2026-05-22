@@ -23,7 +23,7 @@ status: proposed
 1. **智能体客户端 (agent-client)**：在 SaaS 应用与桌面应用中被集成，负责感知业务知识与状态，操作业务环境与工具，下发管理智能体配置，调用执行智能体服务。
 2. **智能体服务端 (agent-service)**：**（本模块核心定界）** 负责把图模式执行 of workflow 智能体与循环模式执行 of ReAct 智能体封装成微服务。
 3. **智能体执行引擎 (agent-execution-engine)**：负责提供两大类智能体的执行器，提供可供开发者使用的各种组件，如 workflow 会用到的 node、ReAct 会用到的 tool 和 hook。
-4. **智能体总线 (agent-bus)**：负责连接南北向的 C/S 通信流量，连接东西向 of A2A 通信流量。
+4. **智能体总线 (agent-bus)**：负责连接南北向 of C/S 通信流量，连接东西向 of A2A 通信流量。
 5. **智能体中间件 (agent-middleware)**：负责提供智能体需要的基础服务，如记忆服务、技能服务、知识服务、沙箱服务等。
 6. **智能体演进平台 (agent-evolve)**：负责在线与离线的智能体自主演进。
 
@@ -53,7 +53,7 @@ status: proposed
 1. **共进程函数调用 (Embedded Co-process)**：`agent-service` 与 `agent-execution-engine` 共进程部署（如同一 JVM），采用直接的方法/函数级调用。追求极低的延迟和极致的计算性能。
 2. **无状态服务级调用 (Stateless Service-level)**：将智能体作为完全无状态的服务化节点运行在独立的执行引擎中。`agent-service` 作为管控层，通过 RPC、gRPC 或 A2A 总线向执行引擎下发控制指令。
 
-#### 1.3.3异构智能体兼容设计原则
+#### 1.3.3 异构智能体兼容设计原则
 - **向后兼容与生态解耦 (Heterogeneous Compatibility)**：支持对客户系统内现存、已在运行态的异构/存量智能体进行无缝收口。通过 `agent-service` 的服务级封装和适配器，将老系统中的智能体转化为标准服务形态，实现平滑演进与统一治理。
 
 #### 1.3.4 服务级背压与无状态原则（Reactive & Stateless）
@@ -74,6 +74,26 @@ status: proposed
 #### 1.3.6 Task-Centric 状态控制与 A2A 中断信号体系
 - **任务中心型状态机定位（Task-Centric Model）**：摒弃传统以 Session（会话）为主线的同步阻塞模式，全面重构为以 **A2A 标准任务生命周期状态**为核心的调度体系，支持任务的提交、执行、异步挂起和最终完成。
 - **显式无状态中断信号机制（Explicit Interrupt Primitives）**：废除基于传统 Java 异常（Exception）抛出的隐式中断。引擎在遇到各种异步、外部等待时，必须向外抛出显式的、强类型的**中断信号（Interrupt Signals）**，触发 Service 层的脱水存储与上下文持久化，从而在根本上保持执行线程的高并发和非阻塞。
+
+### 1.4 逻辑执行粒度与四层状态生命周期定界
+为了精确界定数据沉淀与逻辑运行的边界，本项目确立了由微观到宏观的四层状态与生命周期定界模型：
+
+1. **层级 1：Run（瞬时单步计算）**：最微观的执行粒度。对应有向无环工作流（Workflow）中的单个节点（Node）推进、ReAct 自主代理思考循环中的单次迭代（Loop Turn），或两个物理拦截拦截钩子（Hooks）之间的计算跃迁。属于瞬时态。
+2. **层级 2：Task（任务控制生命周期）**：由外部调用端（SaaS Client 或其他协同 A2A 智能体）的消息请求所衍生出的、具有明确业务边界的待处理任务。具有Submitted -> Working -> Suspended -> Completed 的状态控制链路。
+3. **层级 3：Session（会话交互数据域）**：管理多轮人机交互或机器对等协作的上下文数据会话容器。在部分简单企业场景下，“任务即会话（Task is Session）”；在长程、多任务协作场景下，一个 Session 周期内可能包含并并发执行多个 Task，负责维护多轮交互的上下文继承关系。
+4. **层级 4：Memory（长程知识资产）**：跨越 Session 交互、生命周期等同于智能体物理寿命的长程知识与自我演进认知资产，使智能体具备自我优化提升的数字生命基础。
+
+### 1.5 Service 与 Engine 的核心分工界面原则
+基于上述四层模型，智能体服务端（Service）与执行引擎（Engine）在 L1 层确立了极其严格的分工原则：
+
+- **核心定界原则**：**以 Task 级别为核心分工界面。Task 控制权归 Service，Task 内部的 Run 执行归 Engine。**
+- **Engine（执行引擎）职责边界：专精于 Run，Task 内部的无状态纯计算芯片**：
+  - 聚焦在 Run 级的计算推进和 Task 内部的纯无状态逻辑循环。
+  - **核心军规**：Engine 内部禁止包含任何 I/O 动作（严禁直接读写数据库、发起网络 A2A 寻址、调用外部总线/中间件）。Engine 运行所需的全部输入必须由 Service 层在运行前通过 `InjectedContext` 显式单向喂入；在遇到阻断点时，Engine 立即输出 `StateDelta` 及 `YieldSignal` 中断原语，释放物理计算线程。
+- **Service（服务端）职责边界：掌控 Task 状态、装配 Session 投影、沉淀 Memory 认知**：
+  - **Task 级状态管控**：Service 负责 Task 层的状态机维护、A2A 队列背压流控、以及拦截中断信号（InterruptSignal）执行状态的脱水（Dehydrate）与吸水（Rehydrate）。
+  - **Session 级动态装配**：Service 负责管理交互会话生命周期，通过 `ContextProjector` 算法从 Session 海量历史中“语义投影”出最相关的片段，装配成 `InjectedContext` 喂给 Engine，彻底解放引擎的状态管理负担。
+  - **Memory 级认知沉淀**：Service 在 Task 完成或挂起后，负责将 `StateDelta` 同步至中间件和演进平台，进行长程记忆的提取、知识沉淀及智能体演进。
 
 ## 2. 场景视图 (Scenarios View)
 本设计方案覆盖的核心业务运作场景如下：
@@ -116,6 +136,16 @@ status: proposed
 - **A2A 状态控制组件**：严格依照 A2A 协议规范，追踪与维护任务的五个核心状态变迁，对外暴露统一的监控和主动中止/重试接口。
 - **中断信号拦截器**：拦截来自执行层抛出的 `InterruptSignal`，智能识别中断子类型（如等待输入、等待工具、等待协同、安全风控等），并多态化派发至特定的生命周期管理器。
 
+### 3.6 逻辑分工边界映射组件（Logical Boundary Mapping）
+四层状态生命周期的逻辑分工与组件物理归属关系定义如下：
+* **智能体服务端（agent-service）管控层**：
+  - **Memory 层**：对接外部 `agent-middleware`（知识、记忆服务）与 `agent-evolve`。
+  - **Session 层**：完全由 Service 的 `SessionManager` 及 `ContextProjector` 组件托管，负责对 Session 进行语义投影。
+  - **Task 层控制面**：由 `TaskCenter`、`PolymorphicDispatcher` 以及 A2A 状态控制组件负责控制流编排、任务排队与脱水存储。
+* **智能体执行引擎（agent-execution-engine）执行层**：
+  - **Task 层执行面**：Engine 接受 `InjectedContext` 载荷，成为 Task 的具体算法执行器。
+  - **Run 层**：完全属于 Engine 内部实现，驱动 Workflow 节点转换（Node Run）与 ReAct 思考循环（Loop Run）。
+
 ## 4. 进程视图 (Process View)
 聚焦于任务的状态流转与非阻塞响应式背压流控：
 
@@ -136,12 +166,22 @@ status: proposed
    - 适配器拦截指令，触发 A2A 客户端使用 `a2a-java` 向智能体 B 的 A2A 服务端口投递异步请求包。
 2. **脱水等待（Dehydrated Suspend）**：
    - 智能体 A 在 `agent-service` 中产生标准的 `Yield` 信号。
-   - 协调器对 A 当前的运行态、上下文和 Session 数据进行物理脱水，落盘至 Task Store。
+   - 协调器对 A 当前的运行态、上下文 and Session 数据进行物理脱水，落盘至 Task Store。
    - A 所在的计算进程与线程立即释放归还线程池。
 3. **异步唤醒（Rehydrated Resume）**：
    - 智能体 B 计算完毕后，调用 A2A 客户端向智能体 A 回传响应包。
    - 智能体 A 的 A2A 接收服务捕获回调，协调器依据包内的 `TaskID` 在 Task Store 中对智能体 A 重新吸水（Rehydrate）复原上下文。
    - 将任务重新丢入内部事件队列排队，拉起执行线程继续执行。
+
+### 4.3 4级状态全生命周期流转环流（Four-Layer Life Cycle Flow）
+1. **任务承接（Memory -> Session -> Task）**：
+   - 任务通过 A2A 或 Client 传入。Service 在 Task Store 中注册 Task，并调取 `SessionManager` 创建/关联 Session。
+2. **装配投影（Session -> Task Context）**：
+   - 在将任务抛给引擎前，Service 的 `ContextProjector` 检索 Session 的多轮历史及 Memory 长程记忆中投影出语义片段，装配成 `InjectedContext` 载荷喂入引擎。
+3. **引擎单步循环（Task Context -> Runs Loop）**：
+   - 执行引擎（Engine）加载 Context，成为无状态的计算载体。在内部连续驱动多个 **Run**（单步推进）直至任务计算结束或触发 A2A `Yield` 中断。
+4. **状态刷新与记忆沉淀（Run Delta -> Session -> Memory）**：
+   - 计算完成输出 `StateDelta`，Service 拦截数据写回并刷新 Session，同时后台触发异步任务，通过 `agent-evolve` 和 `agent-middleware` 将该轮决策提炼沉淀为长程 Memory，使智能体认知跨会话持续自我提升。
 
 ## 5. 开发视图 (Development View)
 本章节严格遵循军规 **Rule G-1.c（代码包映射约束）**，清晰界定自研代码结构与对外部开源 **`a2a-java`** 协议栈的依赖，秉持“绝不重复造轮子”的敏捷落地原则。
@@ -176,7 +216,7 @@ agent-service/src/main/java/com/huawei/ascend/agent/service/
 │   ├── workflow/               # 图模式（Workflow）执行引擎 SDK 适配
 │   ├── react/                  # 循环模式（ReAct）执行引擎 SDK 适配
 │   └── spi/                    # 引擎计算标准接口 StatelessEngineExecutor
-└── infrastructure/             # [自研粘合] 中间件适配与自动配置
+└── infrastructure/             # [自研粘合] 中件层适配与自动配置
     ├── config/                 # Spring Boot 与 a2a-java 协议栈 AutoConfiguration 配置包
     └── persistence/            # Redis/NATS 适配器、序列化与网络层连接池管理
 ```
