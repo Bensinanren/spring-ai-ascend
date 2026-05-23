@@ -137,9 +137,9 @@ awk '
     }
   }
   BEGIN { prev_slug = ""; prev_start = 0; idx = 0 }
-  /^# Rule [0-9]+[a-z]? (—|--) / {
+  /^# Rule [0-9]+.?[a-z]? (—|--) / {
     emit_prev(NR - 1)
-    match($0, /^# Rule ([0-9]+[a-z]?) (—|--) ([a-z0-9_]+)/, arr)
+    match($0, /^# Rule ([0-9]+.?[a-z]?) (—|--) ([a-z0-9_]+)/, arr)
     prev_slug = arr[1] "_" arr[3]
     prev_start = NR
     next
@@ -188,7 +188,13 @@ SHIM
 # env file. Subshells inheriting GATE_SCAN_CACHE_FILE see it and skip work.
 # ---------------------------------------------------------------------------
 SCAN_CACHE_FILE="$WORK_DIR/scan_cache.env"
-if [[ -f "$repo_root/gate/lib/scan_cache.sh" ]]; then
+# Resolve python early so the scan_cache pre-population subshell honours the
+# same python3-then-python fallback the aggregator uses below. Hosts that
+# only have `python` on PATH (Windows native, some conda environments) would
+# otherwise silently lose the 211s scan-cache optimisation.
+GATE_PYTHON_BIN="$(command -v python3 || command -v python || echo '')"
+export GATE_PYTHON_BIN
+if [[ -f "$repo_root/gate/lib/scan_cache.sh" && -n "$GATE_PYTHON_BIN" ]]; then
   (
     # Source scan_cache; it auto-populates the _SCAN_* vars.
     # shellcheck disable=SC1091
@@ -196,7 +202,7 @@ if [[ -f "$repo_root/gate/lib/scan_cache.sh" ]]; then
     # Emit each _SCAN_ var as a here-doc-safe export. Values may contain
     # newlines and special chars (find output), so we use Python for safe
     # shell-quoting.
-    python3 - "$SCAN_CACHE_FILE" <<'PYEOF'
+    "$GATE_PYTHON_BIN" - "$SCAN_CACHE_FILE" <<'PYEOF'
 import os, shlex, sys
 out = sys.argv[1]
 keys = [k for k in os.environ if k.startswith("_SCAN_")]
@@ -311,9 +317,9 @@ failed_rules=0
 total_subfailures=0
 profile_rows=""
 
-# Resolve python binary once; consumed by _gate_json_escape and inline NDJSON.
-GATE_PYTHON_BIN="$(command -v python3 || command -v python || echo '')"
-export GATE_PYTHON_BIN
+# GATE_PYTHON_BIN was resolved earlier (before scan_cache pre-population); it is
+# already exported so subshells inherit it. Consumed below by _gate_json_escape
+# and the inline NDJSON writer.
 
 # JSON-escape helper for the NDJSON reason field.
 _gate_json_escape() {
@@ -349,8 +355,12 @@ while IFS=$'\t' read -r idx slug _ _; do
     # "<num>[<a-z>]_<rule_slug>" (e.g. "73_gate_config_well_formed", "28a_...").
     rule_number_part="${slug%%_*}"
     rule_slug_only="${slug#*_}"
-    # Numeric component (strip trailing letter for the rule_number JSON field).
-    rule_number_int="${rule_number_part%%[a-z]}"
+    # Numeric component for the rule_number JSON field. Rule IDs come in
+    # three shapes: bare "24", lettered "28a", dotted "24.c"; strip from the
+    # first non-digit so all three normalise to their digit prefix and the
+    # downstream `printf '%d'` does not choke on "24." (the dot survived a
+    # naive `%%[a-z]` strip and printf 24. emits "invalid number").
+    rule_number_int="${rule_number_part%%[!0-9]*}"
     # Pid the worker batch ran in.
     worker_pid=0
     [[ -s "$WORK_DIR/pid_${rule_id}.txt" ]] && worker_pid="$(cat "$WORK_DIR/pid_${rule_id}.txt")"
@@ -411,7 +421,7 @@ fi
 # coverage without re-deriving counts. The serial-source count is taken from
 # the canonical script's rule-header set (em-dash or double-dash separator
 # tolerant); the parallel count is the size of manifest.tsv built above.
-_serial_rule_count=$(grep -cE '^# Rule [0-9]+[a-z]? (—|--) ' "$SOURCE_SCRIPT" 2>/dev/null || echo 0)
+_serial_rule_count=$(grep -cE '^# Rule [0-9]+.?[a-z]? (—|--) ' "$SOURCE_SCRIPT" 2>/dev/null || echo 0)
 echo "parallel_summary: executed ${total_rules} rules; serial source defined ${_serial_rule_count} rules"
 if [[ "${total_rules}" != "${_serial_rule_count}" ]]; then
   echo "GATE: FAIL (parallel/serial parity: executed ${total_rules} != serial ${_serial_rule_count}; Rule 88 / E121 would catch this in the serial canonical gate)"

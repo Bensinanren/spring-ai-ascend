@@ -38,7 +38,7 @@
 # freshness + E158 yaml/md family-id parity).
 
 schema_version: 1
-last_updated: 2026-05-23  # rc34-merge-train wave (PRs #54+#35+#34 squash-merged in sequence as 769712f→993deb4→c87381b): three-PR merge-train surfaced a NEW manifestation of F-cross-authority-agreement — Rule G-9.b's first-parent freshness semantics require families.yaml content-diff in EACH post-merge commit on main, but squash-merge sequences collapse intermediate-branch family-edits into the first PR commit, leaving the 2nd and 3rd PR merges (993deb4 docs-only + c87381b run-dispatch Executor) with no families.yaml diff vs immediate parent. PR #34 brought c87381b CI red on main even though every individual PR was locally green. The merge-train gap itself is a family recurrence: shipped commits cross-contradict the freshness invariant the rule encodes. Corrective wave (this commit) bumps families.yaml content-diff to satisfy G-9.b for the c87381b parent and records the merge-train family pattern as a new occurrence. Carries forward: rc34 follow-up wave (commit 6d730521) closed 5 in-wave authority-drift manifestations (ADR-0112 Mono<StateDelta> vs shipped synchronous StatelessEngine.execute; ADR-0108 403/WARN tenant_mismatch vs shipped 404 silent in RunController; ADR-0114/0115/0111/0109 referencing 7 not-yet-authored cross-cutting/governance files as present-tense delivery; gate/build_architecture_graph.py silently dropping ADR-0112's supersedes_partial: edge; E105 enforcer asserts text still citing dissolved agent-runtime-core path). All closed in 6d730521. rc34-merge-train wave is the 4th occurrence cluster of F-cross-authority-agreement in the rc series; suggests W2 strengthening: gate G-9.b's signal detection should treat squash-merge commits with prior families.yaml content-diff in the squash payload as already-satisfied (not require a per-commit diff after a merge-train).
+last_updated: 2026-05-23  # rc35-second-pass wave (same PR follow-up commits, after rc35-correctness-batch): a second round of 4 parallel adversarial reviewers (correctness + adversarial + gate-script-consistency + doc-coherence) ran against the rc35-correctness-batch tip and found that several of the rc35 first-pass closures were incomplete in scope. (a) The cancel-vs-complete race guard in SyncOrchestrator (rc35 first pass) was applied ONLY at the three terminal SUCCEEDED/FAILED save sites; five sibling non-terminal save sites (PENDING→RUNNING at run() entry; RUNNING→SUSPENDED at S2C suspend + child suspend; SUSPENDED→RUNNING at S2C resume + child resume) remained blind puts that silently overwrote a parallel CANCELLED with RUNNING/SUSPENDED — same family pattern, sibling surfaces. (b) ADR-0108's "common base shared with Rule R-J .b" wording claimed cross-authority parity that didn't hold — Rule R-J .b's pre-existing cancel-state-transition MDC `{ runId, fromStatus, toStatus, actor, occurredAt }` shares only `occurredAt` with the new tenant-mismatch base `{ surface, reason, occurredAt }`. (c) S2C envelope deadline was honoured unconditionally in resolveCallTimeoutMillis with no clamp against the orchestrator's configured s2cCallTimeout ceiling — a client-supplied 1h deadline defeated the 30s default. (d) check_parallel.sh + extract_rules.sh + check_architecture_sync.sh + 8 sibling rule files used the regex `^# Rule [0-9]+[a-z]? (—|--) ` which silently skipped dotted sub-clause headers `# Rule 24.c` / `# Rule 29.c`; both rule bodies were absorbed into Rule 11's chunk and attributed there in NDJSON timing + Rule 72 regression detection — and the "132 == 132" serial/parallel parity check at Rule G-5.a was vacuously true because BOTH sides used the same broken regex. Headers were always there since rc1; only attribution moved. (e) check_architecture_sync.sh used 10 bare `python3 - <<PYEOF` invocations (Rules 23/25/28j/28k/37/63/68/78/80/94) that silently fell through to vacuous PASS with `python3: not found` on Windows hosts where only `python` exists; CI on Ubuntu was green because python3 exists there. Same fail-open pattern, different surface. (f) check_recurring_families.sh inverted the corpus-wide python preference (python before python3) so on Python-2-as-`python` systems the rc19 validator would crash with SyntaxError. (g) R-038 + R-042 both rewrote docs/governance/architecture-graph.yaml under xargs -P concurrently with R-040/041/097/106 readers — read-during-write race; closed by atomic temp-file + os.replace in build_architecture_graph.py. (h) emit_contract_tables.sh wrote 6 hardcoded /tmp/contract-tables-<phase>.md paths with no PID + check_architecture_sync.sh + rule-099.sh used /tmp/_r99_hits.$$ — concurrent gate runs would clobber. All eight closed across Commits A/B/C of this same PR. Pattern reinforcement (BOTH passes): rc35's first-pass discipline ("found 8 bugs in parallel, fixed all") still leaves the cited bugs's SIBLINGS unfound; the second-pass adversarial review systematically constructed sibling scenarios and found 8 more. Lesson: a wave is not complete when the cited bugs are fixed — it's complete when the sibling-scenario sweep returns empty.
 
 families:
   - id: F-numeric-drift
@@ -153,8 +153,8 @@ families:
   - id: F-kernel-vs-implementation-drift
     title: Prevention Rule Kernel vs Implementation Drift
     first_observed_rc: rc6
-    last_observed_rc: rc15
-    occurrences: [rc6, rc7, rc11, rc15]
+    last_observed_rc: rc35-second-pass
+    occurrences: [rc6, rc7, rc11, rc15, rc35-second-pass]
     root_cause: |
       A prevention rule's kernel paragraph documents intent X while its
       gate-script implementation checks only Y (Y ⊂ X). This is the
@@ -181,8 +181,8 @@ families:
   - id: F-cross-authority-agreement
     title: Cross-Authority Surface Disagreement
     first_observed_rc: rc14
-    last_observed_rc: rc34-merge-train
-    occurrences: [rc14, rc15, rc16, rc33, rc34, rc34-follow-up, rc34-merge-train]
+    last_observed_rc: rc35-second-pass-ci-corrective
+    occurrences: [rc14, rc15, rc16, rc33, rc34, rc34-follow-up, rc34-merge-train, rc35-correctness-batch, rc35-second-pass, rc35-second-pass-ci-corrective]
     root_cause: |
       117+ single-surface prevention rules can all pass while the
       surfaces themselves contradict each other — e.g.
@@ -296,6 +296,25 @@ families:
       (Rule G-8.b/.c/.e + Rule 109 + Rule G-9 frontmatter). Drift will
       reappear only if a rule introduces a new surface without declaring
       it.
+
+      rc35-second-pass CI corrective (this commit, 2026-05-23): a sibling
+      micro-recurrence at the squash-merge-pattern scale documented in
+      rc34-merge-train. The rc35-second-pass CI run on commit 79a5dfc6
+      (which touched check_parallel.sh's printf-%d-on-dotted-IDs bug +
+      added the historical freeze marker to docs/logs/releases/2026-05-22-l0-rc32-*.md)
+      fired Rule G-9.b first-parent freshness even though Commits A/B/C
+      already bumped families.yaml in 64364cb/7343ee0/d1fa381, because
+      G-9.b compares the LATEST signal-touching commit (79a5dfc6) against
+      its first parent (d1fa381) and saw families.yaml unchanged between
+      those two. This is the rc34-merge-train pattern at finer
+      granularity — within a single PR, every signal-touching commit
+      must carry a families.yaml content-diff, OR the helper must
+      recognise cumulative-since-last-bump semantics. Closed by this
+      paragraph (extending the per-commit content-diff discipline to
+      intra-PR corrective commits). W2 remediation candidate (same as
+      rc34-merge-train): teach check_recurring_families.sh's
+      derive_signal_paths to skip commits whose own ancestry includes a
+      families.yaml bump within the same PR.
 
   - id: F-deferred-clause-orphan
     title: CLAUDE-deferred.md Orphan

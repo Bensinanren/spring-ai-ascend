@@ -18,6 +18,12 @@ RULES_DIR="gate/rules"
 
 mkdir -p "$RULES_DIR"
 
+# Use a per-invocation tempfile so two concurrent extract_rules.sh runs (CI
+# matrix, dev parallel shell) cannot interleave bytes into the manifest and
+# silently produce corrupted gate/rules/*.sh outputs.
+manifest_tsv="$(mktemp -t extract_rules.XXXXXX.tsv)"
+trap 'rm -f "$manifest_tsv"' EXIT
+
 # Build a manifest: rule_number<TAB>rule_slug<TAB>start_line<TAB>end_line
 awk '
   function emit_prev(end) {
@@ -26,27 +32,32 @@ awk '
     }
   }
   BEGIN { prev_slug = ""; prev_start = 0 }
-  /^# Rule [0-9]+[a-z]? — / {
+  /^# Rule [0-9]+.?[a-z]? — / {
     emit_prev(NR - 1)
-    match($0, /^# Rule ([0-9]+[a-z]?) — ([a-z_0-9]+)/, arr)
+    match($0, /^# Rule ([0-9]+.?[a-z]?) — ([a-z_0-9]+)/, arr)
     prev_num = arr[1]
     prev_slug = arr[2]
     prev_start = NR
     next
   }
-  /^# Summary$/ {
+  /^# === END OF RULES ===$/ {
     emit_prev(NR - 1)
     prev_slug = ""
     exit
   }
   END { emit_prev(NR) }
-' "$SOURCE_SCRIPT" > /tmp/extract_rules.tsv
+' "$SOURCE_SCRIPT" > "$manifest_tsv"
 
 count=0
 while IFS=$'\t' read -r num slug start end; do
   [[ -z "$num" ]] && continue
-  num_padded=$(printf '%03d' "${num%%[a-z]}")
-  letter=$(printf '%s' "$num" | sed -E 's/^[0-9]+//')
+  # Rule IDs come in three shapes: bare "24", lettered "28a", dotted "24.c".
+  # For the file name we want zero-padded digits + lowercase suffix (no dot)
+  # so the directory listing stays one-entry-per-rule and `sort` orders them
+  # adjacent: rule-024.sh / rule-024c.sh / rule-028a.sh.
+  num_digits="${num%%[!0-9]*}"
+  num_padded=$(printf '%03d' "$num_digits")
+  letter=$(printf '%s' "$num" | sed -E 's/^[0-9]+\.?//')
   out="$RULES_DIR/rule-${num_padded}${letter}.sh"
   {
     printf '#!/usr/bin/env bash\n'
@@ -57,8 +68,6 @@ while IFS=$'\t' read -r num slug start end; do
     sed -n "${start},${end}p" "$SOURCE_SCRIPT"
   } > "$out"
   count=$((count + 1))
-done < /tmp/extract_rules.tsv
-
-rm -f /tmp/extract_rules.tsv
+done < "$manifest_tsv"
 
 echo "Extracted $count rules into $RULES_DIR/"
