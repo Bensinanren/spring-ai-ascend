@@ -19,34 +19,20 @@ status: proposed
 ### 1.1 顶层设计背景 (L0 架构)
 
 #### 1.1.1 六大核心模块
+1. **智能体客户端 (agent-client)**：在 SaaS 应用与桌面应用中被集成，负责感知业务知识与状态，操作业务环境与工具，下发管理智能体配置，调用执行智能体服务。
+2. **智能体服务端 (agent-service)**：负责把图模式执行 of workflow 智能体与循环模式执行 of ReAct 智能体封装成微服务。
+3. **智能体执行引擎 (agent-execution-engine)**：**（本模块核心定界）** 负责提供两大类智能体的执行器，提供可供开发者使用的各种组件，如 workflow 会用到的 node、ReAct 会用到的 tool 和 hook。
+4. **智能体总线 (agent-bus)**：负责连接南北向 of C/S 通信流量，连接东西向 of A2A 通信流量。
+5. **智能体中间件 (agent-middleware)**：负责提供智能体需要的基础服务，如记忆服务、技能服务、知识服务、沙箱服务等。
+6. **智能体演进平台 (agent-evolve)**：负责在线与离线的智能体自主演进。
 
 #### 1.1.2 两种核心部署/集成模式
+- **平台中心模式 (Platform-Centric Mode)**：业务侧仅集成 `agent-client`，其他所有模块均部署在平台端（集中托管与运行，降低业务集成心智负担）。
+- **业务中心模式 (Business-Centric Mode)**：业务侧不仅集成 `agent-client`，还会在本地化（业务物理边界内）部署 `agent-service` 和 `agent-execution-engine`，实现就近计算；平台侧仅提供统一治理、互联互通及基础公共服务。
 
 ### 1.2 项目阶段背景与演进规划
 
 ### 1.3 设计原则与核心形态
-
-#### 1.3.1 两种智能体形态的封装
-
-#### 1.3.2 两种部署形态与集成调用方式（双模态）
-
-#### 1.3.3 异构智能体兼容设计原则
-
-#### 1.3.4 服务级背压与无状态原则（Reactive & Stateless）
-
-#### 1.3.5 A2A 多智能体协同与双向对等网络（Agent-to-Agent Network）
-
-#### 1.3.6 Task-Centric 状态控制与 A2A 中断信号体系
-
-#### 1.3.7 双轨快慢路径调度原则 (Dual-Track Fast/Slow-Path Routing)
-
-#### 1.3.8 异构引擎影子工具拦截与防腐原则 (Shadow-Plugin Anti-Corruption)
-
-### 1.4 逻辑执行粒度与四层状态生命周期定界
-
-### 1.5 Service 与 Engine 的核心分工界面原则
-
-### 1.6 Message-Centric 数据域与 Task-Centric 控制域的分离原则
 
 ## 2. 场景视图 (Scenarios View)
 
