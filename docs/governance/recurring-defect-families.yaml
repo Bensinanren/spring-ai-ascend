@@ -789,9 +789,7 @@ families:
       - "tools/codegraph/package.json"
       - "tools/codegraph/package-lock.json"
       - ".mcp.json"
-      - ".codegraph/codegraph.db (local regenerated artifact; git-ignored)"
       - "gate/lib/build_codegraph_nodegraph_evidence.py"
-      - "gate/release-ci-evidence/*codegraph-nodegraph*.evidence.yaml"
     prevention_rules:
       - Rule R-A (rc1 — Business/Platform Decoupling + Developer Self-Service kernel)
       - Rule 125 / E173 (rc40 — codegraph_install_truth gate: exact-pin + lockfileVersion>=3 + .mcp.json relative-shim ref; pinning-truth gate, not install-state)
@@ -801,15 +799,21 @@ families:
       the @colbymchenry/codegraph package name + the tools/codegraph/ path),
       but rc50 adds a separate local nodegraph evidence builder so the
       regenerated `.codegraph/codegraph.db` artifact is included in release
-      evidence without committing the SQLite database. A future second
-      project-local MCP tool either re-uses the same structural template
-      (a sibling rule with its own package name + path pair plus local
-      artifact evidence) or the rule is generalized to walk all entries of
-      `.mcp.json#mcpServers` and verify a `tools/<name>/` manifest exists
-      per entry. Generalization is deferred until a second tool actually
-      lands; current state is a single concrete enforcer plus a concrete
-      nodegraph evidence builder matching the single concrete tool the
-      platform ships.
+      evidence without committing the SQLite database. The builder also
+      distinguishes a clean git worktree (`repository.dirty: false`) from
+      a non-git or unreadable worktree (`repository.dirty: null`) so release
+      evidence does not conflate unknown status with clean status. A future
+      second project-local MCP tool either re-uses the same structural
+      template (a sibling rule with its own package name + path pair plus
+      local artifact evidence) or the rule is generalized to walk all
+      entries of `.mcp.json#mcpServers` and verify a `tools/<name>/`
+      manifest exists per entry. Generalization is deferred until a second
+      tool actually lands; current state is a single concrete enforcer plus
+      a concrete nodegraph evidence builder matching the single concrete
+      tool the platform ships. The local `.codegraph/codegraph.db` and
+      generated `gate/release-ci-evidence/*codegraph-nodegraph*.evidence.yaml`
+      bundles are intentionally not G-9.b signal surfaces: the former is
+      git-ignored local state, and the latter is release output.
 
   - id: F-l0-agentic-primitive-gap
     title: L0 Agentic-Primitive Contract Surface Gap

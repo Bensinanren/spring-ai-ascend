@@ -627,10 +627,9 @@ machine-local SQLite state into the repository.
 - `.mcp.json` — `mcpServers.codegraph` args must reference a relative path
   under `tools/codegraph/node_modules/@colbymchenry/codegraph/` so the
   install is cross-platform and PATH-independent.
-- `.codegraph/codegraph.db` — local regenerated nodegraph database; must
-  remain untracked, with release-time shape captured as evidence instead.
 - `gate/lib/build_codegraph_nodegraph_evidence.py` — converts the local DB
-  shape into auditable YAML.
+  shape into auditable YAML, including a true `repository.dirty: false`
+  value for clean git worktrees.
 
 **Prevention.**
 
@@ -649,13 +648,16 @@ the three surfaces fails the gate with actionable repair guidance.
 it hardcodes the `@colbymchenry/codegraph` package name and the
 `tools/codegraph/` path. rc50 closes the local-artifact evidence gap by
 adding nodegraph evidence for `.codegraph/codegraph.db` without committing
-the database. A second project-local MCP tool either re-uses the same
-structural template (a sibling rule with its own package name + path pair
-plus local artifact evidence) or the rule is generalized to walk all
+the database, and it keeps unknown git status distinct from clean status
+in the generated YAML. A second project-local MCP tool either re-uses the
+same structural template (a sibling rule with its own package name + path
+pair plus local artifact evidence) or the rule is generalized to walk all
 entries of `.mcp.json#mcpServers` and verify a `tools/<name>/` manifest
 exists per entry. Generalization is deferred until a second tool lands;
 the current concrete enforcer and evidence builder match the single
-concrete tool the platform ships.
+concrete tool the platform ships. The local DB and generated release
+evidence bundles remain outside G-9.b signal surfaces: they are local
+state and release output, respectively.
 
 ---
 
