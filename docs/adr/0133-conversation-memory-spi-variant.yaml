@@ -1,5 +1,5 @@
 id: ADR-0133
-title: "ConversationMemory: MemoryStore<String, ConversationTurn> variant for windowed FIFO + token-budget pruning + summarise-and-compact"
+title: "ConversationMemory: MemoryStore<String, ConversationWindow> variant for windowed FIFO + token-budget pruning + summarise-and-compact"
 status: accepted
 date: 2026-05-25
 level: L0
@@ -10,7 +10,7 @@ authors:
   - chao
 relates_to:
   - ADR-0123    # Memory unified SPI (parent MemoryStore<K, V>)
-  - ADR-0121    # ModelGateway SPI (Message + summary generation target)
+  - ADR-0121    # ModelGateway SPI (optional summary generation target hidden behind implementations)
   - ADR-0125    # Spring AI canonical integration boundary (Path a)
 context: |
   The senior-architect L0 review identified the absence of a
@@ -47,28 +47,29 @@ decision: |
   interfaces). Status: design_only at the time of landing;
   runtime_enforced when the W2 chat-memory implementation ships.
 
-  - **Parent interface**: `MemoryStore<String, ConversationTurn>`.
+  - **Parent interface**: `MemoryStore<String, ConversationWindow>`.
     The key is the conversation id (free-form string, opaque to
-    the platform); the value is a `ConversationTurn` record.
+    the platform); the value is a `ConversationWindow` record that
+    owns the ordered turn list.
   - **Default category**: overrides `MemoryStore.category()` to
     return `MemoryCategory.M2_EPISODIC` (session memory,
     TTL-bounded per ADR-0034).
   - **Required methods** (in addition to the inherited
     MemoryReader/MemoryWriter surface):
-      - `void addMessages(String tenantId, String conversationId,
-                          List<Message> messages)` — append in
+      - `void addTurns(String tenantId, String conversationId,
+                       List<ConversationTurn> turns)` — append in
         insertion order; empty-list call is a no-op.
-      - `List<Message> getMessagesUpToBudget(String tenantId,
-                                              String conversationId,
-                                              int maxTokenBudget)` —
+      - `List<ConversationTurn> getTurnsUpToBudget(String tenantId,
+                                                    String conversationId,
+                                                    int maxTokenBudget)` —
         return the SUFFIX (most-recent turns) whose total token
         count is `<= maxTokenBudget`; drop OLDEST first.
-      - `Optional<Message> summariseAndCompact(String tenantId,
-                                                String conversationId,
-                                                int keepLastN)` —
+      - `Optional<ConversationTurn> summariseAndCompact(String tenantId,
+                                                        String conversationId,
+                                                        int keepLastN)` —
         replace the oldest `totalTurns - keepLastN` turns with a
-        single synthetic AssistantMessage summary; return the
-        summary message, or `Optional.empty()` when the
+        single synthetic assistant summary turn; return the
+        summary turn, or `Optional.empty()` when the
         conversation had `<= keepLastN` turns (no-op).
   - **Tenant scope**: every method takes `String tenantId`
     (Rule R-C.c). Blank tenantId or blank conversationId fails
@@ -77,10 +78,13 @@ decision: |
     not standardise the counter at L0. Implementations document
     their tokenizer (provider native, GPT-2 BPE, Llama, ...) in
     their own javadoc and behave deterministically per call.
-  - **Carrier type**: `ConversationTurn` is a pure-Java record
-    in the same package — `(Message message, Instant observedAt,
-    int tokenCount)`. Validates message + observedAt non-null and
-    tokenCount non-negative on construction.
+  - **Carrier types** ship in the same package: `ConversationWindow`
+    is `(List<ConversationTurn> turns, Map<String,Object> metadata)`;
+    `ConversationTurn` is `(ConversationRole role, String content,
+    Instant observedAt, int tokenCount, Map<String,Object> metadata)`.
+    Both defensively copy mutable fields. This keeps the memory SPI
+    independent from the model SPI; adapter layers may translate to
+    model `Message` values outside the SPI boundary.
 
   Contract supplement lives at the END of
   `docs/contracts/memory-store.v1.yaml` under a
@@ -102,9 +106,8 @@ consequences: |
   - Tenant-scoped conversation memory allows per-tenant retention
     policy attachment (TTL, redaction, conversation-id namespacing)
     at the W2 wave without changing the SPI signature.
-  - Reuses the existing `Message` sealed type from
-    `com.huawei.ascend.middleware.model.spi` — no duplication of
-    the chat-message taxonomy.
+  - Keeps the memory SPI pure: no dependency on the model SPI is
+    required to store, prune, or summarise conversation windows.
 
   Negative / residual:
   - `ConversationMemory` is design_only at the time of landing;
@@ -118,7 +121,7 @@ consequences: |
   - Summarisation may call a ModelGateway internally, creating
     an implicit dependency from the M2 memory backend to the
     LLM gateway. The SPI surface intentionally hides this — the
-    `summariseAndCompact` return is just a `Message`.
+    `summariseAndCompact` return is just a `ConversationTurn`.
 
 alternatives_considered: |
   - (A) Re-export Spring AI `ChatMemory` directly as the
@@ -126,7 +129,7 @@ alternatives_considered: |
     Audience B would couple to a provider type with no platform
     decoration seam and no platform tenant carrier.
   - (B) Express conversation memory as a free-form
-    `MemoryStore<String, List<Message>>` with the windowing
+    `MemoryStore<String, List<ConversationTurn>>` with the windowing
     policy left to the caller. Rejected — duplicates the
     windowing / token-budget / summarisation logic across every
     application and leaves the tokenizer-choice decision

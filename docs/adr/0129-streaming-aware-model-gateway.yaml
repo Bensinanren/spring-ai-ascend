@@ -53,8 +53,10 @@ decision: |
     - `ToolCallDelta(String callId, String skillKey, String argumentsDelta)`
       — partial tool-call argument stream.
     - `Complete(ModelResponse finalResponse)` — terminal chunk
-      carrying the fully assembled `ModelResponse`. The stream MUST
-      contain at most one `Complete` element which MUST be the last.
+      carrying the fully assembled `ModelResponse`. A successful stream
+      MUST contain exactly one `Complete` element which MUST be the last.
+      A cancelled stream may close before `Complete`, and provider/runtime
+      errors surface as stream exceptions rather than an L0 error chunk.
   - **Hook binding**: `HookPoint.BEFORE_LLM` fires once with
     `ModelInvocation` before stream open; `HookPoint.AFTER_LLM`
     fires once with the terminal `Complete.finalResponse()`. Per-chunk

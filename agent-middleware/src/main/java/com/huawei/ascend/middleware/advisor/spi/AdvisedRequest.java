@@ -1,7 +1,5 @@
 package com.huawei.ascend.middleware.advisor.spi;
 
-import com.huawei.ascend.middleware.model.spi.ModelInvocation;
-
 import java.util.Map;
 import java.util.Objects;
 
@@ -13,9 +11,8 @@ import java.util.Objects;
  * {@code docs/contracts/chat-advisor.v1.yaml}.
  *
  * @param tenantId        owning tenant (Rule R-C.c); MUST be non-blank.
- * @param invocation      the underlying tenant-scoped model invocation
- *                        that downstream advisors / the terminal
- *                        {@code ModelGateway.invoke} call will receive.
+ * @param requestEnvelope provider-neutral request payload that the
+ *                        terminal model gateway binding will receive.
  *                        Never null.
  * @param advisorContext  cross-advisor scratch map (e.g. PII
  *                        annotations, retrieval-augmentation traces,
@@ -27,16 +24,17 @@ import java.util.Objects;
  */
 public record AdvisedRequest(
         String tenantId,
-        ModelInvocation invocation,
+        Map<String, Object> requestEnvelope,
         Map<String, Object> advisorContext) {
 
     public AdvisedRequest {
         Objects.requireNonNull(tenantId, "tenantId");
-        Objects.requireNonNull(invocation, "invocation");
+        Objects.requireNonNull(requestEnvelope, "requestEnvelope");
         Objects.requireNonNull(advisorContext, "advisorContext");
         if (tenantId.isBlank()) {
             throw new IllegalArgumentException("tenantId must be non-blank (Rule R-C.c)");
         }
+        requestEnvelope = Map.copyOf(requestEnvelope);
         advisorContext = Map.copyOf(advisorContext);
     }
 }

@@ -17,11 +17,13 @@ Stable W0 routes: `GET /v1/health`, `GET /actuator/health`, `GET /actuator/prome
 
 **Inclusion rule:** Java `interface` types that represent named public extension points in the current reactor modules; not probes, not data carriers (records / sealed status types / exceptions), not implementations.
 
-SPI impls: thread-safe, no null returns. SPIs that process tenant-owned runtime data MUST carry tenant scope (via explicit `tenantId` argument or `RunContext.tenantId()`). SPI packages import only `java.*` plus same-spi-package siblings (ArchUnit `SpiPurityGeneralizedArchTest`). japicmp binary-compat from W1.
+SPI impls: thread-safe, no null returns. SPIs that process tenant-owned runtime data MUST carry tenant scope (via explicit `tenantId` argument or `RunContext.tenantId()`). rc52 agent-middleware SPI packages import only `java.*` plus same-package sibling carriers; broader historical cross-package SPI residuals are documented in root `ARCHITECTURE.md §3.7` and must not be used as precedent for new SPI design. japicmp binary-compat from W1.
 
-**Active SPI interfaces (38 total):**
+**Active SPI interfaces (40 total):**
 
 (rc43 baseline: 19 pre-rc43 + 14 rc43 agentic-contract-surface SPI surfaces (Agent + AgentRegistry + ModelGateway + Skill + SkillRegistry + MemoryStore + MemoryReader + MemoryWriter + SemanticMemoryStore + KnowledgeMemoryStore + VectorStore + Retriever + EmbeddingModel + Planner) per ADR-0120 / ADR-0121 / ADR-0122 / ADR-0123 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128. rc51 + 5 agentic-completeness SPI surfaces (StructuredOutputConverter + PromptTemplate + ChatAdvisor + AdvisorChain + ConversationMemory) per ADR-0129 / ADR-0130 / ADR-0131 / ADR-0132 / ADR-0133. rc51 also adds the `stream(...)` default method to the existing `ModelGateway` per ADR-0129 and supplements `model-invocation.v1.yaml` with the tool-call iteration loop per ADR-0134. ADR-0135 documents the deliberate decision not to add a separate `AgentSession` SPI.)
+
+(rc52 corrective: +2 streaming advisor sibling SPI surfaces (`StreamingChatAdvisor`, `StreamingAdvisorChain`) per ADR-0132. Agent-middleware SPI packages now use same-package carrier types for advisor, conversation-memory, and retrieval contracts so the strict purity rule is no cross-SPI dependencies.)
 
 | Interface | Module | Package | Status |
 |---|---|---|---|
@@ -62,16 +64,18 @@ SPI impls: thread-safe, no null returns. SPIs that process tenant-owned runtime 
 | `PromptTemplate` | `agent-middleware` | `com.huawei.ascend.middleware.prompt.spi` | rc51 design_only — tenant-scoped prompt rendering with sealed `PromptTemplateSource` (ADR-0131); reference adapter `SpringAiPromptTemplateAdapter` |
 | `ChatAdvisor` | `agent-middleware` | `com.huawei.ascend.middleware.advisor.spi` | rc51 design_only — interceptor SPI around `ModelGateway.invoke` (ADR-0132); customer-facing extension surface that binds to `HookDispatcher` internally at W2 |
 | `AdvisorChain` | `agent-middleware` | `com.huawei.ascend.middleware.advisor.spi` | rc51 design_only — chain abstraction passed to `ChatAdvisor.aroundCall(...)` (ADR-0132) |
-| `ConversationMemory` | `agent-middleware` | `com.huawei.ascend.middleware.memory.spi` | rc51 design_only — windowed FIFO + token-budget pruning variant `extends MemoryStore<String, ConversationTurn>`; default category `M2_EPISODIC` (ADR-0133) |
+| `StreamingChatAdvisor` | `agent-middleware` | `com.huawei.ascend.middleware.advisor.spi` | rc52 design_only — streaming sibling of `ChatAdvisor`; composes through same-package `AdvisedStreamChunk` (ADR-0132) |
+| `StreamingAdvisorChain` | `agent-middleware` | `com.huawei.ascend.middleware.advisor.spi` | rc52 design_only — continuation abstraction passed to `StreamingChatAdvisor.aroundStream(...)` (ADR-0132) |
+| `ConversationMemory` | `agent-middleware` | `com.huawei.ascend.middleware.memory.spi` | rc52 design_only — windowed FIFO + token-budget pruning variant `extends MemoryStore<String, ConversationWindow>`; default category `M2_EPISODIC` (ADR-0133) |
 
-**SPI count by module (rc51 baseline; sum = 38 matches headline):**
+**SPI count by module (rc52 baseline; sum = 40 matches headline):**
 
 | Module | SPI interfaces |
 |---|---|
 | `agent-service` | 9 (`RunRepository`, `GraphMemoryRepository`, `ResilienceContract`, `SkillCapacityRegistry`, `StatelessEngine`, `ContextProjector`, `TaskStateStore`, `Agent`, `AgentRegistry`) |
 | `agent-execution-engine` | 7 (`ExecutorAdapter`, `GraphExecutor`, `AgentLoopExecutor`, `EngineHookSurface`, `Checkpointer`, `Orchestrator`, `Planner`) |
 | `agent-bus` | 4 (`IngressGateway`, `S2cCallbackTransport`, `ReflectionEnvelopeRouter`, `FederationGateway`) |
-| `agent-middleware` | 17 (`RuntimeMiddleware`, `ModelGateway`, `StructuredOutputConverter`, `Skill`, `SkillRegistry`, `MemoryStore`, `MemoryReader`, `MemoryWriter`, `SemanticMemoryStore`, `KnowledgeMemoryStore`, `ConversationMemory`, `VectorStore`, `Retriever`, `EmbeddingModel`, `PromptTemplate`, `ChatAdvisor`, `AdvisorChain`) |
+| `agent-middleware` | 19 (`RuntimeMiddleware`, `ModelGateway`, `StructuredOutputConverter`, `Skill`, `SkillRegistry`, `MemoryStore`, `MemoryReader`, `MemoryWriter`, `SemanticMemoryStore`, `KnowledgeMemoryStore`, `ConversationMemory`, `VectorStore`, `Retriever`, `EmbeddingModel`, `PromptTemplate`, `ChatAdvisor`, `AdvisorChain`, `StreamingChatAdvisor`, `StreamingAdvisorChain`) |
 | `agent-evolve` | 1 (`SlowTrackJudge`) |
 | `agent-client` | 0 — consumer module; no SPI produced |
 | `spring-ai-ascend-graphmemory-starter` | 0 — sidecar adapter; no new SPI |
@@ -112,12 +116,17 @@ SPI impls: thread-safe, no null returns. SPIs that process tenant-owned runtime 
 | `HookPoint` | `agent-middleware` (`...middleware.spi`) | 10-value enum (before/after LLM/tool/memory + before_suspension + before_resume + on_error + on_yield); mirrors `engine-hooks.v1.yaml` |
 | `HookContext` | `agent-middleware` (`...middleware.spi`) | Hook invocation carrier record |
 | `HookOutcome` | `agent-middleware` (`...middleware.spi`) | Sealed: continue \| short_circuit \| fail |
+| `ModelFinishReason` | `agent-middleware` (`...middleware.model.spi`) | rc52 — closed enum for model termination (`STOP`, `LENGTH`, `TOOL_CALLS`, `CONTENT_FILTER`, `OTHER`); provider-native strings parsed before SPI entry (ADR-0121 / ADR-0134) |
 | `ModelResponseChunk` | `agent-middleware` (`...middleware.model.spi`) | rc51 — sealed streaming chunk: `ContentDelta` \| `ToolCallDelta` \| `Complete` (ADR-0129); terminal `Complete` carries the assembled `ModelResponse` |
 | `PromptTemplateSource` | `agent-middleware` (`...middleware.prompt.spi`) | rc51 — sealed prompt source: `InlineString` \| `ClasspathResource`; each carries a `PlaceholderSyntax` enum value (ADR-0131) |
 | `RenderedPrompt` | `agent-middleware` (`...middleware.prompt.spi`) | rc51 — record `(templateId, renderedText, variables)` returned by `PromptTemplate.render(...)` (ADR-0131) |
-| `AdvisedRequest` | `agent-middleware` (`...middleware.advisor.spi`) | rc51 — record `(tenantId, ModelInvocation invocation, advisorContext)` passed along the `ChatAdvisor` chain (ADR-0132) |
-| `AdvisedResponse` | `agent-middleware` (`...middleware.advisor.spi`) | rc51 — record `(tenantId, ModelResponse response, advisorContext)` returned along the chain (ADR-0132) |
-| `ConversationTurn` | `agent-middleware` (`...middleware.memory.spi`) | rc51 — record `(Message message, Instant observedAt, int tokenCount)` carried by `ConversationMemory` (ADR-0133) |
+| `AdvisedRequest` | `agent-middleware` (`...middleware.advisor.spi`) | rc52 — record `(tenantId, requestEnvelope, advisorContext)` passed along sync/stream advisor chains without model-SPI imports (ADR-0132) |
+| `AdvisedResponse` | `agent-middleware` (`...middleware.advisor.spi`) | rc52 — record `(tenantId, responseEnvelope, advisorContext)` returned along sync/stream advisor chains (ADR-0132) |
+| `AdvisedStreamChunk` | `agent-middleware` (`...middleware.advisor.spi`) | rc52 — sealed streaming-advisor chunk: `ContentDelta` \| `ToolCallDelta` \| `Complete` (ADR-0132) |
+| `ConversationRole` | `agent-middleware` (`...middleware.memory.spi`) | rc52 — role enum for conversation turns: `SYSTEM`, `USER`, `ASSISTANT`, `TOOL` (ADR-0133) |
+| `ConversationWindow` | `agent-middleware` (`...middleware.memory.spi`) | rc52 — record `(List<ConversationTurn> turns, Map metadata)` stored by `ConversationMemory` (ADR-0133) |
+| `ConversationTurn` | `agent-middleware` (`...middleware.memory.spi`) | rc52 — record `(ConversationRole role, String content, Instant observedAt, int tokenCount, Map metadata)` carried by `ConversationWindow` (ADR-0133) |
+| `RetrievedDocument` | `agent-middleware` (`...middleware.retrieval.spi`) | rc52 — same-package retrieval result carrier; replaces direct dependency on vector `Document` in `Retriever` (ADR-0124) |
 
 **Deferred / Promoted Design Names:**
 
@@ -159,7 +168,7 @@ Schema-first domain contracts (Rule M-2.a, formerly Rule 48). Each YAML file is 
 | `model-streaming.v1.yaml` | `docs/contracts/` | `design_only` | ADR-0129 (rc51 — Streaming-aware `ModelGateway.stream(...)`; runtime_enforced when W2 LLM gateway wires Spring AI `ChatModel.stream(...)`) |
 | `structured-output.v1.yaml` | `docs/contracts/` | `design_only` | ADR-0130 (rc51 — `StructuredOutputConverter<T>` SPI; reference adapter wraps Spring AI `BeanOutputConverter`) |
 | `prompt-template.v1.yaml` | `docs/contracts/` | `design_only` | ADR-0131 (rc51 — `PromptTemplate` SPI; reference adapter wraps Spring AI `PromptTemplate`) |
-| `chat-advisor.v1.yaml` | `docs/contracts/` | `design_only` | ADR-0132 (rc51 — `ChatAdvisor` interceptor SPI; binds to `HookDispatcher` internally at W2 LLM gateway + Telemetry Vertical per ADR-0061 §7) |
+| `chat-advisor.v1.yaml` | `docs/contracts/` | `design_only` | ADR-0132 (rc52 — `ChatAdvisor` + `StreamingChatAdvisor` interceptor SPIs; same-package carrier envelope avoids model-SPI dependency; binds to `HookDispatcher` internally at W2 LLM gateway + Telemetry Vertical per ADR-0061 §7) |
 
 Note: `evolution-scope.v1.yaml` lives under `docs/governance/`, not `docs/contracts/`, because it indexes governance-plane export rules rather than a wire/Java contract.
 

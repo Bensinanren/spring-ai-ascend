@@ -5,8 +5,9 @@
 # This file is the single source of truth for the shape of an
 # advised model-call envelope. The Java types
 # com.huawei.ascend.middleware.advisor.spi.ChatAdvisor,
-# AdvisedRequest, AdvisedResponse, and AdvisorChain mirror this
-# schema and validate required fields on construction.
+# StreamingChatAdvisor, AdvisedRequest, AdvisedResponse,
+# AdvisedStreamChunk, AdvisorChain, and StreamingAdvisorChain mirror
+# this schema and validate required fields on construction.
 #
 # Hook binding per ADR-0073 / ADR-0121: the advisor chain runs
 # around ModelGateway.invoke(...) inside
@@ -26,19 +27,33 @@ chat_advisor:
     - advisorName       # non-blank string
     - order             # int; Integer.MAX_VALUE is lowest precedence
     - aroundCall        # AdvisedRequest, AdvisorChain -> AdvisedResponse
+streaming_chat_advisor:
+  required_methods:
+    - advisorName       # non-blank string
+    - order             # int; same ordering semantics as ChatAdvisor
+    - aroundStream      # AdvisedRequest, StreamingAdvisorChain -> Stream<AdvisedStreamChunk>
 advised_request:
   required_fields:
     - tenantId          # non-blank (Rule R-C.c)
-    - invocation        # ModelInvocation (model-invocation.v1.yaml)
+    - requestEnvelope   # map<string, any>; provider-neutral request payload
     - advisorContext    # map<string, any>; mutable across chain but immutable per envelope
 advised_response:
   required_fields:
     - tenantId
-    - response          # ModelResponse (model-invocation.v1.yaml)
+    - responseEnvelope  # map<string, any>; provider-neutral response payload
     - advisorContext
 advisor_chain:
   required_methods:
     - next              # AdvisedRequest -> AdvisedResponse; each call advances exactly one chain step
+streaming_advisor_chain:
+  required_methods:
+    - proceed           # AdvisedRequest -> Stream<AdvisedStreamChunk>
+advised_stream_chunk:
+  variants:
+    - ContentDelta      # deltaText
+    - ToolCallDelta     # callId, skillKey, argumentsDelta
+    - Complete          # finalResponse: AdvisedResponse
+  ordering: "successful streams emit exactly one Complete and it is last; cancellation may omit Complete; provider errors surface as exceptions"
 
 # Binding (W2): ChatAdvisor chain runs around ModelGateway.invoke(...)
 # inside HookDispatcher.fire(BEFORE_LLM)/AFTER_LLM brackets. Audience B

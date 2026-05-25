@@ -37,7 +37,7 @@ model_response:
   required_fields:
     - content            # string, may be empty when only toolCalls emitted
     - toolCalls          # list<ToolCall>, may be empty
-    - finishReason       # enum: stop | length | tool_calls | content_filter | other
+    - finishReason       # ModelFinishReason enum: stop | length | tool_calls | content_filter | other
     - metadata           # map<string, any>
   optional_fields:
     - usage              # ModelUsage record (promptTokens, completionTokens, totalTokens)
@@ -60,13 +60,14 @@ tool_call:
 #     The platform re-invokes the ModelGateway with growing message
 #     history. Each iteration:
 #       1. ModelGateway.invoke(invocation) returns ModelResponse with
-#          finishReason "tool_calls" and a non-empty toolCalls list.
+#          finishReason ModelFinishReason.TOOL_CALLS and a non-empty toolCalls list.
 #       2. Platform dispatches each ToolCall to Skill.execute(...).
 #       3. Each SkillResult becomes a ToolResultMessage appended to
 #          the next invocation's messages.
-#       4. Loop terminates when finishReason is one of {stop, length,
-#          content_filter, other} OR a configured max-iteration cap
-#          fires (default: 10).
+#       4. Loop terminates when finishReason is one of {STOP, LENGTH,
+#          CONTENT_FILTER, OTHER} OR a configured max-iteration cap
+#          fires (default: 10). Provider-native strings MUST be parsed
+#          into ModelFinishReason before entering the SPI surface.
 #
 #   planner_driven_dispatch:
 #     The platform invokes Planner.plan(...) to obtain a Plan DAG,
@@ -85,7 +86,7 @@ tool_call_loop:
     - id: agent_driven_loop
       iteration_owner: ModelGateway
       termination_signals:
-        - "finishReason in {stop, length, content_filter, other}"
+        - "finishReason in {STOP, LENGTH, CONTENT_FILTER, OTHER}"
         - "configured max-iteration cap (default 10)"
       message_accumulation: "append ToolResultMessage for each ToolCall before next invoke"
     - id: planner_driven_dispatch

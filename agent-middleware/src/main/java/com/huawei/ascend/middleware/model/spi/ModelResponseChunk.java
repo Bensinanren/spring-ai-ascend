@@ -9,10 +9,11 @@ import java.util.Objects;
  * {@code docs/contracts/model-streaming.v1.yaml}.
  *
  * <p>Emitted by {@link ModelGateway#stream(ModelInvocation)} as a
- * finite ordered sequence. The stream MUST contain at most one
- * {@link Complete} element which MUST be the last element; all
- * preceding elements are {@link ContentDelta} or {@link ToolCallDelta}
- * fragments in arrival order.
+ * finite ordered sequence. A successful stream MUST contain exactly one
+ * {@link Complete} element which MUST be the last element; all preceding
+ * elements are {@link ContentDelta} or {@link ToolCallDelta} fragments
+ * in arrival order. A cancelled stream may close before Complete, and
+ * provider/runtime errors surface as exceptions from the stream.
  *
  * <p>Hook binding (ADR-0073): {@code HookPoint.BEFORE_LLM} fires
  * once before stream open; {@code HookPoint.AFTER_LLM} fires once on
@@ -65,7 +66,7 @@ public sealed interface ModelResponseChunk
     /**
      * Terminal chunk carrying the fully assembled response.
      *
-     * <p>Emitted exactly once at end-of-stream. The assembled
+     * <p>Emitted exactly once on successful end-of-stream. The assembled
      * {@link ModelResponse} surfaces {@code finishReason},
      * {@code usage}, the complete content string, and the assembled
      * tool calls — equivalent to what

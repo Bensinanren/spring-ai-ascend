@@ -9,7 +9,8 @@ affects_view: development, logical
 authors:
   - chao
 relates_to:
-  - ADR-0121    # ModelGateway SPI (advisor chain wraps invoke(ModelInvocation))
+  - ADR-0121    # ModelGateway SPI (advisor chain wraps model invocation)
+  - ADR-0129    # Streaming-aware ModelGateway (streaming advisor sibling)
   - ADR-0125    # Spring AI canonical integration boundary (Path a)
   - ADR-0073    # Engine hooks + HookPoint (advisor chain binds inside BEFORE_LLM/AFTER_LLM brackets)
   - ADR-0128    # Audience-B / starter-defaults posture (advisors are Audience B extension surface)
@@ -51,7 +52,13 @@ decision: |
     (stable, non-blank id), `int order()` (smaller runs first
     on the inbound leg; Spring's `Ordered.LOWEST_PRECEDENCE`
     convention), and `AdvisedResponse aroundCall(AdvisedRequest,
-    AdvisorChain)`. The SPI remains pure Java per Rule R-D.
+    AdvisorChain)`. The SPI remains pure Java per Rule R-D and does
+    not import the model SPI package.
+  - **Streaming sibling**: `StreamingChatAdvisor` mirrors the same
+    identity/order semantics with
+    `Stream<AdvisedStreamChunk> aroundStream(AdvisedRequest,
+    StreamingAdvisorChain)`. It is a same-package SPI, not a model-SPI
+    subtype, so streaming advice composes without cross-SPI imports.
   - **Tenant scope**: `AdvisedRequest` carries `tenantId`
     (Rule R-C.c). Both `AdvisedRequest` and `AdvisedResponse`
     reject null/blank tenantId on construction.
@@ -66,10 +73,13 @@ decision: |
     advisors at `AgentDefinition` time but never imports
     `HookDispatcher`.
   - **Value types** ship in the same package:
-    `AdvisedRequest` (record: tenantId, invocation, advisorContext)
-    `AdvisedResponse` (record: tenantId, response, advisorContext)
+    `AdvisedRequest` (record: tenantId, requestEnvelope, advisorContext)
+    `AdvisedResponse` (record: tenantId, responseEnvelope, advisorContext)
+    `AdvisedStreamChunk` (sealed: ContentDelta | ToolCallDelta | Complete)
     `AdvisorChain` (interface: `next(AdvisedRequest)
                     -> AdvisedResponse`)
+    `StreamingAdvisorChain` (interface: `proceed(AdvisedRequest)
+                              -> Stream<AdvisedStreamChunk>`)
 
   Contract schema lives at `docs/contracts/chat-advisor.v1.yaml`
   (status: design_only, runtime_enforced: false). Catalog row,
@@ -90,18 +100,18 @@ consequences: |
     wave without changing the SPI signature.
   - Around-call ordering via `order()` is explicit and stable;
     the `AdvisorChain.next(request)` shape supports inbound
-    mutation (e.g. retrieval augmentation rewriting the
-    `ModelInvocation.messages`) and outbound mutation
-    (e.g. citation-injection rewriting `ModelResponse.content`).
+    mutation (e.g. retrieval augmentation rewriting the request
+    envelope) and outbound mutation (e.g. citation-injection rewriting
+    the response envelope).
 
   Negative / residual:
   - `ChatAdvisor` is design_only until W2; no runtime binding
     today. The Audience-B-extension-seams ArchUnit guard is
     vacuous at L0 (no `examples/**` directory exists) and arms
     automatically when examples land in W3.
-  - The advisor chain is synchronous (pure Java per Rule R-D);
-    streaming-aware advisors are deferred to the streaming
-    ModelGateway wave (ADR-0129) and may need a sibling SPI.
+  - Runtime binding for both synchronous and streaming advisors is
+    still design_only until W2; the contract surface is complete, but
+    no production chain executor exists today.
 
 alternatives_considered: |
   - (A) Express advisors as `Plan.steps` with memory-scope

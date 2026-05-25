@@ -1,15 +1,13 @@
 package com.huawei.ascend.middleware.memory.spi;
 
-import com.huawei.ascend.middleware.model.spi.Message;
-
 import java.util.List;
 import java.util.Optional;
 
 /**
  * Tenant-scoped windowed conversation memory: a {@link MemoryStore}
- * variant whose key is a conversation id and whose value is an
- * ordered list of {@link Message} turns, with explicit token-budget
- * pruning and summarisation hooks.
+ * variant whose key is a conversation id and whose value is a
+ * {@link ConversationWindow}, with explicit token-budget pruning and
+ * summarisation hooks.
  *
  * <p>Authority: ADR-0133 (extends ADR-0123 unified Memory SPI).
  *
@@ -17,9 +15,9 @@ import java.util.Optional;
  *
  * <p>Implementations MUST:
  * <ul>
- *   <li>preserve insertion order across {@link #addMessages};</li>
- *   <li>return at most {@code maxTokenBudget} worth of messages from
- *       {@link #getMessagesUpToBudget}, dropping OLDEST first (FIFO);</li>
+ *   <li>preserve insertion order across {@link #addTurns};</li>
+ *   <li>return at most {@code maxTokenBudget} worth of turns from
+ *       {@link #getTurnsUpToBudget}, dropping OLDEST first (FIFO);</li>
  *   <li>treat {@link #summariseAndCompact} as a no-op when the
  *       conversation has fewer than {@code keepLastN} turns;</li>
  *   <li>fail closed on blank {@code tenantId} or {@code conversationId}.</li>
@@ -31,7 +29,7 @@ import java.util.Optional;
  *
  * <p>SPI purity per Rule R-D.
  */
-public interface ConversationMemory extends MemoryStore<String, ConversationTurn> {
+public interface ConversationMemory extends MemoryStore<String, ConversationWindow> {
 
     /** Default category for ConversationMemory implementations. */
     @Override
@@ -40,14 +38,14 @@ public interface ConversationMemory extends MemoryStore<String, ConversationTurn
     }
 
     /**
-     * Append messages to the conversation.
+     * Append turns to the conversation.
      *
      * @param tenantId        owning tenant (Rule R-C.c); non-blank.
      * @param conversationId  conversation identifier; non-blank.
-     * @param messages        ordered list of messages to append;
-     *                        never null, may be empty (no-op).
+     * @param turns           ordered list of turns to append; never
+     *                        null, may be empty (no-op).
      */
-    void addMessages(String tenantId, String conversationId, List<Message> messages);
+    void addTurns(String tenantId, String conversationId, List<ConversationTurn> turns);
 
     /**
      * Return the suffix of the conversation that fits within
@@ -58,25 +56,24 @@ public interface ConversationMemory extends MemoryStore<String, ConversationTurn
      * @param conversationId  conversation identifier; non-blank.
      * @param maxTokenBudget  upper bound on the returned message
      *                        token sum; MUST be positive.
-     * @return ordered list of messages whose total token count is
+     * @return ordered list of turns whose total token count is
      *         &le; {@code maxTokenBudget}; never null, may be empty.
      */
-    List<Message> getMessagesUpToBudget(String tenantId, String conversationId, int maxTokenBudget);
+    List<ConversationTurn> getTurnsUpToBudget(String tenantId, String conversationId, int maxTokenBudget);
 
     /**
      * Replace the OLDEST {@code totalTurns - keepLastN} turns of the
-     * conversation with a single synthetic AssistantMessage summary
-     * produced by the implementation. Implementations MAY call a
-     * ModelGateway to generate the summary; that detail is opaque to
-     * the SPI surface.
+     * conversation with a single synthetic assistant summary turn
+     * produced by the implementation. Summary generation details are
+     * opaque to the SPI surface.
      *
      * @param tenantId        owning tenant; non-blank.
      * @param conversationId  conversation identifier; non-blank.
      * @param keepLastN       number of trailing turns to preserve
      *                        verbatim; MUST be non-negative.
-     * @return the summary message inserted at the head of the kept
+     * @return the summary turn inserted at the head of the kept
      *         window, or {@link Optional#empty()} when no compaction
      *         happened (conversation had &le; keepLastN turns).
      */
-    Optional<Message> summariseAndCompact(String tenantId, String conversationId, int keepLastN);
+    Optional<ConversationTurn> summariseAndCompact(String tenantId, String conversationId, int keepLastN);
 }

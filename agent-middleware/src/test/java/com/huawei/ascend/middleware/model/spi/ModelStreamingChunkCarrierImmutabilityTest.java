@@ -58,7 +58,7 @@ class ModelStreamingChunkCarrierImmutabilityTest {
         ModelResponse response = new ModelResponse(
                 "hello",
                 List.of(),
-                "stop",
+                ModelFinishReason.STOP,
                 null,
                 Map.of("provider", "openai"));
         ModelResponseChunk.Complete chunk = new ModelResponseChunk.Complete(response);
@@ -79,7 +79,7 @@ class ModelStreamingChunkCarrierImmutabilityTest {
     @Test
     void modelGatewayDefaultStreamThrowsUnsupportedOperationWithDesignOnlyMessage() {
         ModelGateway gateway = invocation -> new ModelResponse(
-                "ignored", List.of(), "stop", null, Map.of());
+                "ignored", List.of(), ModelFinishReason.STOP, null, Map.of());
         ModelInvocation invocation = new ModelInvocation(
                 "tenant",
                 "model",
@@ -96,7 +96,7 @@ class ModelStreamingChunkCarrierImmutabilityTest {
     @Test
     void modelGatewayDefaultStreamRejectsNullInvocation() {
         ModelGateway gateway = invocation -> new ModelResponse(
-                "ignored", List.of(), "stop", null, Map.of());
+                "ignored", List.of(), ModelFinishReason.STOP, null, Map.of());
 
         assertThatThrownBy(() -> gateway.stream(null))
                 .isInstanceOf(NullPointerException.class)
@@ -108,7 +108,7 @@ class ModelStreamingChunkCarrierImmutabilityTest {
         ModelResponse finalResponse = new ModelResponse(
                 "hello",
                 List.of(),
-                "stop",
+                ModelFinishReason.STOP,
                 null,
                 Map.of());
         ModelGateway streaming = new ModelGateway() {

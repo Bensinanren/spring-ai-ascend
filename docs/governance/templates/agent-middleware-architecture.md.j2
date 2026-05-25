@@ -72,8 +72,10 @@ yaml↔enum consistency). Nine canonical hook points:
 
 ## 4. Forbidden imports (SPI purity per Rule R-D, formerly Rule 32)
 
-The `com.huawei.ascend.middleware.spi.*` packages import only from `java.*`
-and own spi siblings. Enforced by `SpiPurityGeneralizedArchTest` (E48).
+Every `com.huawei.ascend.middleware..spi..` package imports only from
+`java.*` and same-package SPI siblings. Enforced by
+`SpiPurityGeneralizedArchTest` (E48). Cross-SPI dependency is not an
+allowed design escape hatch; adapter layers translate between packages.
 Constructive impls under `com.huawei.ascend.middleware.*` may use any
 agent-* dep listed in `module-metadata.yaml#allowed_dependencies` (today:
 empty — the W2 Telemetry Vertical may widen this).
@@ -147,13 +149,15 @@ Mode-B (Business-Centric per ADR-0101): `agent-middleware` lives on the platform
 | `com.huawei.ascend.middleware.memory.spi.MemoryWriter` | `middleware.memory.spi` | rc43 — write-only half of MemoryStore (ADR-0123 CQRS split) |
 | `com.huawei.ascend.middleware.memory.spi.SemanticMemoryStore` | `middleware.memory.spi` | rc43 — M3 marker (ADR-0123) |
 | `com.huawei.ascend.middleware.memory.spi.KnowledgeMemoryStore` | `middleware.memory.spi` | rc43 — M5 marker (ADR-0123) |
-| `com.huawei.ascend.middleware.memory.spi.ConversationMemory` | `middleware.memory.spi` | rc51 — windowed FIFO + token-budget pruning variant `extends MemoryStore<String, ConversationTurn>`; default category `M2_EPISODIC` (ADR-0133) |
+| `com.huawei.ascend.middleware.memory.spi.ConversationMemory` | `middleware.memory.spi` | rc52 — windowed FIFO + token-budget pruning variant `extends MemoryStore<String, ConversationWindow>`; default category `M2_EPISODIC` (ADR-0133) |
 | `com.huawei.ascend.middleware.vector.spi.VectorStore` | `middleware.vector.spi` | rc43 — tenant-scoped vector storage + similarity search (ADR-0124) |
 | `com.huawei.ascend.middleware.retrieval.spi.Retriever` | `middleware.retrieval.spi` | rc43 — composition layer over VectorStore(s) (ADR-0124) |
 | `com.huawei.ascend.middleware.embedding.spi.EmbeddingModel` | `middleware.embedding.spi` | rc43 — text embedding boundary (ADR-0124); `modelVersion()` feeds `MemoryMetadata.embeddingModelVersion` |
 | `com.huawei.ascend.middleware.prompt.spi.PromptTemplate` | `middleware.prompt.spi` | rc51 — tenant-scoped prompt-rendering boundary with sealed `PromptTemplateSource` (InlineString / ClasspathResource) per ADR-0131; reference adapter `SpringAiPromptTemplateAdapter` |
-| `com.huawei.ascend.middleware.advisor.spi.ChatAdvisor` | `middleware.advisor.spi` | rc51 — interceptor SPI around `ModelGateway.invoke` per ADR-0132; chain composes via `AdvisorChain.next(AdvisedRequest)`; bound to `HookDispatcher` internally at W2 |
+| `com.huawei.ascend.middleware.advisor.spi.ChatAdvisor` | `middleware.advisor.spi` | rc52 — interceptor SPI around model invocation per ADR-0132; chain composes via `AdvisorChain.next(AdvisedRequest)`; same-package request/response envelopes avoid model-SPI imports |
 | `com.huawei.ascend.middleware.advisor.spi.AdvisorChain` | `middleware.advisor.spi` | rc51 — chain abstraction passed to `ChatAdvisor.aroundCall(...)` per ADR-0132 |
+| `com.huawei.ascend.middleware.advisor.spi.StreamingChatAdvisor` | `middleware.advisor.spi` | rc52 — streaming sibling of `ChatAdvisor`; composes through `StreamingAdvisorChain.proceed(AdvisedRequest)` and `AdvisedStreamChunk` (ADR-0132) |
+| `com.huawei.ascend.middleware.advisor.spi.StreamingAdvisorChain` | `middleware.advisor.spi` | rc52 — continuation abstraction passed to `StreamingChatAdvisor.aroundStream(...)` per ADR-0132 |
 
 (`HookDispatcher` is implementation at the package root, not in `.spi`; not counted as SPI surface. Reference Spring AI adapters for the rc43 SPIs live in `agent-service` under `service.integration.springai` per ADR-0125; rc51 adds `SpringAiBeanOutputConverterAdapter` and `SpringAiPromptTemplateAdapter` to the same package.)
 

@@ -18,7 +18,7 @@ context: |
   loop as under-specified at the contract layer (finding P1-2):
   `docs/contracts/model-invocation.v1.yaml` declares the request /
   response envelope for a SINGLE `ModelGateway.invoke(...)` call
-  including `finishReason = "tool_calls"` and a `toolCalls` list,
+  including `finishReason = ModelFinishReason.TOOL_CALLS` and a `toolCalls` list,
   but says NOTHING about how the platform re-invokes the model
   after dispatching the tool calls, when the loop terminates,
   what owns iteration, or how planner-driven dispatch differs
@@ -28,7 +28,7 @@ context: |
 
   - W2 LLM gateway implementations have no fixed termination
     contract — implementations could diverge on max-iteration
-    caps, finishReason handling, or message accumulation rules.
+    caps, provider-string parsing, or message accumulation rules.
   - The relationship between `ModelGateway` iteration (ADR-0121)
     and `Planner.plan(...)` dispatch (ADR-0126) is implicit:
     is the planner a step inside the model loop, or is the loop
@@ -51,7 +51,7 @@ decision: |
     `ModelGateway`):
       1. Platform calls `ModelGateway.invoke(invocation)` with
          the running message history.
-      2. If `ModelResponse.finishReason == "tool_calls"` and
+      2. If `ModelResponse.finishReason == ModelFinishReason.TOOL_CALLS` and
          `toolCalls` is non-empty, the platform dispatches each
          `ToolCall` to `Skill.execute(...)` (resolution per
          ADR-0122 SkillRef binding).
@@ -61,7 +61,7 @@ decision: |
       4. The platform re-invokes `ModelGateway.invoke(...)` with
          the grown history.
       5. The loop terminates when `finishReason` is one of
-         `{stop, length, content_filter, other}` OR a configured
+         `{STOP, LENGTH, CONTENT_FILTER, OTHER}` OR a configured
          max-iteration cap fires (default: 10 turns).
 
   - **Mode B — `planner_driven_dispatch`** (the iteration owner
@@ -95,6 +95,11 @@ decision: |
     toolResultMessages`. The platform owns appending; advisors
     (ADR-0132) may rewrite the accumulated list inside the
     around-call chain.
+
+  - **Finish-reason parsing**: provider-native strings are parsed
+    into `ModelFinishReason` before entering the SPI surface. Unknown
+    strings fail fast at adapter boundaries instead of flowing through
+    the loop as unenforced text.
 
   Contract supplement lives at the END of
   `docs/contracts/model-invocation.v1.yaml` under a

@@ -1,7 +1,5 @@
 package com.huawei.ascend.middleware.advisor.spi;
 
-import com.huawei.ascend.middleware.model.spi.ModelResponse;
-
 import java.util.Map;
 import java.util.Objects;
 
@@ -13,12 +11,9 @@ import java.util.Objects;
  * {@code docs/contracts/chat-advisor.v1.yaml}.
  *
  * @param tenantId        owning tenant (Rule R-C.c); MUST be non-blank.
- * @param response        the underlying model response — either
- *                        returned by the terminal
- *                        {@code ModelGateway.invoke} call or
- *                        synthesised by a short-circuiting advisor
- *                        (cache hit, PII rejection, policy denial).
- *                        Never null.
+ * @param responseEnvelope provider-neutral response payload returned by
+ *                         the terminal gateway binding or synthesised
+ *                         by a short-circuiting advisor. Never null.
  * @param advisorContext  cross-advisor scratch map propagated back up
  *                        the chain (e.g. citation annotations, cost
  *                        attribution totals, redaction reports). The
@@ -30,16 +25,17 @@ import java.util.Objects;
  */
 public record AdvisedResponse(
         String tenantId,
-        ModelResponse response,
+        Map<String, Object> responseEnvelope,
         Map<String, Object> advisorContext) {
 
     public AdvisedResponse {
         Objects.requireNonNull(tenantId, "tenantId");
-        Objects.requireNonNull(response, "response");
+        Objects.requireNonNull(responseEnvelope, "responseEnvelope");
         Objects.requireNonNull(advisorContext, "advisorContext");
         if (tenantId.isBlank()) {
             throw new IllegalArgumentException("tenantId must be non-blank (Rule R-C.c)");
         }
+        responseEnvelope = Map.copyOf(responseEnvelope);
         advisorContext = Map.copyOf(advisorContext);
     }
 }
