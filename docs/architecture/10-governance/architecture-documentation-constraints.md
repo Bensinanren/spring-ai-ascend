@@ -339,6 +339,25 @@ Harness Generation Notes
 
 **适用文档：** Overview、Scenario Specs、Capability Map、Verification Matrix、Architecture Review Process。
 
+### DOC-C-012: 每个架构文档必须登记到 Document Artifact Catalog
+
+**规则：** `docs/architecture/` 下的每个 Markdown 文档和机器可读 contract 草案都必须登记到 [Document Artifact Catalog](document-artifact-catalog.md)，并说明主要内容、主要作用、对应 A2D 活动和质量检查点。
+
+**禁止模式：**
+
+- 新增文档后没有进入 Document Artifact Catalog。
+- 文件职责发生变化，但 catalog 仍然描述旧职责。
+- 一个文件长期承载多个主职责，却没有拆分或说明主职责。
+- catalog 只写目录层级，不说明单个文件的质量检查点。
+
+**检查方式：**
+
+- 扫描 `docs/architecture/` 文件列表，与 Document Artifact Catalog 的文件行对齐。
+- Review 时检查新增、删除、改名和职责变化是否同步更新 catalog。
+- 如果某个文件找不到清晰的主要作用，必须回到 A2D Working Model 判断它是否应该存在或是否应合并到已有产物。
+
+**适用文档：** 所有 `docs/architecture/**/*.md` 和 `docs/architecture/05-contracts/machine-readable/*.yaml`。
+
 ## 7. 当前已沉淀的问题
 
 | Finding | 约束化结果 |
@@ -348,6 +367,7 @@ Harness Generation Notes
 | 核心控制流写 `Workflow`，但未定义真实落点。 | DOC-C-003 |
 | Tool Gateway / Context Engine 被误读为真实模块。 | DOC-C-002 |
 | S1-S6 技术机制场景被当成核心场景，无法检验业务活动级模块组合。 | DOC-C-011 |
+| A2D 产物和归档位置对不上，读者需要自行推断文件职责。 | DOC-C-012 |
 
 ## 8. 后续可自动化检查
 
@@ -359,3 +379,4 @@ Harness Generation Notes
 4. 检查 Overview 的准入判定是否覆盖 root `pom.xml` 现有项，并确认 BoM / starter / fixture / demo 未进入 L0 模块边界。
 5. 检查 Overview 核心场景索引是否以 BA-* 为主表，technical scenario 是否只作为子场景。
 6. 检查 `Open Issues` / `Conflict` / `Unverified` 是否出现在集中清单或 Verification Matrix。
+7. 检查 `docs/architecture/` 文件列表是否全部登记在 Document Artifact Catalog。
