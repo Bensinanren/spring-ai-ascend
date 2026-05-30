@@ -19,7 +19,7 @@ scope_surfaces:
   - docs/governance/SESSION-START-CONTEXT.md
   - gate/lib/check_ai_reading_path.py
 kernel: |
-  The product-first eight-node entry path an AI agent (or a new engineer) reads to reach a top-down, unbiased understanding of the platform is declared in the data file `docs/governance/ai-reading-path.yaml` and mirrored in its human-readable companion `docs/onboarding/ai-understanding-path.md`. Rule G-31 asserts that path is MATERIALIZABLE and that the entry documents route a reader onto it; it invents no id and no relationship and never outranks a surface it points at (cascade: generated facts > DSL > Card/prose). It runs three checks: SURFACE EXISTENCE — every `orientation_learning_path` surface marked `presence: present` resolves to a file or directory on disk (a `presence: planned` surface MAY be absent — it names a governed target landing in a later wave), and the `companion_human_form` mirror plus every `entry_contract.factual_claim_switch.read_before_prose` generated-fact file exist (`MISSING-SURFACE` / `MISSING-COMPANION` / `MISSING-FACT-FILE`); ENTRY-DOC ROUTING — every step-1 `repository_entry` document (`README.md` / `CLAUDE.md` / `AGENTS.md`) plus the always-load `docs/governance/SESSION-START-CONTEXT.md` references either the data file or its companion, so a reader who lands on any entry doc finds the canonical order (`MISSING-MARKER`); YAML↔COMPANION LOCKSTEP — the companion back-references the data file and carries a heading for every step the YAML declares, so step coverage cannot silently drift (`LOCKSTEP-BROKEN` / `LOCKSTEP-STEP`). The single gate Rule 148 invokes `gate/lib/check_ai_reading_path.py` (E198), which reads the data file + the companion as the navigation/identity authority and the disk as the factual authority. `docs/governance/ai-reading-path.yaml` is greenfield-vacuous when it is absent; the instant it exists it MUST parse, and its companion + factual-claim-switch fact files MUST be readable, or the check fails closed (exit 2) in every mode — a missing authority is never an advisory condition. Runs ADVISORY at this rung per the ADR-0159 §13.3 ratchet (advisory → changed-files-blocking → full-blocking, the terminal rung once the entry-doc corpus has migrated from the legacy architecture-first reading path to this product-first chain): findings are reported to the gate log and never block. Under `changed-files-blocking` a finding blocks only when the path's authoring surfaces (the data file, the companion, or a step-1 entry doc) changed relative to `--base` (default `origin/main`, else `HEAD`) — the path is a single shared navigation surface, so a change to any of them re-scopes the whole path. `full-blocking` blocks on any finding. A missing helper fails closed; a missing python interpreter is a vacuous pass (Rule G-7 lists WSL as the canonical env).
+  The product-first eight-node entry path an AI agent (or a new engineer) reads to reach a top-down, unbiased understanding of the platform is declared in the data file `docs/governance/ai-reading-path.yaml` and mirrored in its human-readable companion `docs/onboarding/ai-understanding-path.md`. Rule G-31 asserts that path is MATERIALIZABLE and that the entry documents route a reader onto it; it invents no id and no relationship and never outranks a surface it points at (cascade: generated facts > DSL > Card/prose). It runs three checks: SURFACE EXISTENCE — every `orientation_learning_path` surface marked `presence: present` resolves to a file or directory on disk (a `presence: planned` surface MAY be absent — it names a governed target landing in a later wave), and the `companion_human_form` mirror plus every `entry_contract.factual_claim_switch.read_before_prose` generated-fact file exist (`MISSING-SURFACE` / `MISSING-COMPANION` / `MISSING-FACT-FILE`); ENTRY-DOC ROUTING — every step-1 `repository_entry` document (`README.md` / `CLAUDE.md` / `AGENTS.md`) plus the always-load `docs/governance/SESSION-START-CONTEXT.md` references either the data file or its companion, so a reader who lands on any entry doc finds the canonical order (`MISSING-MARKER`); YAML↔COMPANION LOCKSTEP — the companion back-references the data file and carries a heading for every step the YAML declares, so step coverage cannot silently drift (`LOCKSTEP-BROKEN` / `LOCKSTEP-STEP`). The single gate Rule 148 invokes `gate/lib/check_ai_reading_path.py` (E198), which reads the data file + the companion as the navigation/identity authority and the disk as the factual authority. `docs/governance/ai-reading-path.yaml` is greenfield-vacuous when it is absent; the instant it exists it MUST parse, and its companion + factual-claim-switch fact files MUST be readable, or the check fails closed (exit 2) in every mode — a missing authority is never an advisory condition. Runs CHANGED-FILES-BLOCKING at this rung per the ADR-0159 §13.3 ratchet (advisory → changed-files-blocking → full-blocking, the terminal rung once the entry-doc corpus has migrated from the legacy architecture-first reading path to this product-first chain): a PR may not ADD or WORSEN a finding once it touches the path's authoring surfaces (the data file, the companion, or a step-1 entry doc), and a finding blocks only when those surfaces changed relative to `--base` (default `origin/main`, else `HEAD`) — the path is a single shared navigation surface, so a change to any of them re-scopes the whole path; pre-existing findings while those surfaces are untouched stay advisory. `full-blocking` (deferred) blocks on any finding. A missing helper fails closed; a missing python interpreter is a vacuous pass (Rule G-7 lists WSL as the canonical env).
 ---
 
 # Rule G-31 — AI Reading Path Integrity
@@ -116,20 +116,20 @@ never an advisory condition.
 
 ## Ratchet
 
-advisory (THIS rung: findings are reported to the gate log and never block) →
-changed-files-blocking (a PR may not ADD or WORSEN a finding once it touches the
-path's authoring surfaces — the data file, the companion, or a step-1 entry doc;
-because the path is a single shared navigation surface, a change to any of them
-re-scopes the whole path; the scope derives from `--base`, default `origin/main`,
-else `HEAD` — the same git-deriving pattern as Rule 145 / E194 `check_layer_purity.py`,
-Rule 146 / E196 `check_frame_card_consistency.py`, and Rule 147 / E197
-`check_feature_readiness.py`) → full-blocking (the terminal posture once the
-entry-doc corpus has migrated from the legacy architecture-first reading path to
-this product-first chain and the path is clean). The helper `--mode` flags
-(`advisory` / `changed-files-blocking` / `full-blocking`) implement the rungs.
-Promotion to a blocking rung lands when the entry docs route onto the path; a
-missing helper fails closed; a missing python interpreter is a vacuous pass (Rule
-G-7 lists WSL as the canonical env).
+advisory → changed-files-blocking (THIS rung: a PR may not ADD or WORSEN a finding
+once it touches the path's authoring surfaces — the data file, the companion, or a
+step-1 entry doc; because the path is a single shared navigation surface, a change
+to any of them re-scopes the whole path; the scope derives from `--base`, default
+`origin/main`, else `HEAD` — the same git-deriving pattern as Rule 145 / E194
+`check_layer_purity.py`, Rule 146 / E196 `check_frame_card_consistency.py`, and
+Rule 147 / E197 `check_feature_readiness.py`; pre-existing findings while those
+surfaces are untouched stay advisory) → full-blocking (DEFERRED — the terminal
+posture once the entry-doc corpus has migrated from the legacy architecture-first
+reading path to this product-first chain and the path is clean). The helper
+`--mode` flags (`advisory` / `changed-files-blocking` / `full-blocking`) implement
+the rungs. Promotion to the full-blocking rung lands when the entry-doc corpus is
+fully migrated and the soak window closes; a missing helper fails closed; a missing
+python interpreter is a vacuous pass (Rule G-7 lists WSL as the canonical env).
 
 ## Test fixtures
 
@@ -150,7 +150,11 @@ G-7 lists WSL as the canonical env).
              `LOCKSTEP-BROKEN`; a companion missing a heading for a declared step
              yields `LOCKSTEP-STEP`.
   - VALID  : advisory mode reports findings but never blocks (exit 0) — the
-             first-cleanup-wave posture.
+             helper retains its advisory rung even though the gate now wires it
+             changed-files-blocking.
+  - VALID  : the canonical gate `gate/check_architecture_sync.sh` invokes the helper
+             `--mode changed-files-blocking --base` (never `--mode advisory`) — the
+             wrapper-posture lock for the W27 promotion (full-blocking deferred).
   - INVALID: a present-but-malformed data file (e.g.
              `orientation_learning_path` not a list) fails closed (exit 2) in every
              mode including advisory — a missing/broken authority is never advisory.
@@ -158,8 +162,8 @@ G-7 lists WSL as the canonical env).
 ## Cross-references
 
   - ADR-0159 — Progressive Learning Curve and Authority Lanes (the authority this
-    rule enforces: the product-first eight-node chain and the §13.3 advisory landing
-    rung)
+    rule enforces: the product-first eight-node chain and the §13.3 ratchet, now at
+    the changed-files-blocking rung)
   - ADR-0160 — ADR Normalization (the normalized-ADR index the path routes step 3
     to for current decision authority)
   - ADR-0154 — Fact-Layer Authority (the cascade `generated facts > DSL > Card/prose`

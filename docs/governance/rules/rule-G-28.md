@@ -19,7 +19,7 @@ scope_surfaces:
   - gate/lib/check_adr_taxonomy.py
   - gate/lib/check_historical_adr_governance.py
 kernel: |
-  Architecture review reads the NORMALIZED ADR view, not raw historical prose. Every raw ADR enumerated in `architecture/facts/generated/adrs.json` MUST have a ledger entry in `docs/governance/adr-remediation-ledger.yaml`, and every `accepted` ADR MUST have a normalized view at `docs/adr/normalized/ADR-NNNN.yaml` — this ledger-totality + normalized-view-coverage assertion (E193) is BLOCKING: the normalization wave back-filled the corpus to total coverage. Each normalized view MUST satisfy `docs/governance/adr-governance-policy.yaml` (required fields + the closed five-value `current_state` set + per-state field invariants) AND `docs/governance/adr-taxonomy.yaml` (the per-`decision_level` `decision_type` altitude — a forbidden lower-altitude `decision_type` is layer-purity leakage and is rejected); this per-view altitude validation (E192) stays advisory while its corpus is brought into altitude. Ratchet: E193 is at the full-blocking rung; E192 remains advisory, then changed-files-blocking, then full-blocking once every view is altitude-clean.
+  Architecture review reads the NORMALIZED ADR view, not raw historical prose. Every raw ADR enumerated in `architecture/facts/generated/adrs.json` MUST have a ledger entry in `docs/governance/adr-remediation-ledger.yaml`, and every `accepted` ADR MUST have a normalized view at `docs/adr/normalized/ADR-NNNN.yaml` — this ledger-totality + normalized-view-coverage assertion (E193) is BLOCKING: the normalization wave back-filled the corpus to total coverage. Each normalized view MUST satisfy `docs/governance/adr-governance-policy.yaml` (required fields + the closed five-value `current_state` set + per-state field invariants) AND `docs/governance/adr-taxonomy.yaml` (the per-`decision_level` `decision_type` altitude — a forbidden lower-altitude `decision_type` is layer-purity leakage and is rejected); this per-view altitude validation (E192) runs changed-files-blocking — a PR may not ADD or WORSEN a taxonomy violation in a normalized view it touches. Ratchet: E193 is at the full-blocking rung; E192 has been promoted advisory → changed-files-blocking (THIS rung), then full-blocking (deferred) once every view is altitude-clean and the soak window closes.
 ---
 
 # Rule G-28 — ADR Normalization
@@ -122,8 +122,11 @@ and both gate helpers cite `authority: ADR-0160` as their normative source.
 
 The single gate Rule 144 invokes two helpers at different ratchet rungs:
 
-- `gate/lib/check_adr_taxonomy.py` (E192) — runs **advisory** (reports findings
-  but never blocks while the per-view altitude corpus is brought clean).
+- `gate/lib/check_adr_taxonomy.py` (E192) — runs **changed-files-blocking**
+  (`--mode changed-files-blocking --base`): a PR may not ADD or WORSEN a taxonomy
+  violation in a normalized view it touches; pre-existing findings on untouched
+  views stay advisory, and when git cannot resolve the base the helper falls back
+  to validating the whole corpus (a safe superset).
   Validates each normalized view against the two policy surfaces. A
   `decision_type` that is forbidden at its `decision_level` is reported as
   lower-altitude leakage; a `superseded` view with no `superseded_by`, a
@@ -145,11 +148,11 @@ missing helper fails closed; a missing python interpreter is a vacuous pass
 ## Enforcer command
 
 Both helpers run under WSL/Linux per Rule G-7. The gate (Rule 144) drives the
-helpers at their wired rungs — E192 advisory, E193 blocking — but each helper is
-directly runnable:
+helpers at their wired rungs — E192 changed-files-blocking, E193 blocking — but
+each helper is directly runnable:
 
 ```bash
-# E192 — per-view taxonomy + state invariants (gate wires it advisory)
+# E192 — per-view taxonomy + state invariants (gate wires it changed-files-blocking)
 python3 gate/lib/check_adr_taxonomy.py --mode advisory
 python3 gate/lib/check_adr_taxonomy.py --mode changed-files-blocking --base origin/main
 python3 gate/lib/check_adr_taxonomy.py --mode full-blocking
@@ -175,7 +178,9 @@ for the taxonomy helper; `advisory` / `changed-files` / `blocking` for the
 historical helper) implement the rungs. The two helpers now sit at different
 rungs: **E193 (historical, ledger totality + view coverage) is at the
 full-blocking rung** — its corpus is complete; **E192 (taxonomy, per-view
-altitude) remains advisory** until every view is altitude-clean.
+altitude) is at the changed-files-blocking rung** (THIS rung), promoted from
+advisory, with full-blocking deferred until every view is altitude-clean and the
+soak window closes.
 
 ## Failure and remediation
 
@@ -184,8 +189,8 @@ altitude) remains advisory** until every view is altitude-clean.
 | `BLOCKING: raw ADR ADR-NNNN has no ledger entry` (E193) | A raw ADR in `adrs.json` is not yet governed | Add an `adr: ADR-NNNN` row to `docs/governance/adr-remediation-ledger.yaml` with its remediation state |
 | `BLOCKING: accepted ADR ADR-NNNN has no normalized view` (E193) | An `accepted` ADR is uncovered | Author `docs/adr/normalized/ADR-NNNN.yaml` satisfying `adr-governance-policy.yaml` and `adr-taxonomy.yaml` |
 | `ERROR: adrs.json not found` (E193, any mode) | The apex generated fact vanished or was hand-deleted | Re-run the fact extractor in check mode to regenerate `architecture/facts/generated/adrs.json`; never hand-create it |
-| `ADVISORY: ADR-NNNN decision_type '<x>' forbidden at decision_level '<L>'` (E192) | Lower-altitude `decision_type` leaked into a higher-altitude view | Re-classify the view to the `decision_level` whose `allowed_decision_types` includes `<x>`, or split the lower-altitude clause out to an L2/contract surface |
-| `ADVISORY: ADR-NNNN current_state 'superseded' missing 'superseded_by'` (E192) | A per-state invariant is unmet | Add `superseded_by: ADR-MMMM` (or the missing field the named `current_state` requires) to the view |
+| `G-28 docs/adr/normalized/ADR-NNNN.yaml: decision_type '<x>' ... forbidden ...` (E192; blocks when the view changed) | Lower-altitude `decision_type` leaked into a higher-altitude view | Re-classify the view to the `decision_level` whose `allowed_decision_types` includes `<x>`, or split the lower-altitude clause out to an L2/contract surface |
+| `G-28 docs/adr/normalized/ADR-NNNN.yaml: 'superseded' requires 'superseded_by'` (E192; blocks when the view changed) | A per-state invariant is unmet | Add `superseded_by: ADR-MMMM` (or the missing field the named `current_state` requires) to the view |
 | `... helper missing -- Rule G-28 / E19x` (gate) | A helper script is absent | Restore `gate/lib/check_adr_taxonomy.py` / `gate/lib/check_historical_adr_governance.py`; a missing helper fails closed by design |
 
 Example — closing an altitude leak (E192, advisory):

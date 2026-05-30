@@ -9979,6 +9979,70 @@ DSL
 }
 
 # ---------------------------------------------------------------------------
+# Wrapper-posture tests (W27 ratchet promotion): the canonical gate must invoke
+# the three previously-advisory ratcheting helpers (E192 adr_taxonomy / E198
+# ai_reading_path / E199 ai_understanding_map) in --mode changed-files-blocking,
+# NOT --mode advisory. These lock the promotion the way rules 134/135/137 lock
+# their "wired in canonical gate" posture: a grep over the source-of-truth gate
+# script. They cannot flake on git/python availability and pin the exact rung the
+# wave landed (full-blocking stays deferred, so the modes must read
+# changed-files-blocking, never full-blocking).
+# ---------------------------------------------------------------------------
+test_rule_144_adr_taxonomy_wired_changed_files_blocking_pos() {
+  # POSITIVE: the taxonomy helper (E192) is invoked changed-files-blocking, never
+  # advisory, in the canonical gate (W27 promotion; full-blocking deferred).
+  if [[ ! -f gate/check_architecture_sync.sh ]]; then
+    fail "rule_144_adr_taxonomy_wired_changed_files_blocking_pos" "Rule G-28 / Rule 144: canonical gate script missing"
+    return
+  fi
+  if grep -qE '"\$_r144_tax_helper" --mode advisory' gate/check_architecture_sync.sh; then
+    fail "rule_144_adr_taxonomy_wired_changed_files_blocking_pos" "Rule G-28 / Rule 144: taxonomy helper still wired --mode advisory (W27 expects changed-files-blocking)"
+    return
+  fi
+  if grep -qE '"\$_r144_tax_helper" --mode changed-files-blocking --base' gate/check_architecture_sync.sh; then
+    ok "rule_144_adr_taxonomy_wired_changed_files_blocking_pos" "Rule G-28 / Rule 144: taxonomy helper (E192) wired changed-files-blocking in canonical gate (W27 promotion; full-blocking deferred)"
+  else
+    fail "rule_144_adr_taxonomy_wired_changed_files_blocking_pos" "Rule G-28 / Rule 144: taxonomy helper not wired --mode changed-files-blocking --base in canonical gate"
+  fi
+}
+
+test_rule_148_ai_reading_path_wired_changed_files_blocking_pos() {
+  # POSITIVE: the reading-path helper (E198) is invoked changed-files-blocking,
+  # never advisory, in the canonical gate (W27 promotion; full-blocking deferred).
+  if [[ ! -f gate/check_architecture_sync.sh ]]; then
+    fail "rule_148_ai_reading_path_wired_changed_files_blocking_pos" "Rule G-31 / Rule 148: canonical gate script missing"
+    return
+  fi
+  if grep -qE '"\$_r148_helper" --mode advisory' gate/check_architecture_sync.sh; then
+    fail "rule_148_ai_reading_path_wired_changed_files_blocking_pos" "Rule G-31 / Rule 148: reading-path helper still wired --mode advisory (W27 expects changed-files-blocking)"
+    return
+  fi
+  if grep -qE '"\$_r148_helper" --mode changed-files-blocking --base' gate/check_architecture_sync.sh; then
+    ok "rule_148_ai_reading_path_wired_changed_files_blocking_pos" "Rule G-31 / Rule 148: reading-path helper (E198) wired changed-files-blocking in canonical gate (W27 promotion; full-blocking deferred)"
+  else
+    fail "rule_148_ai_reading_path_wired_changed_files_blocking_pos" "Rule G-31 / Rule 148: reading-path helper not wired --mode changed-files-blocking --base in canonical gate"
+  fi
+}
+
+test_rule_149_ai_understanding_map_wired_changed_files_blocking_pos() {
+  # POSITIVE: the understanding-map helper (E199) is invoked changed-files-blocking,
+  # never advisory, in the canonical gate (W27 promotion; full-blocking deferred).
+  if [[ ! -f gate/check_architecture_sync.sh ]]; then
+    fail "rule_149_ai_understanding_map_wired_changed_files_blocking_pos" "Rule G-32 / Rule 149: canonical gate script missing"
+    return
+  fi
+  if grep -qE '"\$_r149_helper" --mode advisory' gate/check_architecture_sync.sh; then
+    fail "rule_149_ai_understanding_map_wired_changed_files_blocking_pos" "Rule G-32 / Rule 149: understanding-map helper still wired --mode advisory (W27 expects changed-files-blocking)"
+    return
+  fi
+  if grep -qE '"\$_r149_helper" --mode changed-files-blocking --base' gate/check_architecture_sync.sh; then
+    ok "rule_149_ai_understanding_map_wired_changed_files_blocking_pos" "Rule G-32 / Rule 149: understanding-map helper (E199) wired changed-files-blocking in canonical gate (W27 promotion; full-blocking deferred)"
+  else
+    fail "rule_149_ai_understanding_map_wired_changed_files_blocking_pos" "Rule G-32 / Rule 149: understanding-map helper not wired --mode changed-files-blocking --base in canonical gate"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Rule 150 / kernel Rule G-33 (enforcer E200) — adr_id_uniqueness.
 # A minimal valid ADR corpus staged under $sroot:
 #   docs/adr/0200-aaa.yaml        (id: ADR-0200)

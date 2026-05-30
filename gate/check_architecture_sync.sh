@@ -146,16 +146,16 @@
 #  122. proposal_immediate_scope_pending_contract_guard -- proposal docs must not claim immediate W0/W1 scope while same boundary contracts are still pending (Rule G-2, enforcer E170)
 #  123. proposal_engine_package_truth                 -- proposal FQNs must not contradict current engine/service package authority unless explicitly marked proposed (Rule G-8, enforcer E171)
 #  124. unsupported_absolute_claim_guard              -- proposal security/performance absolutes require evidence wording (Rule G-2, enforcer E172)
-#  --- 2026-05-30 progressive-learning-curve-remediation W10 — layer-purity advisory gates (Rule 145 / kernel Rule G-27; enforcers E194-E195) ---
-#  145. layer_purity                                  -- two ADVISORY helpers encoding the layer-purity VERDICT: gate/lib/check_layer_purity.py (E194 — L2 detail that an authority surface DECLARES it does not carry) + gate/lib/check_l2_detail_sink.py (E195 — L2 implementation detail (SQL/RLS/GUC, HTTP status+verb, wire formats, method signatures + call chains, filter ordering, test-class inventories) left in L0/L1 prose). Both report findings to the gate log; neither blocks at the advisory rung (Rule G-27, enforcers E194-E195).
+#  --- 2026-05-30 progressive-learning-curve-remediation W10 — layer-purity gates (Rule 145 / kernel Rule G-27; enforcers E194-E195) ---
+#  145. layer_purity                                  -- two CHANGED-FILES-BLOCKING helpers encoding the layer-purity VERDICT: gate/lib/check_layer_purity.py (E194 — L2 detail that an authority surface DECLARES it does not carry) + gate/lib/check_l2_detail_sink.py (E195 — L2 implementation detail (SQL/RLS/GUC, HTTP status+verb, wire formats, method signatures + call chains, filter ordering, test-class inventories) left in L0/L1 prose). A PR may not ADD or worsen a leak in an L0/L1 doc it touches (a still-open dated grandfather row tolerates a known not-yet-migrated leak); pre-existing leaks in untouched docs stay advisory. Self-derive the changed L0/L1 set from git against --base (Phase-2 rung -> full-blocking once the corpus is clean + every grandfather row retired) (Rule G-27, enforcers E194-E195).
 #  --- 2026-05-30 progressive-learning-curve-remediation W16/W19 — Frame-Card / DSL parity gate (Rule 146 / kernel Rule G-29; enforcer E196) ---
 #  146. frame_card_consistency                        -- CHANGED-FILES-BLOCKING helper gate/lib/check_frame_card_consistency.py: an EngineeringFrame Frame Card (architecture/docs/L1/frames/<frame-id>.md) is a readable interpretation of DSL+facts, never authority (ADR-0161). A CHANGED card BLOCKS (and a vanished DSL/facts authority fails closed in every mode) when the card's frontmatter frame_id/owner/status/primary_package disagrees with the DSL element, when a cited code-symbol/test/contract-op (or method descriptor) does not resolve in architecture/facts/generated/*.json, or when the card names a FunctionPoint the frame does not 'anchors' in the DSL; pre-existing findings on untouched cards stay advisory. Self-derives the changed-card set from git against --base (W19 promotion from advisory; ADR-0161 §6 Phase-2 rung -> full-blocking after a 14-day soak) (Rule G-29, enforcer E196).
 #  --- 2026-05-30 progressive-learning-curve-remediation W20 — FunctionPoint readiness gate (Rule 147 / kernel Rule G-30; enforcer E197) ---
-#  147. feature_readiness                              -- ADVISORY helper gate/lib/check_feature_readiness.py: a FunctionPoint is the behavioral join point of the progressive learning curve; the helper evaluates every SAA FunctionPoint element in architecture/features/function-points.dsl against the readiness bar its saa.status resolves to under docs/governance/feature-readiness-policy.yaml (design_only->proposed / mock_functional->active / shipped->full per-axis acceptance bar) and reports the obligations the FunctionPoint has NOT discharged across the four axes: STRUCTURE (one frame anchors + an owning-module implements), VALUE (a Feature requires), EVIDENCE (contract-or-rationale + a resolving generated-fact ref + test-or-exception + a gate ref), DECISION (a normalized ADR view in active_guidance/partial_guidance), plus the OWNERSHIP invariant (only an EngineeringFrame may 'anchors' a FunctionPoint). Reports findings to the gate log; always exits 0 at this advisory rung (ADR-0159 §13.3 first-cleanup-wave landing -> changed-files-blocking -> full-blocking once the corpus reaches the acceptance bar). Greenfield-vacuous until the first FunctionPoint; the instant one exists the policy + DSL + facts MUST be readable or the helper fails closed (exit 2) in every mode (Rule G-30, enforcer E197).
+#  147. feature_readiness                              -- CHANGED-FILES-BLOCKING helper gate/lib/check_feature_readiness.py: a FunctionPoint is the behavioral join point of the progressive learning curve; the helper evaluates every SAA FunctionPoint element in architecture/features/function-points.dsl against the readiness bar its saa.status resolves to under docs/governance/feature-readiness-policy.yaml (design_only->proposed / mock_functional->active / shipped->full per-axis acceptance bar) and reports the obligations the FunctionPoint has NOT discharged across the four axes: STRUCTURE (one frame anchors + an owning-module implements), VALUE (a Feature requires), EVIDENCE (contract-or-rationale + a resolving generated-fact ref + test-or-exception + a gate ref), DECISION (a normalized ADR view in active_guidance/partial_guidance), plus the OWNERSHIP invariant (only an EngineeringFrame may 'anchors' a FunctionPoint). A PR may not ADD or worsen a finding on a FunctionPoint whose authoring surfaces it touches; pre-existing findings on untouched FunctionPoints stay advisory, a known historical finding frozen in the dated baseline allow-list docs/governance/feature-readiness-baseline.yaml is tolerated, and the OWNERSHIP invariant blocks at every blocking rung regardless of scope or baseline. Self-derives the changed set from git against --base (ADR-0159 §13.3 Phase-2 rung -> full-blocking once the corpus reaches the acceptance bar + the baseline is retired). Greenfield-vacuous until the first FunctionPoint; the instant one exists the policy + DSL + facts MUST be readable or the helper fails closed (exit 2) in every mode (Rule G-30, enforcer E197).
 #  --- 2026-05-30 progressive-learning-curve-remediation W23 — AI reading-path gate (Rule 148 / kernel Rule G-31; enforcer E198) ---
-#  148. ai_reading_path                                 -- ADVISORY helper gate/lib/check_ai_reading_path.py: the product-first eight-node entry path declared in docs/governance/ai-reading-path.yaml (and its human-readable companion docs/onboarding/ai-understanding-path.md) is materializable and the entry docs route onto it. Three checks: SURFACE EXISTENCE (every orientation_learning_path surface marked presence: present resolves on disk, planned surfaces may be absent, the companion mirror + every factual_claim_switch.read_before_prose fact file exist -> MISSING-SURFACE/MISSING-COMPANION/MISSING-FACT-FILE), ENTRY-DOC ROUTING (each step-1 repository_entry doc + docs/governance/SESSION-START-CONTEXT.md references the data file or its companion -> MISSING-MARKER), and YAML<->COMPANION LOCKSTEP (companion back-references the YAML + carries a heading per declared step -> LOCKSTEP-BROKEN/LOCKSTEP-STEP). Reports findings to the gate log; always exits 0 at this advisory rung (ADR-0159 §13.3 landing -> changed-files-blocking -> full-blocking once the entry-doc corpus is migrated). Greenfield-vacuous until the data file is authored; the instant it exists it MUST parse and its companion + fact files MUST be readable or the helper fails closed (exit 2) in every mode (Rule G-31, enforcer E198).
+#  148. ai_reading_path                                 -- CHANGED-FILES-BLOCKING helper gate/lib/check_ai_reading_path.py: the product-first eight-node entry path declared in docs/governance/ai-reading-path.yaml (and its human-readable companion docs/onboarding/ai-understanding-path.md) is materializable and the entry docs route onto it. Three checks: SURFACE EXISTENCE (every orientation_learning_path surface marked presence: present resolves on disk, planned surfaces may be absent, the companion mirror + every factual_claim_switch.read_before_prose fact file exist -> MISSING-SURFACE/MISSING-COMPANION/MISSING-FACT-FILE), ENTRY-DOC ROUTING (each step-1 repository_entry doc + docs/governance/SESSION-START-CONTEXT.md references the data file or its companion -> MISSING-MARKER), and YAML<->COMPANION LOCKSTEP (companion back-references the YAML + carries a heading per declared step -> LOCKSTEP-BROKEN/LOCKSTEP-STEP). A PR may not ADD a finding once it touches the reading-path authoring surfaces (the data file / companion / a step-1 entry doc); pre-existing findings on untouched surfaces stay advisory. Self-derives the in-scope decision from git against --base (W27 promotion from advisory; ADR-0159 §13.3 Phase-2 rung -> full-blocking once the entry-doc corpus is migrated + the soak window closes). Greenfield-vacuous until the data file is authored; the instant it exists it MUST parse and its companion + fact files MUST be readable or the helper fails closed (exit 2) in every mode (Rule G-31, enforcer E198).
 #  --- 2026-05-30 progressive-learning-curve-remediation W24 — AI understanding-map derivation-integrity gate (Rule 149 / kernel Rule G-32; enforcer E199) ---
-#  149. ai_understanding_map                            -- ADVISORY helper gate/lib/check_ai_understanding_map.py: the explicit dual-track understanding map under architecture/mappings/ (the readable projection joining VALUE ProductClaim->Requirement->Feature->FunctionPoint / STRUCTURE Module->EngineeringFrame->FunctionPoint / EVIDENCE FunctionPoint->Contract->GeneratedFact->Gate, plus the derived Feature--traverses-->EngineeringFrame reconciliation) keeps its two value/structure axes DERIVED, never OWNED, over the merged authoring DSL architecture/features/{features,function-points,engineering-frames}.dsl. Three checks: DERIVED TRAVERSE (every Feature--traverses-->Frame edge is derivable from a shared FunctionPoint the Frame anchors; a Frame anchoring nothing yet is vacuous; NON-DERIVED-TRAVERSE blocks only for a shipped source Feature, advisory otherwise), NO OWNERSHIP OF A FRAME (a Feature source of a contains/anchors/owns edge into a Frame -> FEATURE-OWNS-FRAME; a non-genModule_* contains source -> NON-MODULE-CONTAINS-FRAME; a Frame carrying saa.productClaim/saa.requirement -> FRAME-OWNS-VALUE), and WELL-TYPED AXES (anchors goes Frame->FunctionPoint, requires goes Feature->FunctionPoint -> MALFORMED-EDGE). ADR-backed exceptions live in gate/ai-understanding-map-allowlist.txt (ships empty). Reports findings to the gate log; always exits 0 at this advisory rung (ADR-0157 dual-track landing -> changed-files-blocking -> full-blocking once the map is clean). Greenfield-vacuous until one of the three map DSL files exists; the instant any exists it MUST be readable or the helper fails closed (exit 2) in every mode (Rule G-32, enforcer E199).
+#  149. ai_understanding_map                            -- CHANGED-FILES-BLOCKING helper gate/lib/check_ai_understanding_map.py: the explicit dual-track understanding map under architecture/mappings/ (the readable projection joining VALUE ProductClaim->Requirement->Feature->FunctionPoint / STRUCTURE Module->EngineeringFrame->FunctionPoint / EVIDENCE FunctionPoint->Contract->GeneratedFact->Gate, plus the derived Feature--traverses-->EngineeringFrame reconciliation) keeps its two value/structure axes DERIVED, never OWNED, over the merged authoring DSL architecture/features/{features,function-points,engineering-frames}.dsl. Three checks: DERIVED TRAVERSE (every Feature--traverses-->Frame edge is derivable from a shared FunctionPoint the Frame anchors; a Frame anchoring nothing yet is vacuous; NON-DERIVED-TRAVERSE blocks only for a shipped source Feature, advisory otherwise), NO OWNERSHIP OF A FRAME (a Feature source of a contains/anchors/owns edge into a Frame -> FEATURE-OWNS-FRAME; a non-genModule_* contains source -> NON-MODULE-CONTAINS-FRAME; a Frame carrying saa.productClaim/saa.requirement -> FRAME-OWNS-VALUE), and WELL-TYPED AXES (anchors goes Frame->FunctionPoint, requires goes Feature->FunctionPoint -> MALFORMED-EDGE). ADR-backed exceptions live in gate/ai-understanding-map-allowlist.txt (ships empty). A PR may not ADD or worsen a BLOCKABLE finding once it touches one of the three authoring DSL files (advisory_only findings never block; pre-existing findings on untouched surfaces stay advisory). Self-derives the in-scope decision from git against --base (W27 promotion from advisory; ADR-0157 dual-track Phase-2 rung -> full-blocking once the map is clean + the soak window closes). Greenfield-vacuous until one of the three map DSL files exists; the instant any exists it MUST be readable or the helper fails closed (exit 2) in every mode (Rule G-32, enforcer E199).
 #  150. adr_id_uniqueness                                -- BLOCKING helper gate/lib/check_adr_id_uniqueness.py: an ADR number is the single authoritative IDENTIFIER for one architecture decision and MUST be claimed by exactly one raw ADR source file. The helper globs the numbered raw sources (docs/adr/NNNN-*.yaml whose number is the id: field + docs/adr/NNNN-*.md and docs/adr/locked/NNNN-*.md whose number is the leading # NNNN. / # ADR-NNNN heading), groups files by number, and reports a number claimed by two or more files (DUPLICATE-ID) or a scanned ADR file with no extractable number (UNPARSEABLE-ID); a Markdown prose companion that delegates to its sibling .yaml (the engineering-prose-companion shape) is excluded from identity competition. A duplicate is a structural lie the ID-keyed projections silently collapse: AdrFactExtractor + AdrGraphFragmentEmitter key ADRs by number and the emitter's TreeMap<String,...> last-writer-wins, dropping the other N-1 ADRs from adr-graph.dsl / adrs.json / the workspace closure. Cross-checks architecture/facts/generated/adrs.json as the apex factual authority (a number the fact layer resolves to a different raw path is the same collision from the fact side). NON-VACUITY GUARD: fails closed (exit 2) when the glob matches ZERO ADR sources while docs/adr/ exists; materially vacuous only when docs/adr/ itself is absent (greenfield). Runs BLOCKING from the start (no advisory soak; no grandfather list; no changed-files scoping -- the identifier space is global) per the ADR-0160 ledger-totality model. Invents no ADR id and no relationship and never outranks a generated fact (cascade: generated facts > DSL > Card/prose). A missing helper fails closed; a missing python interpreter is a vacuous pass (Rule G-7 lists WSL as canonical) (Rule G-33, enforcer E200).
 
 set -uo pipefail
@@ -7515,8 +7515,8 @@ fi
 # ---------------------------------------------------------------------------
 # Rule 144 — adr_normalization (enforcers E192 + E193, kernel Rule G-28)
 #
-# Authority: ADR-0160 (ADR Governance Model). One rule, two advisory helpers
-# that together pin the normalized-ADR review surface:
+# Authority: ADR-0160 (ADR Governance Model). One rule, two helpers that together
+# pin the normalized-ADR review surface:
 #   * gate/lib/check_adr_taxonomy.py (E192, slug adr_taxonomy_normalization) —
 #     validates each normalized ADR view (docs/adr/normalized/ADR-NNNN.yaml)
 #     against adr-taxonomy.yaml + adr-governance-policy.yaml: required fields,
@@ -7526,14 +7526,24 @@ fi
 #     historical_adr_governance) — ledger totality (every raw ADR in adrs.json
 #     has a docs/governance/adr-remediation-ledger.yaml entry) + normalized-view
 #     coverage (every accepted ADR has a normalized view).
-# The taxonomy helper (E192) runs ADVISORY here: it reports findings but does not
-# block. The historical-ADR helper (E193) is BLOCKING: the dedicated
-# normalization wave back-filled the ledger + docs/adr/normalized/ to TOTAL
-# coverage (every raw ADR in adrs.json has a ledger entry; every accepted ADR has
-# a normalized view), so the ledger-totality + normalized-view-coverage assertion
-# is the ADR-0160 ratchet's full-blocking rung and an un-entried raw ADR or an
-# accepted ADR with no view now fails the gate. The helper-missing branch still
-# fails closed; a non-zero helper rc (a vanished apex adrs.json, OR a real
+# The taxonomy helper (E192) runs CHANGED-FILES-BLOCKING here
+# (`--mode changed-files-blocking --base`): a PR may not ADD or WORSEN a taxonomy
+# violation in a normalized ADR view it TOUCHES; pre-existing findings on untouched
+# views stay advisory. This is the ADR-0160 ratchet's Phase-2 rung: advisory ->
+# changed-files-blocking (this rung) -> full-blocking (the terminal rung once the
+# whole normalized-view corpus is clean and the soak window closes). The helper
+# self-derives the changed-view set from git against --base (same git-deriving
+# pattern as Rule 146 / E196); when git cannot resolve the base it falls back to
+# full-corpus validation (a safe superset). Base ref = BASE_REF (default
+# origin/main) when resolvable, else HEAD. The historical-ADR helper (E193) is
+# BLOCKING: the dedicated normalization wave back-filled the ledger +
+# docs/adr/normalized/ to TOTAL coverage (every raw ADR in adrs.json has a ledger
+# entry; every accepted ADR has a normalized view), so the ledger-totality +
+# normalized-view-coverage assertion is the ADR-0160 ratchet's full-blocking rung
+# and an un-entried raw ADR or an accepted ADR with no view now fails the gate. The
+# helper-missing branch still fails closed; a non-zero taxonomy rc is EITHER a
+# blocked changed-view finding (exit 1) or a config error (a vanished schema,
+# exit 2); a non-zero historical-ADR rc (a vanished apex adrs.json, OR a real
 # coverage finding under --mode blocking) is a hard fail. A missing python
 # interpreter is a vacuous pass (Rule G-7 lists WSL as the canonical env); a
 # missing PyYAML surfaces as the helper's own config error.
@@ -7542,16 +7552,36 @@ fi
 # ---------------------------------------------------------------------------
 _r144_tax_fail=0
 _r144_tax_helper="gate/lib/check_adr_taxonomy.py"
+# Resolve the base ref for the changed-files scope (same pattern as Rule 146 / E196).
+_r144_tax_base="${BASE_REF:-origin/main}"
+if ! { command -v git >/dev/null 2>&1 && git rev-parse --verify "$_r144_tax_base" >/dev/null 2>&1; }; then
+  _r144_tax_base="HEAD"
+fi
 if [[ ! -f "$_r144_tax_helper" ]]; then
   fail_rule "adr_taxonomy_normalization" "$_r144_tax_helper missing -- Rule G-28 / E192"
   _r144_tax_fail=1
 elif [[ -z "$GATE_PYTHON_BIN" ]]; then
   : # vacuous pass on hosts without python (Rule G-7 lists WSL as canonical env)
 else
-  _r144_tax_out=$("$GATE_PYTHON_BIN" "$_r144_tax_helper" --mode advisory 2>&1)
-  # Advisory: report the finding summary to the gate log, never block.
-  _r144_tax_sum=$(printf '%s' "$_r144_tax_out" | grep -E 'finding\(s\)' | tail -1)
-  [[ -n "$_r144_tax_sum" ]] && echo "ADVISORY (Rule G-28 / E192): $_r144_tax_sum"
+  _r144_tax_out=$("$GATE_PYTHON_BIN" "$_r144_tax_helper" --mode changed-files-blocking --base "$_r144_tax_base" 2>&1)
+  _r144_tax_rc=$?
+  # A non-zero rc is EITHER a blocked changed-view finding (exit 1) OR a CONFIG
+  # ERROR (the taxonomy/policy schema vanished, exit 2). Both fail the rule; the
+  # config-error message is surfaced verbatim when present.
+  if [[ $_r144_tax_rc -ne 0 ]]; then
+    _r144_tax_err=$(printf '%s' "$_r144_tax_out" | grep -E 'config error' | head -1)
+    if [[ -n "$_r144_tax_err" ]]; then
+      fail_rule "adr_taxonomy_normalization" "${_r144_tax_err} -- Rule G-28 / E192"
+    else
+      _r144_tax_sum=$(printf '%s' "$_r144_tax_out" | grep -E 'finding\(s\)' | tail -1)
+      _r144_tax_hits=$(printf '%s' "$_r144_tax_out" | grep -E '^G-28 [^ ]+: ' | grep -v 'config error\|changed-file scoping' | head -5)
+      fail_rule "adr_taxonomy_normalization" "changed normalized ADR view adds a taxonomy violation (Rule G-28 / E192): ${_r144_tax_sum:-adr-taxonomy helper exited $_r144_tax_rc}${_r144_tax_hits:+ || ${_r144_tax_hits}}"
+    fi
+    _r144_tax_fail=1
+  else
+    _r144_tax_sum=$(printf '%s' "$_r144_tax_out" | grep -E 'finding\(s\)' | tail -1)
+    [[ -n "$_r144_tax_sum" ]] && echo "OK (Rule G-28 / E192 changed-files-blocking): $_r144_tax_sum"
+  fi
 fi
 [[ $_r144_tax_fail -eq 0 ]] && pass_rule "adr_taxonomy_normalization"
 
@@ -7845,8 +7875,8 @@ fi
 # Rule 148 — ai_reading_path (enforcer E198, kernel Rule G-31)
 #
 # Authority: ADR-0159 (Progressive Learning Curve and Authority Lanes — the
-# product-first eight-node entry chain). One ADVISORY helper that checks the
-# reading path declared in docs/governance/ai-reading-path.yaml (and its
+# product-first eight-node entry chain). One CHANGED-FILES-BLOCKING helper that
+# checks the reading path declared in docs/governance/ai-reading-path.yaml (and its
 # human-readable companion docs/onboarding/ai-understanding-path.md) is
 # materializable and the entry docs route a reader onto it. The reading-path
 # data file invents no id and no relationship — it records the ORDER over the
@@ -7862,40 +7892,57 @@ fi
 #     the YAML and carries a heading per declared step). Findings:
 #     MISSING-SURFACE / MISSING-COMPANION / MISSING-FACT-FILE / MISSING-MARKER /
 #     LOCKSTEP-BROKEN / LOCKSTEP-STEP.
-# Runs ADVISORY here (`--mode advisory`): findings are reported to the gate log
-# and never block at this rung. Ratchet: advisory (this rung) -> changed-files-
-# blocking (a PR may not ADD a finding once it touches the data file / companion /
-# an entry doc) -> full-blocking (the terminal rung once the entry-doc corpus has
-# migrated from the legacy architecture-first reading path to this product-first
-# chain and the path is clean). docs/governance/ai-reading-path.yaml is greenfield-
-# vacuous until it is authored; the instant it exists it MUST parse and its
-# companion + factual-claim-switch fact files MUST be readable or the helper fails
-# closed (exit 2) in every mode — a missing authority is never an advisory
-# condition. A missing helper fails closed; a missing python interpreter is a
-# vacuous pass (Rule G-7 lists WSL as the canonical env).
+# Runs CHANGED-FILES-BLOCKING here (`--mode changed-files-blocking --base`): a PR
+# may not ADD or WORSEN a path finding once it TOUCHES the reading-path authoring
+# surfaces (the data file / its companion / a step-1 entry doc); pre-existing
+# findings while those surfaces are untouched stay advisory. This is the Phase-2
+# rung: advisory -> changed-files-blocking (this rung) -> full-blocking (the
+# terminal rung once the entry-doc corpus has migrated from the legacy
+# architecture-first reading path to this product-first chain, the path is clean,
+# and the soak window closes). The helper self-derives the in-scope decision from
+# git against --base (same git-deriving pattern as Rule 146 / E196); base ref =
+# BASE_REF (default origin/main) when resolvable, else HEAD.
+# docs/governance/ai-reading-path.yaml is greenfield-vacuous until it is authored;
+# the instant it exists it MUST parse and its companion + factual-claim-switch fact
+# files MUST be readable or the helper fails closed (exit 2) in every mode — a
+# missing authority is never an advisory condition. A missing helper fails closed;
+# a missing python interpreter is a vacuous pass (Rule G-7 lists WSL as the
+# canonical env).
 #
 # scope_surfaces: docs/governance/ai-reading-path.yaml, docs/onboarding/ai-understanding-path.md, README.md, AGENTS.md, CLAUDE.md, docs/governance/SESSION-START-CONTEXT.md, gate/lib/check_ai_reading_path.py
 # ---------------------------------------------------------------------------
 _r148_fail=0
 _r148_helper="gate/lib/check_ai_reading_path.py"
+# Resolve the base ref for the changed-files scope (same pattern as Rule 146 / E196).
+_r148_base="${BASE_REF:-origin/main}"
+if ! { command -v git >/dev/null 2>&1 && git rev-parse --verify "$_r148_base" >/dev/null 2>&1; }; then
+  _r148_base="HEAD"
+fi
 if [[ ! -f "$_r148_helper" ]]; then
   fail_rule "ai_reading_path" "$_r148_helper missing -- Rule G-31 / E198"
   _r148_fail=1
 elif [[ -z "$GATE_PYTHON_BIN" ]]; then
   : # vacuous pass on hosts without python (Rule G-7 lists WSL as canonical env)
 else
-  _r148_out=$("$GATE_PYTHON_BIN" "$_r148_helper" --mode advisory 2>&1)
+  _r148_out=$("$GATE_PYTHON_BIN" "$_r148_helper" --mode changed-files-blocking --base "$_r148_base" 2>&1)
   _r148_rc=$?
-  # A non-zero rc in advisory mode is a CONFIG ERROR (the data file exists but is
-  # unparseable, or its companion / fact files vanished, exit 2) — never an
-  # advisory finding (advisory always exits 0). Surface it verbatim as a hard fail.
+  # A non-zero rc is EITHER a blocked in-scope finding (exit 1 — a finding while the
+  # reading-path authoring surfaces changed) OR a CONFIG ERROR (the data file exists
+  # but is unparseable, or its companion / fact files vanished, exit 2). Both fail
+  # the rule; the config-error message is surfaced verbatim when present.
   if [[ $_r148_rc -ne 0 ]]; then
     _r148_err=$(printf '%s' "$_r148_out" | grep -E 'config error' | head -1)
-    fail_rule "ai_reading_path" "${_r148_err:-ai-reading-path helper exited $_r148_rc} -- Rule G-31 / E198"
+    if [[ -n "$_r148_err" ]]; then
+      fail_rule "ai_reading_path" "${_r148_err} -- Rule G-31 / E198"
+    else
+      _r148_sum=$(printf '%s' "$_r148_out" | grep -E 'finding\(s\)' | tail -1)
+      _r148_hits=$(printf '%s' "$_r148_out" | grep -E '^ai-reading-path \[' | head -5)
+      fail_rule "ai_reading_path" "changed reading-path surface adds a path finding (Rule G-31 / E198): ${_r148_sum:-ai-reading-path helper exited $_r148_rc}${_r148_hits:+ || ${_r148_hits}}"
+    fi
     _r148_fail=1
   else
     _r148_sum=$(printf '%s' "$_r148_out" | grep -E 'finding\(s\)' | tail -1)
-    [[ -n "$_r148_sum" ]] && echo "OK (Rule G-31 / E198 advisory): $_r148_sum"
+    [[ -n "$_r148_sum" ]] && echo "OK (Rule G-31 / E198 changed-files-blocking): $_r148_sum"
   fi
 fi
 [[ $_r148_fail -eq 0 ]] && pass_rule "ai_reading_path"
@@ -7905,8 +7952,8 @@ fi
 #
 # Authority: ADR-0157 (EngineeringFrame Ontology — the dual-track value/structure
 # axes, the derived Feature --traverses--> EngineeringFrame reconciliation, and
-# the claim-agnostic Frame). One ADVISORY helper that asserts the explicit
-# dual-track understanding map under architecture/mappings/ (the readable
+# the claim-agnostic Frame). One CHANGED-FILES-BLOCKING helper that asserts the
+# explicit dual-track understanding map under architecture/mappings/ (the readable
 # projection joining VALUE / STRUCTURE / EVIDENCE per FunctionPoint) keeps its two
 # value/structure axes DERIVED, never OWNED, over the merged authoring DSL
 # architecture/features/{features,function-points,engineering-frames}.dsl. The map
@@ -7924,12 +7971,18 @@ fi
 #     -> FRAME-OWNS-VALUE), and WELL-TYPED AXES (anchors goes Frame->FunctionPoint,
 #     requires goes Feature->FunctionPoint -> MALFORMED-EDGE). ADR-backed exceptions
 #     live in gate/ai-understanding-map-allowlist.txt (ships empty).
-# Runs ADVISORY here (`--mode advisory`): findings are reported to the gate log and
-# never block at this rung. Ratchet: advisory (this rung) -> changed-files-blocking
-# (a PR may not ADD a finding once it touches one of the three authoring DSL files;
-# the map is a single shared surface, so a change to any re-scopes it) ->
-# full-blocking (the terminal rung once the map is clean; a NON-DERIVED-TRAVERSE
-# from a not-yet-shipped Feature stays advisory even there). The map is greenfield-
+# Runs CHANGED-FILES-BLOCKING here (`--mode changed-files-blocking --base`): a PR
+# may not ADD or WORSEN a BLOCKABLE finding once it TOUCHES one of the three
+# authoring DSL files (the map is a single shared surface, so a change to any
+# re-scopes it); advisory_only findings (e.g. a NON-DERIVED-TRAVERSE from a
+# not-yet-shipped Feature) never block, and pre-existing findings while the map
+# surfaces are untouched stay advisory. This is the Phase-2 rung: advisory ->
+# changed-files-blocking (this rung) -> full-blocking (the terminal rung once the
+# map is clean and the soak window closes; a NON-DERIVED-TRAVERSE from a
+# not-yet-shipped Feature stays advisory even there). The helper self-derives the
+# in-scope decision from git against --base (same git-deriving pattern as Rule 146
+# / E196); base ref = BASE_REF (default origin/main) when resolvable, else HEAD.
+# The map is greenfield-
 # vacuous until one of the three map DSL files exists; the instant any exists it
 # MUST be readable or the helper fails closed (exit 2) in every mode — a missing
 # authority is never an advisory condition. A missing helper fails closed; a
@@ -7939,24 +7992,37 @@ fi
 # ---------------------------------------------------------------------------
 _r149_fail=0
 _r149_helper="gate/lib/check_ai_understanding_map.py"
+# Resolve the base ref for the changed-files scope (same pattern as Rule 146 / E196).
+_r149_base="${BASE_REF:-origin/main}"
+if ! { command -v git >/dev/null 2>&1 && git rev-parse --verify "$_r149_base" >/dev/null 2>&1; }; then
+  _r149_base="HEAD"
+fi
 if [[ ! -f "$_r149_helper" ]]; then
   fail_rule "ai_understanding_map" "$_r149_helper missing -- Rule G-32 / E199"
   _r149_fail=1
 elif [[ -z "$GATE_PYTHON_BIN" ]]; then
   : # vacuous pass on hosts without python (Rule G-7 lists WSL as canonical env)
 else
-  _r149_out=$("$GATE_PYTHON_BIN" "$_r149_helper" --mode advisory 2>&1)
+  _r149_out=$("$GATE_PYTHON_BIN" "$_r149_helper" --mode changed-files-blocking --base "$_r149_base" 2>&1)
   _r149_rc=$?
-  # A non-zero rc in advisory mode is a CONFIG ERROR (a map DSL file exists but is
-  # unreadable, exit 2) — never an advisory finding (advisory always exits 0).
-  # Surface it verbatim as a hard fail.
+  # A non-zero rc is EITHER a blocked in-scope finding (exit 1 — a BLOCKABLE finding
+  # while a map authoring DSL file changed; advisory_only findings such as a
+  # NON-DERIVED-TRAVERSE from a not-yet-shipped Feature never block) OR a CONFIG
+  # ERROR (a map DSL file exists but is unreadable, exit 2). Both fail the rule; the
+  # config-error message is surfaced verbatim when present.
   if [[ $_r149_rc -ne 0 ]]; then
     _r149_err=$(printf '%s' "$_r149_out" | grep -E 'config error' | head -1)
-    fail_rule "ai_understanding_map" "${_r149_err:-ai-understanding-map helper exited $_r149_rc} -- Rule G-32 / E199"
+    if [[ -n "$_r149_err" ]]; then
+      fail_rule "ai_understanding_map" "${_r149_err} -- Rule G-32 / E199"
+    else
+      _r149_sum=$(printf '%s' "$_r149_out" | grep -E 'finding\(s\)' | tail -1)
+      _r149_hits=$(printf '%s' "$_r149_out" | grep -E '^ai-understanding-map \[' | grep -v '\[advisory\]$' | head -5)
+      fail_rule "ai_understanding_map" "changed map surface adds a blockable finding (Rule G-32 / E199): ${_r149_sum:-ai-understanding-map helper exited $_r149_rc}${_r149_hits:+ || ${_r149_hits}}"
+    fi
     _r149_fail=1
   else
     _r149_sum=$(printf '%s' "$_r149_out" | grep -E 'finding\(s\)' | tail -1)
-    [[ -n "$_r149_sum" ]] && echo "OK (Rule G-32 / E199 advisory): $_r149_sum"
+    [[ -n "$_r149_sum" ]] && echo "OK (Rule G-32 / E199 changed-files-blocking): $_r149_sum"
   fi
 fi
 [[ $_r149_fail -eq 0 ]] && pass_rule "ai_understanding_map"

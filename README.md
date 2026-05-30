@@ -154,7 +154,7 @@ design contracts. Per-capability detail is the single source of truth in
 
 A Code-as-Contract gate keeps the documentation and the code in lockstep and
 fails closed on drift. Its current baseline:
-**65 §4 constraints · 139 ADRs · 164 active gate rules · 337 gate self-tests**,
+**65 §4 constraints · 139 ADRs · 164 active gate rules · 340 gate self-tests**,
 plus 13 Layer-0 governing principles, 62 active engineering rules, and 199 enforcer rows, with a 702-node / 1365-edge architecture graph — all maintained in
 [`docs/governance/architecture-status.yaml#architecture_sync_gate.baseline_metrics`](docs/governance/architecture-status.yaml)
 (the canonical source for every count); see [gate/README.md](gate/README.md) for
