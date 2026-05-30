@@ -22,7 +22,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  * <p>Permitted import roots from {@code com.huawei.ascend.service.platform..}:
  * <ul>
  *   <li>{@code com.huawei.ascend.service.runtime.runs..} — Run entity + state machine</li>
- *   <li>{@code com.huawei.ascend.engine.orchestration.spi..} — pure-Java SPIs</li>
+ *   <li>{@code com.huawei.ascend.bus.spi.engine..} — pure-Java SPIs</li>
  *   <li>{@code com.huawei.ascend.service.runtime.orchestration.inmemory.InMemoryRunRegistry}
  *       — the only dev-posture impl the platform edge (post-Phase-C / ADR-0078:
  *       agent-service; pre-Phase-C: agent-platform) legitimately wires
@@ -93,9 +93,9 @@ class PlatformImportsOnlyRuntimePublicApiTest {
                 .haveFullyQualifiedName(
                         "com.huawei.ascend.service.runtime.orchestration.inmemory.SyncOrchestrator")
                 .orShould().dependOnClassesThat().haveFullyQualifiedName(
-                        "com.huawei.ascend.service.runtime.orchestration.inmemory.SequentialGraphExecutor")
+                        "com.huawei.ascend.engine.exec.SequentialGraphExecutor")
                 .orShould().dependOnClassesThat().haveFullyQualifiedName(
-                        "com.huawei.ascend.service.runtime.orchestration.inmemory.IterativeAgentLoopExecutor")
+                        "com.huawei.ascend.engine.exec.IterativeAgentLoopExecutor")
                 .orShould().dependOnClassesThat().haveFullyQualifiedName(
                         "com.huawei.ascend.service.runtime.orchestration.inmemory.InMemoryCheckpointer")
                 .because("ADR-0055 / plan §18 F9 + ADR-0076 W2.x Phase 5 exception: only "

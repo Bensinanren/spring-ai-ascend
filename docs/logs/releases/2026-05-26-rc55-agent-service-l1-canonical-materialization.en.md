@@ -9,6 +9,8 @@ authority: ADR-0140..0145 + ADR-0143 (review-log demotion) + ADR-0100 + ADR-0138
 
 # rc55 — Agent Service L1 Canonical Materialization — Closure Release Note
 
+> **Historical artifact frozen at SHA 85cb888** (audit-2026-05-27 Wave 1+2+3+4 commit). Baseline counts in §0 below reflect the rc55 snapshot at that SHA. The current canonical baseline (134 ADRs / 623 nodes / 1188 edges / 34 families) lives in `docs/governance/architecture-status.yaml#architecture_sync_gate.allowed_claim`; see release note 2026-05-27-structurizr-workspace-authority-w0-w5.md for the structurizr W0..W5 + W7 update.
+
 ## 0. Canonical baselines (rc55 — per Gate Rule 28)
 
 | Baseline | rc55 value |
@@ -30,11 +32,16 @@ These match `docs/governance/architecture-status.yaml#baseline_metrics`
 exactly. The rc55 wave bumped: adr_count 124→130, graph_nodes
 606→612, graph_edges 1112→1153, recurring_defect_families 20→27.
 
-**Canonical baseline phrasing** (matches the rc54 release-note style for
-Gate Rule 28 grep): 65 §4 constraints · 130 ADRs · 143 active gate rules ·
+**Canonical baseline phrasing** (rc55 snapshot; matches the rc54 release-note
+style for Gate Rule 28 grep — structurizr-2026-05-27 corrections below this
+table advanced the baselines to 134 ADRs / 623 nodes / 1188 edges /
+34 families; this note remains a historical artifact frozen at SHA 85cb888 per
+the header marker):
+65 §4 constraints · 130 ADRs · 143 active gate rules ·
 260 gate self-tests · 43 active engineering rules · 176 enforcer rows ·
 461 Maven XML-counted tests · 612 architecture graph nodes / 1153 edges ·
 27 recurring defect families. **Gate self-tests: 260**.
+rc55 snapshot.
 
 ## 1. Summary
 
@@ -156,7 +163,7 @@ MODIFIED (9):
 ## 8. Verification
 
 - All 25 template renders pass byte-identical (Rule G-13 gate).
-- `architecture-graph.yaml` rebuilds deterministically (612 nodes, 1153 edges).
+- `architecture-graph.yaml` rebuilds deterministically (612 nodes, 1153 edges — rc55 snapshot; audit-2026-05-27 advanced to 620 / 1172).
 - `families.yaml` structurally validates (27 entries; schema_version 1).
 - `architecture-status.yaml` baselines match live graph head.
 - All commits pass on Linux/WSL per Rule G-7.
@@ -183,5 +190,5 @@ MODIFIED (9):
 - W0 sibling sweep report: [`docs/logs/reviews/2026-05-26-agent-service-l1-sibling-sweep.en.md`](../reviews/2026-05-26-agent-service-l1-sibling-sweep.en.md)
 - Historical authoring record (rc53): [`docs/logs/reviews/2026-05-26-agent-service-l1-4plus1-rewrite-wave-1.en.md`](../reviews/2026-05-26-agent-service-l1-4plus1-rewrite-wave-1.en.md) (demoted per ADR-0143)
 - Plan file: `D:\.claude\plans\agentservice-l1-4-1-java-3-d-chao-worksp-squishy-steele.md` (rc55 wave plan)
-- Canonical 4+1 source: [`docs/L1/agent-service/README.md`](../../L1/agent-service/README.md)
-- Module-root grounding: [`agent-service/ARCHITECTURE.md`](../../../agent-service/ARCHITECTURE.md)
+- Canonical 4+1 source: [`docs/L1/agent-service/README.md`](../../../architecture/docs/L1/agent-service/README.md)
+- Module-root grounding: [`agent-service/ARCHITECTURE.md`](../../../architecture/docs/L1/agent-service/ARCHITECTURE.md)

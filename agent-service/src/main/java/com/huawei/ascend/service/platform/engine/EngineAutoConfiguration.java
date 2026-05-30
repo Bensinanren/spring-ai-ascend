@@ -1,8 +1,8 @@
 package com.huawei.ascend.service.platform.engine;
 
 import com.huawei.ascend.engine.runtime.EngineRegistry;
-import com.huawei.ascend.service.runtime.orchestration.inmemory.IterativeAgentLoopExecutor;
-import com.huawei.ascend.service.runtime.orchestration.inmemory.SequentialGraphExecutor;
+import com.huawei.ascend.engine.exec.IterativeAgentLoopExecutor;
+import com.huawei.ascend.engine.exec.SequentialGraphExecutor;
 import com.huawei.ascend.engine.spi.AgentLoopExecutor;
 import com.huawei.ascend.engine.spi.ExecutorAdapter;
 import com.huawei.ascend.engine.spi.GraphExecutor;

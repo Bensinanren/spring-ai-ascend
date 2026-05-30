@@ -8,7 +8,7 @@ authority: "ADR-0143 (rc55 — canonical 4+1 source moved here) + ADR-0078 (cons
 
 # agent-service — Development View
 
-> Authoring source: rc53 review file §18 + `agent-service/ARCHITECTURE.md` §12 (current Development View tree), ported in rc55 W5 with corrections:
+> Authoring source: rc53 review file §18 + `ARCHITECTURE.md` §12 (current Development View tree), ported in rc55 W5 with corrections:
 >
 > - **R7** + **ADR-0144**: §2 publishes the canonical Layer↔Package matrix unifying ADR-0100's 5-component package-structural decomposition with ADR-0138's 5-layer logical-view decomposition.
 > - **R2** + **ADR-0141**: `service.queue/` is NOT shown in the §1 tree (it does NOT exist on disk at rc55); referenced only in §4 "Future Sub-Packages" with ADR-0141 anchor.
@@ -69,6 +69,23 @@ agent-service/
 **Cross-walk verification status:** every directory listed above
 exists on disk per the rc55 W5 filesystem scan. Future sub-packages
 NOT yet on disk are explicitly listed under §4 with their ADR anchor.
+
+### v1.2 SPI package additions (ADR-0155)
+
+Two new SPI packages live under `agent-service/src/main/java/`:
+
+```
+service.runtime.executor.spi/
+  ExecutorAdapter.java        (interface)
+  InjectionMode.java          (enum — InjectionMode wiring choice per ADR-0155 §4)
+service.runtime.intercept.spi/
+  PlatformChatClient.java     (interface)
+  PlatformToolCallback.java   (interface)
+  PlatformMemoryProvider.java (interface)
+  PlatformRetriever.java      (interface)
+```
+
+`InjectionMode` enum values: `NATIVE_DI | THIRD_PARTY_BRIDGE | EVENT_RELAY | NONE` — see L5a EDE-08 in the features inventory.
 
 ## 2. Layer ↔ Package Matrix (ADR-0144)
 
@@ -137,7 +154,7 @@ under `service.platform.**`. Enforced by ArchUnit
 reverse (`service.platform.* → service.runtime.*`) is permitted ONLY
 to the runtime public surface declared by
 `ServicePlatformImportsOnlyServiceRuntimePublicApiTest` (enforcer E34):
-`runs/`, `engine.orchestration.spi.*`, `posture/`, and the dev-posture-
+`runs/`, `bus.spi.engine.*`, `posture/`, and the dev-posture-
 gated `InMemoryRunRegistry`.
 
 ### 3.3 New rc22 sub-packages (`dispatcher/orchestrator/task/session/engine/`)
@@ -154,7 +171,7 @@ rc55 does NOT execute that refactor.
 | Sub-package | Wave | Authority | Status |
 |---|---|---|---|
 | `service.queue/` | W4+ (or W2 per scheduling) | ADR-0141 (Internal Event Queue design_only Boundary Contract) | NOT on disk; binding contract published in ADR-0141; will host the Layer 3 Producer/Consumer split routing to agent-bus three channels per Rule R-E |
-| `service.runtime.llm/` | W2 | per `agent-service/ARCHITECTURE.md` §2.B wave-staged placeholders | NOT on disk; LlmRouter + ChatClient beans + CostMetering |
+| `service.runtime.llm/` | W2 | per `ARCHITECTURE.md` §2.B wave-staged placeholders | NOT on disk; LlmRouter + ChatClient beans + CostMetering |
 | `service.runtime.outbox/` | W2 | per ARCHITECTURE.md | NOT on disk; Postgres-backed outbox + OutboxPublisher |
 | `service.runtime.observability/` (kernel side) | W2 | per ARCHITECTURE.md | NOT on disk; custom metrics + span propagation |
 | `service.runtime.tool/` | W3 | per ARCHITECTURE.md | NOT on disk; MCP server registry + per-tenant tool allowlist |
@@ -277,6 +294,6 @@ dfx:
 - Logical: [`logical.md`](logical.md) — 5-layer + ADR-0140 split + ER + state machines + RunEvent hierarchy.
 - Process: [`process.md`](process.md) — sequence diagrams P1-P6.
 - Physical: [`physical.md`](physical.md) — 5-plane deployment + RLS + 3-track bus + sandbox.
-- SPI Appendix: [`spi-appendix.md`](05-contracts/spi-appendix.md) — 9 active SPI 4-way parity.
-- Module-root: [`agent-service/ARCHITECTURE.md`](../../../../../agent-service/ARCHITECTURE.md) — shipped components + dependencies + wave plan.
-- ADRs: [ADR-0078](../../../../adr/0078-agent-service-consolidation.yaml) (consolidation), [ADR-0088](../../../../adr/0088-agent-runtime-core-dissolution.yaml) (kernel redistribution), [ADR-0099](../../../../adr/0099-rc22-l1-architecture-depth-and-grounding.yaml) (Rule G-1.1), [ADR-0100](../../../../adr/0100-rc22-agent-service-l1-runtime-role-decomposition.yaml) (5-component), [ADR-0138](../../../../adr/0138-agent-service-five-layer-l1-ratification.yaml) (5-layer), [ADR-0140](../../../../adr/0140-engine-adapter-layer-split.yaml) (5a/5b split), [ADR-0141](../../../../adr/0141-internal-event-queue-design-only.yaml) (Layer 3 design_only), [ADR-0142](../../../../adr/0142-run-aggregate-single-owner.yaml) (Run aggregate pinning), [ADR-0144](../../../../adr/0144-layer-vs-package-matrix.yaml) (THIS matrix), [ADR-0145](../../../../adr/0145-run-event-sealed-hierarchy.yaml) (sealed RunEvent).
+- SPI Appendix: [`spi-appendix.md`](spi-appendix.md) — 9 active SPI 4-way parity.
+- Module-root: [`agent-service/ARCHITECTURE.md`](../../../agent-service/ARCHITECTURE.md) — shipped components + dependencies + wave plan.
+- ADRs: [ADR-0078](../../adr/0078-agent-service-consolidation.yaml) (consolidation), [ADR-0088](../../adr/0088-agent-runtime-core-dissolution.yaml) (kernel redistribution), [ADR-0099](../../adr/0099-rc22-l1-architecture-depth-and-grounding.yaml) (Rule G-1.1), [ADR-0100](../../adr/0100-rc22-agent-service-l1-runtime-role-decomposition.yaml) (5-component), [ADR-0138](../../adr/0138-agent-service-five-layer-l1-ratification.yaml) (5-layer), [ADR-0140](../../adr/0140-engine-adapter-layer-split.yaml) (5a/5b split), [ADR-0141](../../adr/0141-internal-event-queue-design-only.yaml) (Layer 3 design_only), [ADR-0142](../../adr/0142-run-aggregate-single-owner.yaml) (Run aggregate pinning), [ADR-0144](../../adr/0144-layer-vs-package-matrix.yaml) (THIS matrix), [ADR-0145](../../adr/0145-run-event-sealed-hierarchy.yaml) (sealed RunEvent).

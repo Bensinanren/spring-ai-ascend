@@ -3,11 +3,12 @@ package com.huawei.ascend.service.runtime.s2c;
 import com.huawei.ascend.engine.runtime.EngineRegistry;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.InMemoryCheckpointer;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.InMemoryRunRegistry;
-import com.huawei.ascend.service.runtime.orchestration.inmemory.IterativeAgentLoopExecutor;
-import com.huawei.ascend.service.runtime.orchestration.inmemory.SequentialGraphExecutor;
+import com.huawei.ascend.engine.exec.IterativeAgentLoopExecutor;
+import com.huawei.ascend.engine.exec.SequentialGraphExecutor;
+import com.huawei.ascend.service.runtime.orchestration.TestEnginePorts;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.SyncOrchestrator;
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
-import com.huawei.ascend.engine.orchestration.spi.SuspendSignal;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.SuspendSignal;
 import com.huawei.ascend.service.runtime.resilience.spi.SuspendReason;
 import com.huawei.ascend.service.runtime.runs.RunStatus;
 import com.huawei.ascend.bus.spi.s2c.S2cCallbackEnvelope;
@@ -92,7 +93,7 @@ class S2cCallbackRoundTripIT {
                 .registerS2cCallbackTransport(transport);
 
         InMemoryRunRegistry runRegistry = new InMemoryRunRegistry();
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 runRegistry, new InMemoryCheckpointer(), engines);
 
         UUID runId = UUID.randomUUID();
@@ -115,7 +116,7 @@ class S2cCallbackRoundTripIT {
                 .register(new IterativeAgentLoopExecutor())
                 .registerS2cCallbackTransport(transport);
 
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 new InMemoryRunRegistry(), new InMemoryCheckpointer(), engines);
 
         assertThatThrownBy(() -> orchestrator.run(UUID.randomUUID(), "tenant-A",
@@ -134,7 +135,7 @@ class S2cCallbackRoundTripIT {
                 .register(new IterativeAgentLoopExecutor())
                 .registerS2cCallbackTransport(transport);
 
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 new InMemoryRunRegistry(), new InMemoryCheckpointer(), engines);
 
         assertThatThrownBy(() -> orchestrator.run(UUID.randomUUID(), "tenant-A",
@@ -151,7 +152,7 @@ class S2cCallbackRoundTripIT {
                 .register(new IterativeAgentLoopExecutor());
         // No registerS2cCallbackTransport call -- transport is null.
 
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 new InMemoryRunRegistry(), new InMemoryCheckpointer(), engines);
 
         assertThatThrownBy(() -> orchestrator.run(UUID.randomUUID(), "tenant-A",

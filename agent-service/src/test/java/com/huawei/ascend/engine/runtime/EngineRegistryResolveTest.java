@@ -3,10 +3,10 @@ package com.huawei.ascend.engine.runtime;
 import com.huawei.ascend.engine.spi.AgentLoopExecutor;
 import com.huawei.ascend.engine.spi.EngineMatchingException;
 import com.huawei.ascend.engine.spi.ExecutorAdapter;
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
 import com.huawei.ascend.engine.spi.GraphExecutor;
-import com.huawei.ascend.engine.orchestration.spi.RunContext;
-import com.huawei.ascend.engine.orchestration.spi.SuspendSignal;
+import com.huawei.ascend.bus.spi.engine.RunContext;
+import com.huawei.ascend.bus.spi.engine.SuspendSignal;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

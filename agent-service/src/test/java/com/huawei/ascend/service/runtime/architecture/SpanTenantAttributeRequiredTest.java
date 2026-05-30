@@ -48,7 +48,7 @@ class SpanTenantAttributeRequiredTest {
                 .that().haveSimpleNameEndingWith("SpanEmitter")
                 .or().haveSimpleNameEndingWith("SpanBuilder")
                 .should().dependOnClassesThat()
-                .haveFullyQualifiedName("com.huawei.ascend.engine.orchestration.spi.RunContext")
+                .haveFullyQualifiedName("com.huawei.ascend.bus.spi.engine.RunContext")
                 .allowEmptyShould(true);
         rule.check(RUNTIME_MAIN_CLASSES);
     }

@@ -35,7 +35,7 @@ public enum HookPoint {
     /**
      * Cooperative-scheduling hint.
      * Engine asks orchestrator to be rescheduled WITHOUT a state-machine
-     * transition; distinct from {@link com.huawei.ascend.engine.orchestration.spi.SuspendSignal}
+     * transition; distinct from {@link com.huawei.ascend.bus.spi.engine.SuspendSignal}
      * which remains canonical for state-machine suspension.
      */
     ON_YIELD

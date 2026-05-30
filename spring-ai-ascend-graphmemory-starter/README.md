@@ -49,6 +49,6 @@ Auto-discovery uses the Spring Boot 2.7+ contract: `META-INF/spring/org.springfr
 
 ## See also
 
-- [ARCHITECTURE.md](../ARCHITECTURE.md) — system boundary and SPI contracts.
+- [ARCHITECTURE.md](../architecture/docs/L0/ARCHITECTURE.md) — system boundary and SPI contracts.
 - [docs/adr/0034-memory-and-knowledge-taxonomy-at-l0.md](../docs/adr/0034-memory-and-knowledge-taxonomy-at-l0.md) — memory taxonomy + Graphiti selection rationale.
 - [agent-service/src/main/java/com/huawei/ascend/service/runtime/memory/spi/GraphMemoryRepository.java](../agent-service/src/main/java/com/huawei/ascend/service/runtime/memory/spi/GraphMemoryRepository.java) — the SPI interface.

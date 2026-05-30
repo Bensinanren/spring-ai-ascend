@@ -8,7 +8,7 @@ kind: domain             # platform | domain | starter | bom | sample
 version: 0.0.1-SNAPSHOT
 semver_compatibility: experimental
 description: "Edge Access plane — AgentClient SDK skeleton. HTTP client + Task Cursor consumer + SSE/Webhook receiver. Implementation deferred to W3+ per ADR-0049. All cross-plane traffic MUST route through agent-bus.spi.ingress.IngressGateway per ADR-0089 / Rule R-I sub-clause .b — direct imports of agent-service / agent-execution-engine / agent-middleware are forbidden (negative invariant in forbidden_dependencies below; positive routing locked in ingress-envelope.v1.yaml + EdgeToComputeDirectLinkArchTest E143)."
-architecture_doc: agent-client/ARCHITECTURE.md
+architecture_doc: architecture/docs/L1/agent-client.md
 dfx_doc: docs/dfx/agent-client.yaml
 spi_packages:
   - com.huawei.ascend.client.spi   # placeholder; populated in W3+ per ADR-0049

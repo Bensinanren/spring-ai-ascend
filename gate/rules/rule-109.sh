@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 109 — namespaced_rule_reference_completeness. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 109 — namespaced_rule_reference_completeness (enforcer E154)
 #
@@ -10,7 +10,7 @@
 # rc12 Rule 101 was scoped narrowly per ADR-0086 gate_layer_boundary;
 # this rule widens to ALL semantic-authority surfaces. Per ADR-0093.
 #
-# scope_surfaces: docs/governance/principles/P-*.md, docs/governance/rules/*.md, agent-*/ARCHITECTURE.md, docs/contracts/*.yaml, docs/contracts/*.md
+# scope_surfaces: docs/governance/principles/P-*.md, docs/governance/rules/*.md, architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md, docs/contracts/*.yaml, docs/contracts/*.md
 #
 # Numeric Rule references MUST carry a legacy marker (formerly|legacy|
 # historical|Gate Rule|gate Rule|was Rule|ex-Rule) within the SAME line.
@@ -18,7 +18,7 @@
 # ---------------------------------------------------------------------------
 _r109_fail=0
 _r109_surfaces=$(find docs/governance/principles docs/governance/rules \
-                   agent-*/ARCHITECTURE.md docs/contracts \
+                   architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md docs/contracts \
                    -type f \( -name '*.md' -o -name '*.yaml' \) 2>/dev/null \
                  | grep -v 'docs/archive/' | grep -v 'docs/logs/' || true)
 while IFS= read -r _r109_file; do

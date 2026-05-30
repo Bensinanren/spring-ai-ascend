@@ -1,6 +1,22 @@
 id: ADR-0140
+# Post-2026-05-27 audit clarification (AUD-COHES-1): the 5a/5b structural
+# package split this ADR declares is STRUCTURAL (a code-package boundary),
+# not TAXONOMY (a label only). The 2026-05-27 agent-service L1 architecture
+# audit confirmed this ADR's intent but found that on `main` SHA c93c2fd
+# the Layer 5a executors (`SequentialGraphExecutor`,
+# `IterativeAgentLoopExecutor`) live under
+# `service.runtime.orchestration.inmemory/` rather than the declared
+# `service.engine.adapter/` home — making the 5a/5b boundary doc-only
+# at code level. Closure requires either (a) physically relocating the
+# executors into `service.engine.adapter/` and removing the
+# `PlatformImportsOnlyRuntimePublicApiTest` carve-out (preferred), OR
+# (b) amending this ADR to declare the actual layer↔package mapping. The
+# audit's recommendation per user precedence (2026-05-22 doc favors layer
+# cohesion as a first-class invariant) is option (a); this is deferred to
+# a follow-up impl-mode wave (not in the audit's PR scope).
 title: "Engine Adapter Layer split: Layer 5 in ADR-0138 5-layer model decomposes into Layer 5a (Engine Dispatch & Execution: EngineRegistry + ExecutorAdapter impls) and Layer 5b (Translation & Tool-Intercept: ContextProjector + PromptTemplate + StructuredOutputConverter + ChatAdvisor); RuntimeMiddleware moves exclusively into Layer 4 Control"
 status: accepted
+product_claim: "PC-004"
 date: 2026-05-26
 level: L1
 view: logical

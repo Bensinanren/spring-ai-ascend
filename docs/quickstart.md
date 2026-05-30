@@ -67,7 +67,7 @@ public class MyFirstAgent {
     return args -> {
       // Orchestrator.run(runId, tenantId, executorDefinition, initialPayload)
       // is the canonical entry point (see
-      // com.huawei.ascend.engine.orchestration.spi.Orchestrator#run).
+      // com.huawei.ascend.bus.spi.engine.Orchestrator#run).
       // It synchronously creates the Run if absent, marks it RUNNING, and
       // recursively drives the suspend/resume loop until SUCCEEDED / FAILED.
       UUID runId = UUID.randomUUID();
@@ -251,7 +251,7 @@ for the full matrix.
 
 ## 6. Where to go next
 
-- Architecture and SPI surface: [`ARCHITECTURE.md`](../ARCHITECTURE.md).
+- Architecture and SPI surface: [`ARCHITECTURE.md`](../architecture/docs/L0/ARCHITECTURE.md).
 - HTTP contract surface: [`docs/contracts/`](contracts/).
 - Engineering rules you must honour: [`CLAUDE.md`](../CLAUDE.md).
 - DFX coverage per module: [`docs/dfx/`](dfx/).

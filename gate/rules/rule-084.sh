@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 84 — active_module_architecture_path_truth. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 84 — active_module_architecture_path_truth (enforcer E117)
 #
-# Every agent-*/ARCHITECTURE.md whose front-matter status: token does NOT
+# Every architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md whose front-matter status: token does NOT
 # contain "skeleton" or "deferred" MUST have every inline path claim of the
 # shape "<module>/src/main/java/..." resolve to a real file on disk OR carry
 # a historical/moved/extracted-per-ADR/superseded/deferred/formerly marker
@@ -20,7 +20,7 @@ _r84_path_re='agent-[a-z-]+/src/main/java/[a-zA-Z0-9_/.-]+'
 # Perf fix (2026-05-23): replaced per-line `echo | grep -oE` + per-claim
 # `sed | grep` with mapfile + bash-native regex. On WSL/mnt/d the original
 # took ~52s per gate run; the rewrite finishes in ~1s.
-for _r84_arch in agent-*/ARCHITECTURE.md; do
+for _r84_arch in architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md; do
   [[ -f "$_r84_arch" ]] || continue
   _r84_status=$(awk 'BEGIN{infm=0} /^---[[:space:]]*$/{infm=!infm; next} infm && /^status:/{print; exit}' "$_r84_arch" 2>/dev/null)
   [[ "$_r84_status" == *skeleton* ]] && continue

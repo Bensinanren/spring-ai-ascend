@@ -1,11 +1,12 @@
 package com.huawei.ascend.service.runtime.orchestration.inmemory;
 
 import com.huawei.ascend.service.runtime.orchestration.NoopTraceContext;
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
-import com.huawei.ascend.engine.orchestration.spi.RunContext;
-import com.huawei.ascend.engine.orchestration.spi.SuspendSignal;
-import com.huawei.ascend.engine.orchestration.spi.TraceContext;
-import com.huawei.ascend.engine.orchestration.spi.RunMode;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.RunContext;
+import com.huawei.ascend.bus.spi.engine.SuspendSignal;
+import com.huawei.ascend.bus.spi.engine.TraceContext;
+import com.huawei.ascend.bus.spi.engine.RunMode;
+import com.huawei.ascend.engine.exec.IterativeAgentLoopExecutor;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -35,7 +36,7 @@ class IterativeAgentLoopExecutorResumeCursorTest {
         return new RunContext() {
             @Override public UUID runId() { return runId; }
             @Override public String tenantId() { return "test-tenant"; }
-            @Override public com.huawei.ascend.engine.orchestration.spi.Checkpointer checkpointer() { return checkpointer; }
+            @Override public com.huawei.ascend.bus.spi.engine.Checkpointer checkpointer() { return checkpointer; }
             @Override public String traceId() { return trace.traceId(); }
             @Override public String spanId() { return trace.spanId(); }
             @Override public String sessionId() { return trace.sessionId(); }

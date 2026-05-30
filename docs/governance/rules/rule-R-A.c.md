@@ -7,6 +7,7 @@ principle_ref: P-A
 authority_refs: [ADR-0064]
 enforcer_refs: [E107]
 status: active
+product_claim: "PC-001"
 scope_phase: design
 kernel_cap: 12
 kernel: |
@@ -41,4 +42,4 @@ contains a job named `quickstart-smoke` AND a step that polls `/v1/health`.
 
 ## Trigger
 
-Activated 2026-05-18 by Wave 4 Track E per `D:\.claude\plans\spicy-mixing-galaxy.md`.
+Activated 2026-05-18 by Wave 4 Track E (historical session plan, local-only).

@@ -152,7 +152,7 @@ erDiagram
     RUN ||--o{ TASK : "may carry concurrent (W2+)"
     SESSION ||--o{ TASK : "owns (1:N, ADR-0100)"
     SESSION ||--o{ RUN : "contextualises (N:M projection, ADR-0135)"
-    TASK ||--|| RUN : "current-execution-of (when WORKING)"
+    TASK ||--o{ RUN : "executes via (1:N over time; ≤1 active Run per Task when A2aState=WORKING — see §4 DFA; per audit AUD-2026-05-27 PR77-P1-1)"
     RUN ||--o{ LIFECYCLE_STATE : "emits audit trail (rc55 ADR-0145)"
 
     RUN {
@@ -230,10 +230,10 @@ stateDiagram-v2
     PENDING --> CANCELLED: POST /v1/runs/{runId}/cancel<br/>same guards
     RUNNING --> EXPIRED: deadline pass<br/>RunRepository.updateIfNotTerminal CAS
     SUSPENDED --> EXPIRED: deadline pass<br/>RunRepository.updateIfNotTerminal CAS
+    FAILED --> RUNNING: retry per ADR-0118<br/>RunRepository.updateIfNotTerminal CAS (FAILED is NOT closed-terminal per RunStateMachine.java:37; W2-scoped retry policy decides re-enter)
 
     CANCELLED --> [*]
     SUCCEEDED --> [*]
-    FAILED --> [*]
     EXPIRED --> [*]
 
     note right of CANCELLED
@@ -344,15 +344,22 @@ Other vocabulary mappings (rc55 reaffirmation; full table in ADR-0136
 | Task (as "scheduling core") | `Task` (control-state record, `service.task.Task`) — distinct from Run |
 | TaskManager | TaskCenter sub-package + `TaskStateStore` SPI (per ADR-0100; rc55 audit M4 corrected stale "TaskRepository" naming) |
 | TaskEvent | `RunEvent` sealed hierarchy variants (per ADR-0145; §7 below) — NO standalone `TaskEvent` Java type |
-| InterruptSignal | `SuspendSignal` (`engine.orchestration.spi.SuspendSignal`, checked exception) — glossary synonym only per ADR-0137 |
+| InterruptSignal | `SuspendSignal` (`bus.spi.engine.SuspendSignal`, checked exception) — glossary synonym only per ADR-0137 |
 | InterruptType (INPUT_REQUIRED / TOOL_EXECUTION / COLLABORATION / SAFETY_CHECK) | Maps onto 3 platform mechanisms: A2A state for input-required, HookPoint for tool, SuspendReason for collaboration / safety |
 | Internal Event Queue | Three-track bus: `control` / `data` / `rhythm` (`bus-channels.yaml`, Rule R-E); Layer 3's binding role per ADR-0141 (`design_only`) |
 | DualTrackRouter | New SPI `(design_only — W2, ADR-0112)`; maps to `SlowTrackJudge` (already declared per ADR-0112); narrowed by ADR-0139 |
 | FastPath / SlowPath | In-process reactive synchronous + metadata persistence (Fast) vs persistent reactive + SuspendSignal + ResumeDispatcher (Slow); neither bypasses tenantId / RLS / reactive / SuspendSignal (per ADR-0139 narrowed semantics) |
 
+**v1.2 (per ADR-0155 §3)**: M6 Translation & Tool-Intercept does NOT
+construct prompts. The Agent (native code, third-party framework
+Formatter, or remote service) owns prompt assembly. M6 is a
+messages-in-flight boundary aspect — policy, redaction, token-budget
+audit, fallback trim. `BuiltPrompt` is deleted; `GovernedMessages`
+replaces it as M6's downstream type.
+
 ## 7. RunEvent Sealed Hierarchy (per ADR-0145)
 
-> **Status**: `design_only` per [`docs/contracts/run-event.v1.yaml`](../../../../contracts/run-event.v1.yaml). The Java sealed `RunEvent` interface + 10 record variants land in a follow-up impl-mode wave. Until then, Rule R-M.e (Every emitted `RunEvent` declares `EvolutionExport`) is design-armed but not actively gated. `EvolutionExport` enum already ships at `agent-service.../runtime/evolution/EvolutionExport.java`.
+> **Status**: `design_only` per [`docs/contracts/run-event.v1.yaml`](../../contracts/run-event.v1.yaml). The Java sealed `RunEvent` interface + 10 record variants land in a follow-up impl-mode wave. Until then, Rule R-M.e (Every emitted `RunEvent` declares `EvolutionExport`) is design-armed but not actively gated. `EvolutionExport` enum already ships at `agent-service.../runtime/evolution/EvolutionExport.java`.
 
 ```mermaid
 classDiagram
@@ -441,6 +448,8 @@ classDiagram
     RunEvent <|-- TerminalTransitionEvent
 ```
 
+- `ResumeAccepted { runId }` — emitted when M5 EDE-07 successfully injects the adapter on a RESUME_TICK; consumed by M4 TCC-06B to drive RESUMING → RUNNING. Per ADR-0155 H3 audit reversal.
+
 **Emission discipline** (in the future Java impl):
 - `RunCreatedEvent` emitted by Layer 2 `RunRepository.save(...)` — the
   only create-only call-site allowed per the rc39 ADR-0118 source-guard.
@@ -472,7 +481,37 @@ classDiagram
 | CancelRequestedEvent | — | — | — | — | ✓ | ✓ (rejection audit signal) |
 | TerminalTransitionEvent | ✓ (SUCCEEDED) | ✓ | ✓ (parent + child) | ✓ | ✓ (CANCELLED) | — |
 
-## 8. Cross-references
+## 8. Configuration ownership matrix (per-module sovereign vs read-only)
+
+> Absorbed from PR #79 / `docs/logs/reviews/2026-05-26-agent-service-module-capability-feature-list.{cn,en}.md` §5 per the post-merge audit Wave 3 plan. Configuration MUST NOT be scattered across request bodies, adapter-private fields, or prompt templates — L1 first names the sovereign module and the read-only consumers.
+
+| Configuration category | Sovereign module | Read-only / consumer modules | Required information | Exception closure |
+| --- | --- | --- | --- | --- |
+| Client identity and access capability | Access Layer | Session & Task Manager, Task-Centric Control Layer | clientId, tenant binding, auth posture, SSE / polling / callback transport, client-hosted skill advertisement. | Stale client capability, unavailable transport, tenant mismatch. |
+| Agent identity and service capability | Access Layer + Engine Dispatch & Execution | Task-Centric Control Layer, Translation & Tool-Intercept | AgentCard / capability publication, engine_type, supported run modes, streaming / tool / callback / delegation support. | Capability advertisement disagrees with EngineRegistry strict matching. |
+| Run-creation configuration snapshot | Session & Task Manager | All execution-related modules | Snapshot or reference for resolved model profile, engine profile, adapter profile, tool profile, routing posture, and client callback posture. | Unexplainable config drift during resume / retry. |
+| Model information | Translation & Tool-Intercept | Engine Dispatch & Execution, Task-Centric Control Layer | Provider, model id, options, streaming support, structured-output support, cost / quota tags. | Unsupported option, quota exceeded, provider drift, schema mismatch. |
+| Third-party Agent adapter information | Engine Dispatch & Execution | Access Layer, Task-Centric Control Layer, Session & Task Manager | adapter id, endpoint, auth mode, remoteAgentId, remoteThreadId / remoteTaskId schema, resume token schema, timeout / retry policy. | Cannot recover same remote invocation, credential scope error, adapter version drift. |
+| Client-hosted skill information | Access Layer + Task-Centric Control Layer | Translation & Tool-Intercept, Engine Dispatch & Execution | skill name, capability schema, permission posture, callback transport, result schema, timeout. | Client skill unavailable, over-permission, invalid result schema, callback timeout. |
+| Tool / sandbox / skill capacity | Task-Centric Control Layer | Translation & Tool-Intercept, Engine Dispatch & Execution | skill-capacity, sandbox policy, tool allowlist, quota, memory access policy, HookPoint policy. | Policy bypass, over-wide grant, capacity exhausted, missing audit. |
+| Channel and delivery policy | Internal Event Queue | Session & Task Manager, Task-Centric Control Layer | control / data / rhythm physical channel, durability tier, lease, ack, retry, dead-letter, inline payload cap. | Control starvation, poison message, payload too large, invisible dead-letter. |
+
+## 9. Orthogonality red-lines (correct vs incorrect splits)
+
+> Absorbed from PR #79 / `docs/logs/reviews/2026-05-26-agent-service-module-capability-feature-list.{cn,en}.md` §7 per the post-merge audit Wave 3 plan. These are the 8 layer/module boundaries this L1 design REFUSES to collapse; violating any of them is a recurrence trigger for `F-layer-decomposition-low-cohesion` (rc55 / ADR-0144).
+
+| Boundary | Correct split | Incorrect split |
+| --- | --- | --- |
+| SSE / polling vs Run lifecycle | Access Layer owns connection and projection; Run lifecycle is owned by Session & Task Manager plus Task-Centric Control Layer. | SSE disconnect cancels Run, or polling directly reads engine internals. |
+| Direct access vs bypass | Client may directly access Agent Service Access Layer; it must not directly access engines, repositories, middleware, or bus channels. | Letting clients call ExecutorAdapter or agent-bus topics for low latency. |
+| Run vs Task vs Session | Run owns execution state; Task owns protocol/control state; Session owns context state. | One StateStore swallowing Run, Task, and Session. |
+| Checkpoint vs Session / Memory | Checkpoint is a compute snapshot; Session / Memory are context and knowledge sources of truth. | Using checkpoint as a replacement for Session projection or Memory mutation discipline. |
+| Retry vs new Agent scheduling | Retry / resume first reuses the same Run, attempt, remote handle, or child-Run relationship. | Silently creating a new remote Agent after third-party interruption, causing duplicate side effects and broken audit. |
+| Client-hosted skill vs server tool | Client skill uses S2C callback and policy control; server tool uses RuntimeMiddleware and sandbox control. | Engine adapter directly accesses client-local capability or treats client skill as a normal server-side tool. |
+| RuntimeMiddleware vs ChatAdvisor | RuntimeMiddleware handles Run-aware HookPoints (Layer 4); ChatAdvisor handles model-call boundaries (Layer 5b). | Calling both tool interceptors and placing them in the same module. |
+| Configuration source vs runtime consumption | Configuration is owned by explicit modules and becomes resolved snapshot / reference at Run creation; execution modules only consume it. | Each adapter, prompt, and request body interprets configuration independently. |
+
+## 10. Cross-references
 
 - Scenarios: [`scenarios.md`](scenarios.md) — S1-S5 + the cross-scenario
   invariants (red lines) carried over from ADR-0138 §5.
@@ -484,13 +523,13 @@ classDiagram
   layer↔package matrix per ADR-0144, 5 L2 Boundary Contracts.
 - SPI Appendix: [`spi-appendix.md`](05-contracts/spi-appendix.md) — 9 active SPI
   interfaces with 4-way parity (Rule G-1.1.b).
-- Module-root grounding: [`agent-service/ARCHITECTURE.md`](../../../../../agent-service/ARCHITECTURE.md)
+- Module-root grounding: [`agent-service/ARCHITECTURE.md`](../../../agent-service/ARCHITECTURE.md)
   §1-§9.
-- Contract anchors: [`docs/contracts/run-event.v1.yaml`](../../../../contracts/run-event.v1.yaml),
-  [`docs/contracts/engine-envelope.v1.yaml`](../../../../contracts/engine-envelope.v1.yaml),
-  [`docs/contracts/engine-hooks.v1.yaml`](../../../../contracts/engine-hooks.v1.yaml),
-  [`docs/contracts/s2c-callback.v1.yaml`](../../../../contracts/s2c-callback.v1.yaml),
-  [`docs/governance/bus-channels.yaml`](../../../../governance/bus-channels.yaml).
+- Contract anchors: [`docs/contracts/run-event.v1.yaml`](../../contracts/run-event.v1.yaml),
+  [`docs/contracts/engine-envelope.v1.yaml`](../../contracts/engine-envelope.v1.yaml),
+  [`docs/contracts/engine-hooks.v1.yaml`](../../contracts/engine-hooks.v1.yaml),
+  [`docs/contracts/s2c-callback.v1.yaml`](../../contracts/s2c-callback.v1.yaml),
+  [`docs/governance/bus-channels.yaml`](../../governance/bus-channels.yaml).
 - Authoritative ADRs: ADR-0136 (vocabulary) · ADR-0137 (SuspendSignal canonical) ·
   ADR-0138 (5-layer L1) · ADR-0139 (Fast/Slow Path narrowed) · ADR-0140 (5a/5b split) ·
   ADR-0141 (Layer 3 design_only) · ADR-0142 (Run aggregate single owner) ·

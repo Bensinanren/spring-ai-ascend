@@ -1,6 +1,7 @@
 id: ADR-0070
 title: "Cursor Flow + Skill Capacity Runtime — activation of Rules 36.b and 41.b"
 status: accepted
+product_claim: "PC-003"
 date: 2026-05-15
 level: L1
 view: process
@@ -104,7 +105,7 @@ alternatives_considered:
   - alternative: "Full async orchestrator wiring at W1.x — RunController dispatches actual work via a virtual-thread executor; AsyncRunDispatcher resolves to a real Orchestrator implementation."
     why_rejected: "Out of scope for W1.x. The W2 orchestrator design is still in flux; shipping it now would require committing to ADR-0021 specifics that are not yet validated. Phase 8's minimum is sufficient to prove the contract."
   - alternative: "Plain enum for SuspendReason (single constant SKILL_CAPACITY_EXCEEDED) instead of sealed interface."
-    why_rejected: "ADR-0019 commits to a sealed interface with four future variants (AwaitChild / AwaitTimer / AwaitExternal / AwaitApproval). Shipping an enum and migrating to a sealed interface later would churn every consumer's switch statement. The sealed declaration is no more code today and prevents the churn."
+    why_rejected: "ADR-0019 commits to a sealed interface with four future variants (per ADR-0146 canonical names: AwaitChildRun / AwaitTimer / AwaitToolResult / RequiresApproval). Shipping an enum and migrating to a sealed interface later would churn every consumer's switch statement. The sealed declaration is no more code today and prevents the churn. NB: variant names canonicalized post-2026-05-27 by ADR-0146; this rejection rationale reads identically against the renamed set."
   - alternative: "Postgres-backed SkillCapacityRegistry."
     why_rejected: "W2 scope — durability across restart is not required at L1.x. The in-memory ConcurrentHashMap + AtomicInteger CAS matches the existing W1 InMemoryRunRegistry pattern (Rule D-8 — single construction path per resource class)."
 

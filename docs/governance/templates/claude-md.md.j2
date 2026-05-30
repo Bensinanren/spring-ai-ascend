@@ -4,6 +4,12 @@
 
 Bodies of every principle and rule below live under `docs/governance/{principles,rules}/` and are loaded on-demand. CLAUDE.md is the kernel index. Drift policed by Gate Rules 67/68/69; always-loaded byte budget by Rule G-4 sub-clause .a (`gate/measure_always_loaded_tokens.sh`).
 
+## Rhetorical stance
+
+CLAUDE.md is the **enforceable** rule kernel index. Each rule kernel is ≤8 sentences; full bodies live in `docs/governance/rules/*.md` (loaded on demand by phase contracts). Rules enforce one or more of the 65 §4 architectural constraints declared in `ARCHITECTURE.md`. The full constraint ↔ rule mapping is in `architecture/generated/enforcers.dsl` (`enforced_by` edges) and `docs/governance/enforcers.yaml`.
+
+CLAUDE.md is **NOT** the architecture (read `architecture/workspace.dsl` for that), **NOT** the constraint corpus (read `ARCHITECTURE.md` §4 for that), **NOT** the runtime contract surface (read `docs/contracts/contract-catalog.md` for that), and **NOT** the L1 module design (read `architecture/docs/L1/<module>{.md,/}` for that). It is the enforcement layer over those surfaces.
+
 ## Phase Entry — Invoke the matching skill BEFORE working
 
 ADR-0098 (rc21) replaces progressive on-demand rule loading with
@@ -173,16 +179,16 @@ Enforced by [`rule-R-D.md`](docs/governance/rules/rule-R-D.md).
 ---
 
 ### Vibe-Coding-era structural discipline
-#### Rule G-1 — Layered 4+1 Discipline + Architecture-Graph Truth
+#### Rule G-1 — Layered 4+1 Discipline + Architecture Workspace Truth
 
-**Every architecture artefact (`ARCHITECTURE.md` section, `docs/adr/*.yaml`, `docs/L2/*.md`) MUST declare front-matter `level: L0|L1|L2` and `view: logical|development|process|physical|scenarios` per the 4+1 discipline (sub-clause .a); root `ARCHITECTURE.md` is L0 canonical, `agent-*/ARCHITECTURE.md` is L1, `docs/L2/` is L2; phase-released L0/L1 artefacts are read-only with further edits flowing through `docs/logs/reviews/` (interaction records — front-matter optional per `docs/governance/logs-folder-policy.md`). The machine-readable index `docs/governance/architecture-graph.yaml` MUST be generated (never hand-edited) by `gate/build_architecture_graph.sh` from principle-coverage / enforcers / status / module-metadata / ADR yaml inputs; the graph encodes principle→rule, rule→enforcer, enforcer→test/artefact, capability→test, module→module (allowed/forbidden), adr→adr (supersedes/extends/relates_to as DAGs), and (level,view)→artefact edges; the build MUST be idempotent (byte-identical re-run) (sub-clause .b).**
+**Every architecture artefact (`architecture/docs/L0/ARCHITECTURE.md`, `docs/adr/*.yaml`, `architecture/docs/L2/*.md`) MUST declare front-matter `level: L0|L1|L2` and `view: logical|development|process|physical|scenarios` per the 4+1 discipline (sub-clause .a); `architecture/docs/L0/ARCHITECTURE.md` is L0 canonical (moved from repo root per ADR-0152), `architecture/docs/L1/<module>/` is L1 (canonical per-view directory per ADR-0152, replacing the W8 single-`.md` fallback), `architecture/docs/L2/` is L2; phase-released L0/L1 artefacts are read-only with further edits flowing through `docs/logs/reviews/` (interaction records — front-matter optional per `docs/governance/logs-folder-policy.md`). The machine-readable architecture authority MUST be rooted in `architecture/workspace.dsl` and its workspace closure (`architecture/profile/`, `architecture/features/`, `architecture/docs/`, `architecture/decisions/`, `architecture/generated/`, `architecture/views/`); generated projections including `docs/governance/architecture-graph.yaml` and `docs/governance/architecture-workspace-graph.yaml` MUST be built from that closure, never hand-edited, and byte-identical on regeneration (sub-clause .b).**
 
 Enforced by [`rule-G-1.md`](docs/governance/rules/rule-G-1.md).
 
 ---
 #### Rule G-1.1 — L1 Architecture Depth & Grounding
 
-**Every L1 architecture artefact (`agent-*/ARCHITECTURE.md`) MUST satisfy three depth/grounding constraints: (sub-clause .a — Development View Code-Mapping) include a Markdown fenced text block under `## *Development View*` (or numbered `## 3.`) declaring the target directory tree at least to the package level; every major logical component named in the Logical View MUST map to a specific code path in the tree; tree paths cross-checked against actual filesystem. (sub-clause .b — SPI Interface Appendix) contain a section or appendix enumerating the module's full SPI/API design; every interface FQN listed MUST correspond to an entry in the module's `module-metadata.yaml#spi_packages` AND appear in `docs/contracts/contract-catalog.md` AND exist as a `public interface` `.java` file (adds the L1 architecture-doc appendix as the FOURTH parity point to Rule R-D sub-clauses .e/.f/.g — catalog ↔ metadata ↔ DFX; G-1.1 explicitly does NOT duplicate Rule R-D). (sub-clause .c — L2 Constraint Linkage) for any complex subsystem delegated to an L2 design, the L1 document MUST define the "Boundary Contracts" (inputs, outputs, DFX expectations) that the L2 design MUST adhere to.**
+**Every L1 architecture artefact (`architecture/docs/L1/<module>/` canonical directory per ADR-0152) MUST satisfy four depth/grounding constraints: (sub-clause .a — Development View Code-Mapping) `<module>/development.md` includes a Markdown fenced text block under `## *Development View*` (or numbered `## 3.`) declaring the target directory tree at least to the package level; every major logical component named in `<module>/logical.md` MUST map to a specific code path in the tree; tree paths cross-checked against actual filesystem. (sub-clause .b — SPI Interface Appendix) `<module>/spi-appendix.md` contains a section or appendix enumerating the module's full SPI/API design; every interface FQN listed MUST correspond to an entry in the module's `module-metadata.yaml#spi_packages` AND appear in `docs/contracts/contract-catalog.md` AND exist as a `public interface` `.java` file (adds the L1 architecture-doc appendix as the FOURTH parity point to Rule R-D sub-clauses .e/.f/.g — catalog ↔ metadata ↔ DFX; G-1.1 explicitly does NOT duplicate Rule R-D). (sub-clause .c — L2 Constraint Linkage) for any complex subsystem delegated to an L2 design, the L1 document MUST define the "Boundary Contracts" (inputs, outputs, DFX expectations) that the L2 design MUST adhere to. (sub-clause .d — Canonical Directory Parity) every `<module>/` directory MUST contain the canonical file basenames declared in `architecture/docs/L1/_template/` (README.md, ARCHITECTURE.md, logical.md, process.md, physical.md, development.md, scenarios.md, spi-appendix.md, features/README.md); advisory at W2 of the L1 Feature Registry plan, blocking at W5 after soak.**
 
 Enforced by [`rule-G-1.1.md`](docs/governance/rules/rule-G-1.1.md).
 
@@ -385,6 +391,40 @@ Enforced by [`rule-G-12.md`](docs/governance/rules/rule-G-12.md).
 **Every dynamic claim in the active corpus (count, path, module name, SPI FQN, ADR id, family id, version tag, baseline metric, generated table row) lives in exactly one of: (a) an authority YAML / decision YAML (source-of-truth), (b) a deterministically-generated YAML (e.g. `architecture-graph.yaml`), or (c) a rendered slot in a `*.md.j2` template under `docs/governance/templates/`. No dynamic claim is allowed to exist as free-typed prose anywhere. The corresponding rendered `.md` artifact MUST be byte-identical to `render(template, data)` — gate fails on any drift, including whitespace. Subsumes Rules G-2.b, G-2.d (root portion), G-2.1, G-8.a, G-8.c, G-8.e, G-9.c in the W3..W10 retirement schedule per ADR-0119; subsumed rules remain as defence-in-depth until W10 cleanup.**
 
 Enforced by [`rule-G-13.md`](docs/governance/rules/rule-G-13.md).
+
+---
+
+### L1 Feature Registry wave (ADR-0151)
+#### Rule G-14 — Feature Lifecycle Validity
+
+**Every SAA Feature element in `architecture/features/features.dsl` MUST declare `saa.status` from the 9-state lifecycle (`proposed → accepted → design_only → ready_for_impl → implemented_unverified → test_verified → shipped → deprecated → removed`) (sub-clause .a). Per-feature status transitions in git history MUST follow the forward chain OR be paired with an ADR `extends:` or `relates_to:` the original feature ADR (sub-clause .b). Status `shipped` MUST have non-empty `saa.verificationTestFqns`; the pipe-separated FQNs MUST resolve to existing test classes (sub-clause .c). Status `deprecated` MUST carry `saa.sunsetDate` (ISO yyyy-MM-dd) AND a `relates_to:` ADR (sub-clause .d). Advisory at Wave 1 of the L1 Feature Registry plan; promoted to blocking at Wave 5 after 14-day soak. Companion saa.rel types `decided_by` (FEAT- → ADR) and `contained_by` (FEAT- → CAP-) make AI traversal one-hop instead of string-matching.**
+
+Enforced by [`rule-G-14.md`](docs/governance/rules/rule-G-14.md).
+
+---
+
+### Fact-layer wave (ADR-0154)
+#### Rule G-15 — Fact-Layer Integrity
+
+**Generated structured facts live under `architecture/facts/generated/` and are produced ONLY by deterministic extractor binaries listed under `tools/architecture-workspace/` or `gate/lib/extractors/`. Sub-clause .a (blocking): `architecture/facts/README.md`, `architecture/facts/schema/fact.schema.yaml`, and `architecture/facts/generated/` MUST exist and the schema MUST parse as well-formed YAML. Sub-clause .b (blocking): every entry in every generated fact file MUST carry the required provenance fields (`fact_id`, `fact_kind`, `source_kind`, `source_path`, `extractor`, `extractor_version`, `repo_commit`, `observed_value`). Sub-clause .c is SPLIT (Round-4 redesign 2026-05-28): `.c.structural` (blocking in bash gate) requires the `DO NOT EDIT` banner on the first 5 lines of every generated fact file; `.c.bytes` (blocking in Maven Surefire test `FactLayerByteIdentityIT`) requires files under `architecture/facts/generated/` to be byte-identical to extractor re-emission at the same workspace HEAD — runs in `mvn -Pquality verify` where `target/classes` is guaranteed by the compile-phase ordering, eliminating the precondition gymnastics that bred three rounds of fail-open mechanisms. Sub-clause .d (blocking): a function point in `architecture/features/function-points.dsl` with `saa.status "shipped"` AND channel `http`/`spi` MUST carry non-empty `code_entrypoint_refs[]`, `test_refs[]`, AND at least one of `input_contract_refs[]` / `output_contract_refs[]`. LLMs and humans MUST NOT directly author or refresh files under `architecture/facts/generated/`. Extends Rule G-13 to the extracted-fact surface; does NOT duplicate it.**
+
+Enforced by [`rule-G-15.md`](docs/governance/rules/rule-G-15.md).
+
+---
+
+## Constraint ↔ Rule mapping (entry point)
+
+Each rule above enforces one or more `ARCHITECTURE.md` §4 numbered constraints (#1..#65, declarative). The full mapping lives in `architecture/generated/enforcers.dsl` (`enforced_by` edges) + `docs/governance/enforcers.yaml`. The table below names the most-cited pairs as a discovery entry point:
+
+| §4 # | Constraint topic | Primary enforcing rule(s) | Enforcer ID(s) |
+|---|---|---|---|
+| #10 | Module dependency direction | Rule R-C.1 (Independent Module Evolution) | E1 |
+| #20 | Run W0-race / W1.5+W2 CAS | Rule R-C.2 (Run Contract Spine) | E2, E58 |
+| #56 | JWT validation + tenant claim cross-check | Rule R-J (Storage-Engine Tenant Isolation) | E69 |
+| #58 | PostureBootGuard + `@RequiredConfig` | Rule D-6 (Posture-Aware Defaults) | E55 |
+| #65 | Architecture workspace truth | Rule G-1.b (Architecture Workspace Truth; amended W5/W8) | E56, E58 |
+
+Reading the catalog this way prevents conflation of "a constraint is declared" with "a rule is shipped" or "an enforcer is wired". The workspace projection at `docs/governance/architecture-workspace-graph.yaml` carries the full set of `enforced_by` edges.
 
 ---
 

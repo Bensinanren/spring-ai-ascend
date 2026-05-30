@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Extract per-rule bodies from gate/check_architecture_sync.sh into
-# gate/rules/rule-<NN>.sh files. Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# gate/rules/rule-<NN>.sh files. Authority: PR-E5.
 #
 # Idempotent: re-running on an unchanged monolith produces byte-identical
 # output. Used by Wave 3 to materialise the 82-file extraction the plan
@@ -34,9 +34,13 @@ awk '
   BEGIN { prev_slug = ""; prev_start = 0 }
   /^# Rule [0-9]+.?[a-z]? — / {
     emit_prev(NR - 1)
-    match($0, /^# Rule ([0-9]+.?[a-z]?) — ([a-z_0-9]+)/, arr)
-    prev_num = arr[1]
-    prev_slug = arr[2]
+    str = substr($0, 8)
+    space_idx = index(str, " ")
+    prev_num = substr(str, 1, space_idx - 1)
+    rest = substr(str, space_idx + 1)
+    sub(/^[^a-zA-Z0-9_]*/, "", rest)
+    match(rest, /^[a-zA-Z0-9_]+/)
+    prev_slug = substr(rest, RSTART, RLENGTH)
     prev_start = NR
     next
   }
@@ -63,7 +67,7 @@ while IFS=$'\t' read -r num slug start end; do
     printf '#!/usr/bin/env bash\n'
     printf '# Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh\n'
     printf '# Rule %s — %s. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.\n' "$num" "$slug"
-    printf '# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).\n'
+    printf '# Authority: PR-E5.\n'
     printf '\n'
     sed -n "${start},${end}p" "$SOURCE_SCRIPT"
   } > "$out"

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Wave 0 spike POM. NOT a reactor module.
+  Authority: ADR-0147 (Structurizr Workspace Authority).
+  This module is deliberately outside spring-ai-ascend-parent's <modules>
+  so it cannot be pulled into the production build. Removed at Wave 7
+  per the migration plan.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.huawei.ascend.tools</groupId>
+  <artifactId>architecture-workspace-spike</artifactId>
+  <version>0.0.1-SPIKE</version>
+  <packaging>jar</packaging>
+
+  <name>architecture-workspace-spike</name>
+  <description>Wave 0 spike — validates Structurizr DSL parse + profile + projection on agent-bus.</description>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <structurizr.version>6.2.1</structurizr.version>
+    <jackson.version>2.18.1</jackson.version>
+    <snakeyaml.version>2.4</snakeyaml.version>
+    <junit.version>5.11.3</junit.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.structurizr</groupId>
+      <artifactId>structurizr-dsl</artifactId>
+      <version>${structurizr.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <version>${snakeyaml.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <testResources>
+      <!--
+        WSL+NTFS workaround: maven-resources-plugin 3.4.0 setLastModifiedTime
+        fails with FileSystemException: Operation not permitted on
+        cross-filesystem boundaries. The .dsl fixtures are read by tests
+        via `new File("src/test/resources/...")` so they don't need to be
+        on the test classpath.
+      -->
+      <testResource>
+        <directory>src/test/resources</directory>
+        <excludes>
+          <exclude>**/*.dsl</exclude>
+        </excludes>
+      </testResource>
+    </testResources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <configuration>
+          <mainClass>com.huawei.ascend.tools.architecture.spike.SpikeCli</mainClass>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

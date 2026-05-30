@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 37 — architecture_artefact_front_matter. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 37 — architecture_artefact_front_matter (enforcer E55, ADR-0068)
 #
 # Every L0/L1/L2 architecture artefact MUST declare a level: + view:
 # front-matter (YAML at top of file for .md; top-level key for .yaml).
-# Targets: ARCHITECTURE.md, agent-*/ARCHITECTURE.md, docs/L2/**/*.md (excluding
+# Targets: ARCHITECTURE.md, architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md, architecture/docs/L2/**/*.md (excluding
 # README.md while empty), docs/adr/*.yaml.
 # ---------------------------------------------------------------------------
 _r37_fail=0
@@ -108,7 +108,7 @@ for d in sorted(os.listdir('.')):
     p = os.path.join(d, 'ARCHITECTURE.md')
     if os.path.isfile(p) and p != 'ARCHITECTURE.md':
         targets_md.append(p.replace('\\', '/'))
-targets_md.extend(sorted(glob.glob('docs/L2/**/*.md', recursive=True)))
+targets_md.extend(sorted(glob.glob('architecture/docs/L2/**/*.md', recursive=True)))
 for p in targets_md: check_md(p)
 
 for p in sorted(glob.glob('docs/adr/*.yaml')):

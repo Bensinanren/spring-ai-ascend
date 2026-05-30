@@ -1,7 +1,7 @@
 package com.huawei.ascend.service.runtime.orchestration.inmemory;
 
 import com.huawei.ascend.service.runtime.runs.Run;
-import com.huawei.ascend.engine.orchestration.spi.RunMode;
+import com.huawei.ascend.bus.spi.engine.RunMode;
 import com.huawei.ascend.service.runtime.runs.RunStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

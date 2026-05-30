@@ -24,7 +24,7 @@ strategic_decisions:
     resolution: |
       Resolved 2026-05-24 (ADR-0117, rc37): the platform is repositioned as a vertical-agnostic,
       Ascend (NPU) + Kunpeng (CPU) hardware-synergy platform. FSI is dropped as the lead vertical;
-      no single industry leads. ARCHITECTURE.md §1.1 Audience C was rewritten to "regulated-industry
+      no single industry leads. architecture/docs/L0/ARCHITECTURE.md §1.1 Audience C was rewritten to "regulated-industry
       self-host operators (vertical-agnostic)" via the frozen-doc proposal
       docs/logs/reviews/2026-05-24-rc37-strategic-repositioning-audience-c-unfreeze.en.md, and the
       forward developer docs were de-financed in the same wave. Historical-corpus FSI references in
@@ -57,7 +57,7 @@ strategic_decisions:
     surfaces_blocked: []
     resolution: |
       Resolved 2026-05-25 (ADR-0120, Wave A1 of the L0 Agentic Contract Surface remediation):
-      KEEP the `spring-ai-ascend` brand and the ARCHITECTURE.md §1.1 Audience B promise. The
+      KEEP the `spring-ai-ascend` brand and the architecture/docs/L0/ARCHITECTURE.md §1.1 Audience B promise. The
       rc41 "L0 final release-ready" decision is re-scoped in framing — rc41 becomes "Runtime
       Kernel + Governance Skeleton GA" (real deliverable), and L0 Final Release-Ready is
       re-claimed at rc48 after Phase B (6 SPI shapes) + Phase C (integration adapters +
@@ -75,7 +75,7 @@ strategic_decisions:
 
 # Source: root pom.xml <modules> list updated 2026-05-20 (rc13 wave)
 repository_counts:
-  note: "Canonical counts -- derived from root pom.xml modules list. All documents reference these; no document may claim a different count without updating this block. Bumped 2026-05-17 for the six-module materialization PR (T2.A scaffolds agent-client, agent-bus, agent-middleware, agent-execution-engine, agent-evolve; T2.B1 extracts middleware code; T2.B2 engine-code extraction completed at v2.0.0-rc5 (2026-05-18) per ADR-0079 — back-dep resolved by introducing agent-runtime-core). rc13 (2026-05-20) DISSOLVED agent-runtime-core per ADR-0088: 16 sources redistributed to semantic-home modules (runs/idempotency back to agent-service; orchestration.spi + RunMode into agent-execution-engine.engine.orchestration.spi; s2c.spi into agent-bus.bus.spi.s2c). Reactor returns to 8 modules = 6 substantive domain modules (client/service/bus/engine/middleware/evolve) + BoM + GraphMemory starter. Paired with ADR-0089 (Edge↔Compute Ingress Routing) which adds agent-bus.bus.spi.ingress as the C2S surface."
+  note: "Canonical counts -- derived from root pom.xml modules list. All documents reference these; no document may claim a different count without updating this block. Bumped 2026-05-17 for the six-module materialization PR (T2.A scaffolds agent-client, agent-bus, agent-middleware, agent-execution-engine, agent-evolve; T2.B1 extracts middleware code; T2.B2 engine-code extraction completed at v2.0.0-rc5 (2026-05-18) per ADR-0079 — back-dep resolved by introducing agent-runtime-core). rc13 (2026-05-20) DISSOLVED agent-runtime-core per ADR-0088: 16 sources redistributed to semantic-home modules (runs/idempotency back to agent-service; s2c.spi into agent-bus.bus.spi.s2c). ADR-0158 then re-homed the neutral orchestration/engine SPI (EnginePort + RunMode + orchestration types) into agent-bus.bus.spi.engine (transport-agnostic EnginePort boundary), with agent-execution-engine providing the InProcessEnginePort realization. Reactor returns to 8 modules = 6 substantive domain modules (client/service/bus/engine/middleware/evolve) + BoM + GraphMemory starter. Paired with ADR-0089 (Edge↔Compute Ingress Routing) which adds agent-bus.bus.spi.ingress as the C2S surface."
   reactor_modules: 8
   sdk_spi_starters: 0
   sidecar_adapter_starters: 1
@@ -90,7 +90,7 @@ capabilities:
   l0_architecture:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     l2_documents: []
     implementation: null
     tests: []
@@ -98,9 +98,9 @@ capabilities:
   agent_platform_facade:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     l2_documents:
-      - agent-service/ARCHITECTURE.md
+      - architecture/docs/L1/agent-service/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/platform/PlatformApplication.java
       - agent-service/src/main/java/com/huawei/ascend/service/platform/web/HealthController.java
@@ -112,17 +112,17 @@ capabilities:
   agent_runtime_kernel:
     status: test_verified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     l2_documents:
-      - agent-service/ARCHITECTURE.md
+      - architecture/docs/L1/agent-service/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/probe/OssApiProbe.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/runs/Run.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/runs/RunStatus.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/runs/RunStateMachine.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/SyncOrchestrator.java
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/SequentialGraphExecutor.java
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/IterativeAgentLoopExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/SequentialGraphExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/IterativeAgentLoopExecutor.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/InMemoryRunRegistry.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/InMemoryCheckpointer.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/posture/AppPostureGate.java
@@ -154,20 +154,24 @@ capabilities:
     latest_delivery_file: docs/delivery/2026-05-12-e0ccb6e.md
     baseline_metrics:
       # Other docs (README.md, gate/README.md) reference this block; raw numeric claims in those entrypoints
-      active_engineering_rules: 43              # live kernel-header count (9 D + 16 R + 16 G + 2 M = 43); +Rule G-13 Single-Source Rendering Coherence on the rc40 baseline of 42 (rc42 W0 / ADR-0119).
+      active_engineering_rules: 55              # live count of rule cards under docs/governance/rules/ with status:active (grep -lE '^status:[[:space:]]*active' rule-*.md per gate Rule 101.b — counts active + active_advisory). Semantic shift 2026-05-28: cards are sole rule authority (Rule 68/69) so this metric now counts cards, not CLAUDE.md headings. engineport-frame-authority-convergence: +5 cards G-22..G-26 (accepted-ADR frame-map coherence, shipped-frame anchor integrity, old-orchestration-spi package ban, Tier-1 non-English lint, local-plan-path ban) on the 50 baseline.
       active_governing_principles: 13           # P-A..P-M
-      active_gate_checks: 143                   # live `# Rule N — slug` header count in gate/check_architecture_sync.sh; rc49 +Rules 127-129 release evidence / ModelGateway truth / SPI count truth on the rc43 baseline of 140.
-      gate_executable_test_cases: 260           # live gate/test_architecture_sync_gate.sh runtime TOTAL (Tests passed: 260/260 on WSL/Linux); rc54 +2 effective fixture results for Rule 127 current-placeholder guard and Rule 129 advisor-composition truth on the rc53 baseline of 258.
-      enforcer_rows: 176                        # live docs/governance/enforcers.yaml row count; rc49 +E175-E177 on the rc43 baseline of 173.
-      section_4_constraints: 65                 # ARCHITECTURE.md §4 #1..#65 (unchanged at rc22)
-      adr_count: 130                            # rc55 agent-service L1 canonical-materialization wave +6 (ADR-0140 Engine Adapter Layer split, ADR-0141 Internal Event Queue design_only, ADR-0142 Run aggregate single owner, ADR-0143 review-log demotion + L1 canonical move, ADR-0144 Layer↔Package matrix, ADR-0145 sealed RunEvent hierarchy) on the rc53 baseline of 124.
-      maven_tests_green: 461                    # Formula: Surefire/Failsafe XML `tests` attributes after canonical WSL `./mvnw -Pquality verify`; rc54 +8 XML-counted Maven tests for advisor binding/envelope adapter, planner, and skill invariant coverage on the rc53 baseline of 453.
-      architecture_graph_nodes: 612             # live recount via `bash gate/build_architecture_graph.sh`: rc55 +6 nodes from the 6 new ADRs (0140..0145) on the rc54 baseline of 606.
-      architecture_graph_edges: 1153            # live recount via `bash gate/build_architecture_graph.sh`: rc55 +41 nodes/relates_to/extends/affects edges for the 6 new ADRs + run-event.v1.yaml contract + new family rows on the rc54 baseline of 1112.
-      recurring_defect_families: 27             # rc55 agent-service L1 canonical-materialization wave +7 (F-l1-canonical-source-in-interaction-log, F-layer-decomposition-low-cohesion, F-frontmatter-claim-body-mismatch, F-logical-vs-structural-decomposition-conflation, F-design-only-mechanism-shown-as-shipped, F-discriminator-without-discriminated-type, F-spi-package-bloat-with-carriers) on the rc54 baseline of 20.
+      active_gate_checks: 157                   # live `# Rule N — slug` header count in gate/check_architecture_sync.sh (extract_rules.sh extracted 157 rule files); engineport-frame-authority-convergence added Rules 139-143 (G-22..G-26: accepted-ADR frame-map coherence + shipped-frame anchor integrity + old-orchestration-spi package ban + Tier-1 non-English lint + local-plan-path ban) on the Phase A Wave 5 baseline of 152.
+      gate_executable_test_cases: 287           # live gate/test_architecture_sync_gate.sh runtime TOTAL (Tests passed: 287/287 on WSL/Linux); engineport-frame-authority-convergence +12 fixture results for Rules 139-143 (G-22..G-26) on the Phase A Wave 5 baseline of 275.
+      enforcer_rows: 190                        # live docs/governance/enforcers.yaml row count (EnforcersFragmentEmitter wrote 190 enforcers); engineport-frame-authority-convergence +E187-E191 (G-22..G-26: frame-map coherence / shipped-frame anchor / old-orchestration-spi ban / Tier-1 non-English / local-plan-path enforcers) on the Phase A Wave 5 baseline of 185.
+      section_4_constraints: 65                 # architecture/docs/L0/ARCHITECTURE.md §4 #1..#65 (unchanged at rc22)
+      adr_count: 139                            # Fact-Layer W1 +1 (ADR-0154 fact-layer authority) on the L1 Feature Registry W5 baseline of 138.
+      maven_tests_green: 463                    # Formula: Surefire/Failsafe XML `tests` attributes after canonical WSL `./mvnw -Pquality verify`; Round-4 Wave Alpha +2 XML-counted tests for FactLayerByteIdentityIT (Rule G-15.c.bytes byte-identity verification moved from bash gate to Maven per 2026-05-28 fourth-correction R3 redesign) on the rc54 baseline of 461.
+      architecture_graph_nodes: 674          # live recount via WSL `python3 gate/build_architecture_graph.py` per Rule G-7 (Wrote ... 674 nodes); engineport-frame-authority-convergence +15 net on the prior 659 (5 new enforcers E187-E191 + the ADR-0158 EnginePort/EngineeringFrame nodes regenerated from features/engineering-frames.dsl).
+      architecture_graph_edges: 1301         # live recount via WSL `python3 gate/build_architecture_graph.py` per Rule G-7 (Wrote ... 1301 edges); engineport-frame-authority-convergence +15 net on the prior 1286 (E187-E191 enforced_by / scope_surfaces edges + EngineeringFrame containment + Feature->Frame traverses edges).
+      workspace_elements: 620                   # live projection count from docs/governance/architecture-workspace-graph.yaml#node_count (re-emitted via gate/check_architecture_workspace.sh); engineport-frame-authority-convergence: +12 on the prior 608 (EF-ENGINE-PORT EngineeringFrame node + re-homed EF-ORCHESTRATION-SPI + bus.spi.engine projection growth). NEVER hand-computed — taken from the regenerated projection. Enforced by gate/lib/check_workspace_baseline_parity.py.
+      workspace_relationships: 495              # live projection edge_count from docs/governance/architecture-workspace-graph.yaml#edge_count; engineport-frame-authority-convergence: +26 on the prior 469 (16 Feature->Frame traverses edges + frame anchors/contains edges from the re-homed engine boundary). NEVER hand-computed — taken from the regenerated projection. Enforced by gate/lib/check_workspace_baseline_parity.py.
+      feature_corpus_size: 9                     # value-thread Features only (W1 seed baseline). The +6 agent-service Layer features were re-tagged to SAA EngineeringFrame per ADR-0157 (structural axis), returning the Feature corpus to 9.
+      l1_modules_with_canonical_directory: 7    # NEW metric: count of <module>/ canonical directories under architecture/docs/L1/ matching _template/ basenames (L1 Feature Registry W2 — all 7 kind=domain modules adopt uniform shape).
+      recurring_defect_families: 41             # live `^  - id: F-` count in docs/governance/recurring-defect-families.yaml. engineport-frame-authority-convergence registers 2 new families (F-non-english-in-tier1-authority + F-local-plan-path-in-active-authority) and records recurrences against F-numeric-drift / F-authority-surface-path-drift / F-cross-authority-agreement; the on-disk ledger was already at 39 (the prior informational baseline of 38 lagged one un-bumped addition), so 39+2=41.
       phase_contracts: 5                        # rc21 Wave 6 NEW: docs/governance/contracts/{architecture-design,engineering-implementation,integration-verification,system-commit,review-response}.md per ADR-0098.
       phase_loading_skills: 6                   # rc21 Wave 6 NEW: refresh-defect-archive (rc17) + 5 new phase skills (design-mode + impl-mode + verify-mode + commit-mode + review-mode) under .claude/skills/ per ADR-0098.
-    allowed_claim: "Architecture-sync gate implemented in bash (canonical); the PowerShell entrypoint is deprecated as of the rc2 wave (fail-closed stub; see gate/check_architecture_sync.ps1 + gate Rule 61 legacy_powershell_gate_deprecated). Architecture baseline (rc55 agent-service L1 canonical-materialization, 2026-05-26): 65 §4 constraints; 130 ADRs (highest ADR-0145; rc55 wave added ADR-0140 Engine Adapter Layer split + ADR-0141 Internal Event Queue design_only + ADR-0142 Run aggregate single owner + ADR-0143 review-log demotion + L1 canonical move + ADR-0144 Layer↔Package matrix + ADR-0145 sealed RunEvent hierarchy); 143 active gate rules; 43 active engineering rules (D-/R-/G-/M- namespace per ADR-0086); 260 gate self-tests; 176 enforcer rows; 461 Maven XML-counted tests after WSL-native ./mvnw -Pquality verify; 612 architecture graph nodes / 1153 edges; 27 recurring defect families (rc55 +7 NEW design-discipline families: F-l1-canonical-source-in-interaction-log, F-layer-decomposition-low-cohesion, F-frontmatter-claim-body-mismatch, F-logical-vs-structural-decomposition-conflation, F-design-only-mechanism-shown-as-shipped, F-discriminator-without-discriminated-type, F-spi-package-bloat-with-carriers; +4 existing-family extensions: F-cross-authority-agreement, F-terminal-verb-overclaim REOPENED to monitoring, F-design-doc-orphan-from-authority folded into F-cross-authority-agreement, F-design-doc-language-bypasses-invariant unchanged). Wave history retained in prior release notes; this row's numeric baseline is authoritative for release evidence."
+    allowed_claim: "Architecture-sync gate implemented in bash (canonical); the PowerShell entrypoint is deprecated as of the rc2 wave (fail-closed stub; see gate/check_architecture_sync.ps1 + gate Rule 61 legacy_powershell_gate_deprecated). Architecture baseline (Fact-Layer Authority Round-2 Wave A ship, 2026-05-28): 65 §4 constraints; 139 ADRs (highest ADR-0154 fact-layer authority); 157 active gate rules + Rule G-15 (Fact-Layer Integrity, sub-clauses .a/.b/.c.structural/.c.bytes/.d all BLOCKING per Round-4 Wave Alpha redesign 2026-05-28) + Rule G-14 (Feature Lifecycle Validity, blocking) + gate/check_architecture_workspace.sh blocking-mode workspace gate invoked after the rule loop; 55 active engineering rules (D-/R-/G-/M- namespace per ADR-0086); 287 gate self-tests; 190 enforcer rows; 463 Maven XML-counted tests after WSL-native ./mvnw -Pquality verify; 41 recurring defect families. Workspace closure at architecture/workspace.dsl: 620 elements + 495 relationships (engineport-frame-authority-convergence projection); architecture/docs/L1/ holds the consolidated L1 design corpus; architecture/decisions/ holds 6 anchor ADR markdown mirrors imported by Structurizr's !adrs directive; architecture/features/features.dsl holds 15 FEAT- elements with full saa.aiBoundary.* schema + 9-state lifecycle per Rule G-14. architecture/facts/generated/ is POPULATED (Fact-Layer Round-1 W2-W4 shipped 2026-05-27): module-build.json + adrs.json + runtime-config.json + contract-surfaces.json + code-symbols.json + tests.json — emitted by ExtractFactsCli under tools/architecture-workspace/.../facts/. Round-2 Wave A (2026-05-28) closed expert-review P0-1 (truth-up FunctionPoint refs against generated facts, removed FP-LIST-RUNS), P0-2 (regenerated architecture/generated/*.dsl + the agent-service feature catalog), P1-2 (implemented check_subclause_d resolver), P1-4 (re-rendered catalog). Round-2 Waves B-C follow as pre-committed contiguous PR train; verification log lives at docs/reviews/2026-05-28-fact-layer-delivery-correction-response.en.md. W5 14-day structurizr-soak runs 2026-05-27 -> 2026-06-10. Wave history retained in prior release notes; this row's numeric baseline is authoritative for release evidence."
 
   plan_projection_contract:
     status: design_accepted
@@ -198,7 +202,7 @@ capabilities:
   spring_ai_ascend_graphmemory_starter:
     status: implemented_unverified
     shipped: false
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - spring-ai-ascend-graphmemory-starter/src/main/java/com/huawei/ascend/runtime/graphmemory/GraphMemoryAutoConfiguration.java
     tests:
@@ -208,7 +212,7 @@ capabilities:
   spi_compatibility_freeze:
     status: test_verified
     shipped: true
-    l0_decision: ARCHITECTURE.md (sec.3.2)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.3.2)
     implementation:
       - agent-service/src/test/java/com/huawei/ascend/service/platform/api/ApiCompatibilityTest.java
     tests:
@@ -218,7 +222,7 @@ capabilities:
   idempotency_header_filter:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/platform/idempotency/IdempotencyHeaderFilter.java
       - agent-service/src/main/java/com/huawei/ascend/service/platform/idempotency/IdempotencyFilterAutoConfiguration.java
@@ -230,7 +234,7 @@ capabilities:
   tenant_context_filter:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/platform/tenant/TenantContextFilter.java
       - agent-service/src/main/java/com/huawei/ascend/service/platform/tenant/TenantFilterAutoConfiguration.java
@@ -242,7 +246,7 @@ capabilities:
   openapi_v1_snapshot:
     status: test_verified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - docs/contracts/openapi-v1.yaml
     tests:
@@ -252,7 +256,7 @@ capabilities:
   openapi_response_schema_check:
     status: test_verified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/test/java/com/huawei/ascend/service/platform/contracts/OpenApiSnapshotComparator.java
       - agent-service/src/test/java/com/huawei/ascend/service/platform/contracts/OpenApiContractIT.java
@@ -263,7 +267,7 @@ capabilities:
   japicmp_configured:
     status: implemented_unverified
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.3.2)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.3.2)
     implementation:
       - spring-ai-ascend-dependencies/pom.xml
     tests:
@@ -273,7 +277,7 @@ capabilities:
   rls_policy_sql:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - docs/security/rls-policy.sql
     tests: []
@@ -282,7 +286,7 @@ capabilities:
   ops_runbooks_skeleton:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - ops/runbooks/README.md
       - ops/runbooks/dr.md
@@ -296,7 +300,7 @@ capabilities:
   helm_chart_skeleton:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - ops/helm/spring-ai-ascend/Chart.yaml
       - ops/helm/spring-ai-ascend/values.yaml
@@ -310,7 +314,7 @@ capabilities:
   doctor_script:
     status: implemented_unverified
     shipped: false
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - gate/doctor.sh
       - gate/doctor.ps1
@@ -320,7 +324,7 @@ capabilities:
   adr_per_file:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     l2_documents:
       - docs/adr/README.md
     implementation:
@@ -331,7 +335,7 @@ capabilities:
   perf_evidence_path:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - perf/README.md
       - perf/baseline-2026-05-10.md
@@ -343,7 +347,7 @@ capabilities:
   agent_runtime_smoke_test:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/probe/OssApiProbe.java
     tests:
@@ -353,10 +357,10 @@ capabilities:
   posture_module_bootstrap:
     status: test_verified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     l2_documents:
       - docs/cross-cutting/posture-model.md
-      - agent-service/ARCHITECTURE.md
+      - architecture/docs/L1/agent-service/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/platform/posture/PostureBootGuard.java
       - agent-service/src/main/java/com/huawei/ascend/service/platform/posture/RequiredConfig.java
@@ -369,7 +373,7 @@ capabilities:
   idempotency_store:
     status: test_verified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/platform/idempotency/IdempotencyStore.java
       - agent-service/src/main/java/com/huawei/ascend/service/platform/idempotency/JdbcIdempotencyStore.java
@@ -386,7 +390,7 @@ capabilities:
   resilience_contract:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       # SPI surface (post-ADR-0080, v2.0.0-rc6 — moved to .spi sub-package to align with Rules 32/77/78)
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/resilience/spi/ResilienceContract.java
@@ -407,10 +411,10 @@ capabilities:
   run_entity:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/runs/Run.java
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/RunMode.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/RunMode.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/runs/RunStatus.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/runs/spi/RunRepository.java
     tests:
@@ -420,7 +424,7 @@ capabilities:
   idempotency_record_entity:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/idempotency/IdempotencyRecord.java
     tests:
@@ -430,33 +434,33 @@ capabilities:
   orchestration_spi:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #9)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #9)
     implementation:
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/Orchestrator.java
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/RunContext.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/Orchestrator.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/RunContext.java
       - agent-execution-engine/src/main/java/com/huawei/ascend/engine/spi/GraphExecutor.java
       - agent-execution-engine/src/main/java/com/huawei/ascend/engine/spi/AgentLoopExecutor.java
       - agent-execution-engine/src/main/java/com/huawei/ascend/engine/spi/ExecutorAdapter.java
       - agent-execution-engine/src/main/java/com/huawei/ascend/engine/spi/EngineHookSurface.java
       - agent-execution-engine/src/main/java/com/huawei/ascend/engine/spi/EngineMatchingException.java
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/ExecutorDefinition.java
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/SuspendSignal.java
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/Checkpointer.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/ExecutorDefinition.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/SuspendSignal.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/Checkpointer.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/InMemoryCheckpointer.java
     tests:
-      - agent-service/src/test/java/com/huawei/ascend/engine/orchestration/spi/SuspendSignalTest.java
-      - agent-service/src/test/java/com/huawei/ascend/engine/orchestration/spi/OrchestrationSpiArchTest.java
+      - agent-service/src/test/java/com/huawei/ascend/bus/spi/engine/SuspendSignalTest.java
+      - agent-service/src/test/java/com/huawei/ascend/bus/spi/engine/OrchestrationSpiArchTest.java
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/orchestration/inmemory/InMemoryCheckpointerTest.java
     allowed_claim: "L1: Orchestration SPI — GraphExecutor, AgentLoopExecutor, SuspendSignal, Checkpointer, RunContext, Orchestrator. SPI is pure-Java (OrchestrationSpiArchTest). InMemoryCheckpointer provides dev-posture impl with posture guard (AppPostureGate, ADR-0035)."
 
   inmemory_orchestrator:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #9)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #9)
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/SyncOrchestrator.java
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/SequentialGraphExecutor.java
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/IterativeAgentLoopExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/SequentialGraphExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/IterativeAgentLoopExecutor.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/InMemoryRunRegistry.java
     tests:
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/orchestration/RunStatusTransitionIT.java
@@ -465,11 +469,11 @@ capabilities:
   nested_dual_mode_reference:
     status: implemented_unverified
     shipped: true
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #9)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #9)
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/SyncOrchestrator.java
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/SequentialGraphExecutor.java
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/IterativeAgentLoopExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/SequentialGraphExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/IterativeAgentLoopExecutor.java
     tests:
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/orchestration/NestedDualModeIT.java
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/orchestration/RunStatusTransitionIT.java
@@ -479,7 +483,7 @@ capabilities:
   agent_subject_identity:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #10)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #10)
     implementation: null
     tests: []
     allowed_claim: "Design only — long-horizon agent subject identity (sequential Run correlation across days/weeks). Implementation deferred to W2."
@@ -495,7 +499,7 @@ capabilities:
   repository_paging_contract:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #10)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #10)
     implementation: null
     tests: []
     allowed_claim: "Design only — RunRepository queries returning unbounded sets gain Pageable parameters before W2. Required for SUSPENDED reaper at scale."
@@ -504,7 +508,7 @@ capabilities:
   streamed_handoff_mode:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #11)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #11)
     implementation: null
     tests: []
     allowed_claim: "Design only — Flux<RunEvent> streaming surface with typed progress events. Implementation deferred to W2. Gate: Rule 15."
@@ -512,7 +516,7 @@ capabilities:
   orchestrator_cancellation_handshake:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #11)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #11)
     implementation: null
     tests: []
     allowed_claim: "Design only — Orchestrator cancel entrypoint propagating to RunStatus.CANCELLED. CANCELLED status value exists; no producer yet. Implementation deferred to W2."
@@ -521,7 +525,7 @@ capabilities:
   skill_capacity_matrix:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #12)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #12)
     implementation: null
     tests: []
     allowed_claim: "Design only — two-axis ResiliencePolicy (tenantQuota × globalSkillCapacity) with saturation-suspends-Run semantics. Implementation deferred to W2. Gate: Rule 16."
@@ -529,7 +533,7 @@ capabilities:
   call_tree_budget_propagation:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #12)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #12)
     implementation: null
     tests: []
     allowed_claim: "Design only — token/cost budget propagated through RunContext parent→child. Implementation deferred to W2. Composes with Rule 13 (P1 cost-of-use)."
@@ -538,7 +542,7 @@ capabilities:
   payload_store_spi:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #13)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #13)
     implementation: null
     tests: []
     allowed_claim: "Design only — PayloadStore SPI for checkpoints exceeding 16 KiB inline limit; content-addressed by hash. Implementation deferred to W2."
@@ -546,7 +550,7 @@ capabilities:
   serializable_resume_payload:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #13)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #13)
     implementation: null
     tests: []
     allowed_claim: "Design only — SuspendSignal.resumePayload is in-process Object (correct for W0 in-memory only). Cross-JVM tiers (W2 Postgres, W4 Temporal) require byte-serializable resumePayload. Contract fix deferred to W2."
@@ -554,7 +558,7 @@ capabilities:
   checkpoint_eviction_policy:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #13)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #13)
     implementation: null
     tests: []
     allowed_claim: "Design only — terminal-status Run checkpoints evictable after N days. No archivedAt field or eviction hook at W0. Implementation deferred to W2."
@@ -563,7 +567,7 @@ capabilities:
   resume_reauthorization_check:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #14)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #14)
     implementation: null
     tests: []
     allowed_claim: "Design only — resume request tenantId must match Run.tenantId; mismatch returns 403. Audit envelope on resume actor. Implementation deferred to W2. Gate: Rule 17."
@@ -580,7 +584,7 @@ capabilities:
   executor_definition_serialization:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #15)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #15)
     implementation: null
     tests: []
     allowed_claim: "Design only — ExecutorDefinition.NodeFunction/Reasoner must become named registry entries before W4 (inline lambdas are unserializable across Temporal activity boundaries). Design deferred to W3."
@@ -589,7 +593,7 @@ capabilities:
   runtime_hook_spi:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #16)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #16)
     implementation: null
     tests: []
     allowed_claim: "Design only — Hook SPI at PRE_LLM_CALL / POST_LLM_CALL / PRE_TOOL_INVOKE / POST_TOOL_INVOKE / PRE_AGENT_TURN / POST_AGENT_TURN. Reference hooks (W2): PII filter, token counter, summariser, tool-call-limit. HookChainConformanceTest asserts no direct-call bypass. Implementation deferred to W2. Gate: Rule 19."
@@ -598,7 +602,7 @@ capabilities:
   graph_dsl_conformance:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #17)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #17)
     implementation: null
     tests: []
     allowed_claim: "Design only — ExecutorDefinition.GraphDefinition extended with StateReducer registry (OverwriteReducer/AppendReducer/DeepMergeReducer), typed Edge records with optional predicate for conditional routing, JSON/Mermaid export via GraphSerializer. Backward-compatible factory retained. Implementation deferred to W3."
@@ -607,7 +611,7 @@ capabilities:
   eval_harness_contract:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (sec.4 constraint #18)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (sec.4 constraint #18)
     implementation: null
     tests: []
     allowed_claim: "Design only — every shipped capability must have corpus.jsonl + LLM-as-judge evaluator definition + thresholds.yaml. EvalThresholdGate blocks merge on regression. Corpus stored under docs/eval/. Implementation deferred to W4. Gate: Rule 18."
@@ -640,7 +644,7 @@ capabilities:
   multi_backend_checkpointer:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (W2 wave)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (W2 wave)
     implementation: null
     tests: []
     allowed_claim: "Design only — Checkpointer SPI implementations: Postgres (primary, W2) + Redis (hot-standby, W2) + file (ops/DR, W2). All behind existing Checkpointer SPI; no SPI change required. Implementation deferred to W2."
@@ -648,7 +652,7 @@ capabilities:
   hybrid_rag_bm25:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (W3 wave)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (W3 wave)
     implementation: null
     tests: []
     allowed_claim: "Design only — MemoryService L2 extended with BM25 keyword index alongside pgvector; hybrid alpha-blended relevance scoring (alpha tunable per-tenant, default 0.7). Implementation deferred to W3."
@@ -656,7 +660,7 @@ capabilities:
   planner_as_tool_pattern:
     status: design_accepted
     shipped: false
-    l0_decision: ARCHITECTURE.md (W4 wave)
+    l0_decision: architecture/docs/L0/ARCHITECTURE.md (W4 wave)
     implementation: null
     tests: []
     allowed_claim: "Design only — RunPlanSheet toolset for IterativeAgentLoopExecutor: createRunPlan, reviseRunPlan, completeSubtask, listSubtasks, finalizeRunPlan, listArchivedRunPlans, restoreArchivedRunPlan. Plan rows in run_memory table keyed by run_id; parentRunId chain enables plan-reuse. Minimal PlanState/RunPlanRef design named in ADR-0032; full toolset deferred to W4."
@@ -803,7 +807,7 @@ capabilities:
     implementation: null
     tests:
       - planned: agent-execution-engine/src/test/java/com/huawei/ascend/engine/spi/InterruptSignalContractTest.java
-      - planned: agent-execution-engine/src/test/java/com/huawei/ascend/engine/orchestration/spi/NoCheckedExceptionInSpiArchTest.java
+      - planned: agent-execution-engine/src/test/java/com/huawei/ascend/bus/spi/engine/NoCheckedExceptionInSpiArchTest.java
     allowed_claim: "Current Java carrier state — StatelessEngine.execute returns synchronous StateDelta, and SuspendSignal remains the checked-exception suspension path. Design-forward direction per ADR-0112: introduce a parallel value-based interrupt API that carries nullable InterruptSignal on StateDelta, map A2A InterruptType (5 protocol-wire values) to SuspendReason (7 internal-DFA cases), then deprecate and remove checked suspension in later waves. Current implementation is not Mono<StateDelta>; that reactive/value-based shape is future work."
 
   hook_tie_break_determinism:
@@ -946,7 +950,7 @@ capabilities:
     shipped: true
     l0_decision: docs/adr/0023-cross-boundary-context-propagation.md
     implementation:
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/RunContext.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/RunContext.java
     tests:
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/architecture/TenantPropagationPurityTest.java
     allowed_claim: "Shipped — TenantPropagationPurityTest ArchUnit rule enforces Rule R-C.2.c: no com.huawei.ascend.service.runtime.* main class may import TenantContextHolder. RunContext.tenantId() is the canonical carrier. Test-scope exemption for TenantContextFilterTest."
@@ -976,8 +980,8 @@ capabilities:
     shipped: true
     l0_decision: docs/adr/0025-checkpoint-ownership-boundary.md
     implementation:
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/SequentialGraphExecutor.java
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/IterativeAgentLoopExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/SequentialGraphExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/IterativeAgentLoopExecutor.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/SyncOrchestrator.java
     tests:
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/orchestration/NestedDualModeIT.java
@@ -990,9 +994,9 @@ capabilities:
     implementation:
       - agent-service/pom.xml
     tests:
-      - agent-service/src/test/java/com/huawei/ascend/engine/orchestration/spi/OrchestrationSpiArchTest.java
+      - agent-service/src/test/java/com/huawei/ascend/bus/spi/engine/OrchestrationSpiArchTest.java
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/architecture/TenantPropagationPurityTest.java
-    allowed_claim: "W0 clean (historical pre-ADR-0078 framing): the original `agent-service/pom.xml` dependency on the then-existing `agent-platform` was removed per ADR-0026 (it was a speculative reference with zero source imports). Post-ADR-0078 (Phase C consolidation, 2026-05-18) the `agent-platform` + `agent-runtime` modules were merged into `agent-service` with Rule R-C.2.c sub-package layering (`service.runtime.*` must not import `service.platform.*`). Post-ADR-0079 (T2.B2, 2026-05-18) the shared kernel (Run, RunContext, SuspendSignal, S2C SPI) was extracted into `agent-runtime-core` and the engine SPI into `agent-execution-engine` — superseded by ADR-0088. Post-ADR-0088 (rc13, 2026-05-20) `agent-runtime-core` was DISSOLVED; runs + idempotency consolidated into `agent-service`, orchestration SPI (RunMode + RunContext + SuspendSignal + Checkpointer + ExecutorDefinition) co-located with `agent-execution-engine.engine.orchestration.spi`, and S2C SPI relocated to `agent-bus.bus.spi.s2c`. The Maven-level direction constraint now reads: `agent-service` ↛ `agent-execution-engine` + `agent-bus` + `agent-middleware`; `agent-execution-engine` ↛ `agent-bus` + `agent-middleware`, never `agent-service`; `agent-bus` ↛ no inner peer. The 8-module reactor (`agent-client`, `agent-service`, `agent-middleware`, `agent-execution-engine`, `agent-bus`, `agent-evolve`, `spring-ai-ascend-dependencies`, `spring-ai-ascend-graphmemory-starter`) is the post-ADR-0088 truth — 9 → 8 modules."
+    allowed_claim: "W0 clean (historical pre-ADR-0078 framing): the original `agent-service/pom.xml` dependency on the then-existing `agent-platform` was removed per ADR-0026 (it was a speculative reference with zero source imports). Post-ADR-0078 (Phase C consolidation, 2026-05-18) the `agent-platform` + `agent-runtime` modules were merged into `agent-service` with Rule R-C.2.c sub-package layering (`service.runtime.*` must not import `service.platform.*`). Post-ADR-0079 (T2.B2, 2026-05-18) the shared kernel (Run, RunContext, SuspendSignal, S2C SPI) was extracted into `agent-runtime-core` and the engine SPI into `agent-execution-engine` — superseded by ADR-0088. Post-ADR-0088 (rc13, 2026-05-20) `agent-runtime-core` was DISSOLVED; runs + idempotency consolidated into `agent-service`, and S2C SPI relocated to `agent-bus.bus.spi.s2c`. Post-ADR-0158 the neutral orchestration/engine SPI (EnginePort + RunMode + RunContext + SuspendSignal + Checkpointer + ExecutorDefinition) lives in `agent-bus.bus.spi.engine` (transport-agnostic EnginePort boundary), with `agent-execution-engine` providing the InProcessEnginePort realization. The Maven-level direction constraint now reads: `agent-service` ↛ `agent-execution-engine` + `agent-bus` + `agent-middleware`; `agent-execution-engine` ↛ `agent-bus` + `agent-middleware`, never `agent-service`; `agent-bus` ↛ no inner peer. The 8-module reactor (`agent-client`, `agent-service`, `agent-middleware`, `agent-execution-engine`, `agent-bus`, `agent-evolve`, `spring-ai-ascend-dependencies`, `spring-ai-ascend-graphmemory-starter`) is the post-ADR-0088 truth — 9 → 8 modules."
 
   idempotency_scope_w0:
     status: test_verified
@@ -1112,7 +1116,7 @@ capabilities:
     shipped: true
     l0_decision: docs/adr/0022-payload-codec-spi.md
     implementation:
-      - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/inmemory/IterativeAgentLoopExecutor.java
+      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/exec/IterativeAgentLoopExecutor.java
     tests:
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/orchestration/inmemory/IterativeAgentLoopExecutorResumeCursorTest.java
     allowed_claim: "W0: IterativeAgentLoopExecutor throws IllegalStateException (ADR-0022 reference) when non-String payload would be silently corrupted by Object.toString() concat (HD-A.8 fix). String-cursor invariant enforced explicitly."
@@ -1177,7 +1181,7 @@ capabilities:
       - gate/check_architecture_sync.ps1
       - gate/check_architecture_sync.sh
     tests: []
-    allowed_claim: "Gate Rules 13+14 added: Rule 13 forbids contract-catalog from referencing deleted SPI interface names or deleted starter coords; Rule 14 requires method names in module ARCHITECTURE.md code-fences to exist in named Java class. ADR-0036 + §4 #33."
+    allowed_claim: "Gate Rules 13+14 added: Rule 13 forbids contract-catalog from referencing deleted SPI interface names or deleted starter coords; Rule 14 requires method names in module architecture/docs/L0/ARCHITECTURE.md code-fences to exist in named Java class. ADR-0036 + §4 #33."
 
   wave_authority_consolidation:
     status: design_accepted
@@ -1186,7 +1190,7 @@ capabilities:
     implementation:
       - docs/archive/2026-05-13-plans-archived/README.md
     tests: []
-    allowed_claim: "docs/plans/roadmap-W0-W4.md and docs/plans/engineering-plan-W0-W4.md archived to docs/archive/2026-05-13-plans-archived/ with ARCHIVED banners. Single wave authority: ARCHITECTURE.md §1 + architecture-status.yaml + CLAUDE-deferred.md. ADR-0037 + §4 #34."
+    allowed_claim: "docs/plans/roadmap-W0-W4.md and docs/plans/engineering-plan-W0-W4.md archived to docs/archive/2026-05-13-plans-archived/ with ARCHIVED banners. Single wave authority: architecture/docs/L0/ARCHITECTURE.md §1 + architecture-status.yaml + CLAUDE-deferred.md. ADR-0037 + §4 #34."
 
   skill_spi_resource_tiers:
     status: design_accepted
@@ -1244,7 +1248,7 @@ capabilities:
       - gate/check_architecture_sync.ps1
       - gate/check_architecture_sync.sh
     tests: []
-    allowed_claim: "Active-corpus truth sweep: 11 ADR stale plan paths fixed to archived copy; agent-service/ARCHITECTURE.md + oss-bill-of-materials.md point to wave authority; architecture-systems-engineering-plan.md archived; Gate Rule 15 prevents recurrence (no active .md may reference deleted plan paths). §4 #38."
+    allowed_claim: "Active-corpus truth sweep: 11 ADR stale plan paths fixed to archived copy; architecture/docs/L1/agent-service/ARCHITECTURE.md + oss-bill-of-materials.md point to wave authority; architecture-systems-engineering-plan.md archived; Gate Rule 15 prevents recurrence (no active .md may reference deleted plan paths). §4 #38."
 
   shipped_row_tests_evidence:
     status: design_accepted
@@ -1274,7 +1278,7 @@ capabilities:
       - docs/contracts/contract-catalog.md
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/memory/spi/GraphMemoryRepository.java
     tests: []
-    allowed_claim: "RunContext classified as interface in contract-catalog.md; per-SPI scope table added; embeddingModelVersion canonical name normalized across ARCHITECTURE.md and architecture-status.yaml; GraphMetadata documented as pre-W2 minimal subset. Gate Rule 17 extended. §4 #41."
+    allowed_claim: "RunContext classified as interface in contract-catalog.md; per-SPI scope table added; embeddingModelVersion canonical name normalized across architecture/docs/L0/ARCHITECTURE.md and architecture-status.yaml; GraphMetadata documented as pre-W2 minimal subset. Gate Rule 17 extended. §4 #41."
 
   # --- Tenth review cycle: L0 release-note contract review (2026-05-13) ---
 
@@ -1309,31 +1313,31 @@ capabilities:
     shipped: true
     l0_decision: docs/adr/0047-active-entrypoint-truth-and-system-boundary-prose-convention.md
     implementation:
-      - ARCHITECTURE.md
-      - agent-service/ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
+      - architecture/docs/L1/agent-service/ARCHITECTURE.md
     tests:
       - gate/test_architecture_sync_gate.sh
-    allowed_claim: "Root ARCHITECTURE.md and agent-service/ARCHITECTURE.md §1 sections split into 'Target architecture (W1-W4)' and 'W0 shipped subset' subsections (per ADR-0078 the pre-Phase-C agent-runtime module was consolidated into agent-service; its §1 split structure carried forward). Catches TEMPORAL-OVERREACH (present-tense prose for W1-W4-deferred capabilities). Reviewer-enforced; structural heading makes inspection trivial. Gate self-test (rule27_baseline_pos/neg) indirectly validates the §1 split by exercising the README baseline cross-check that depends on it. §4 #45(b). ADR-0047."
+    allowed_claim: "Root architecture/docs/L0/ARCHITECTURE.md and architecture/docs/L1/agent-service/ARCHITECTURE.md §1 sections split into 'Target architecture (W1-W4)' and 'W0 shipped subset' subsections (per ADR-0078 the pre-Phase-C agent-runtime module was consolidated into agent-service; its §1 split structure carried forward). Catches TEMPORAL-OVERREACH (present-tense prose for W1-W4-deferred capabilities). Reviewer-enforced; structural heading makes inspection trivial. Gate self-test (rule27_baseline_pos/neg) indirectly validates the §1 split by exercising the README baseline cross-check that depends on it. §4 #45(b). ADR-0047."
 
   service_layer_microservice_commitment:
     status: design_accepted
     shipped: true
     l0_decision: docs/adr/0048-service-layer-microservice-architecture-commitment.md
     implementation:
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
       - docs/adr/0048-service-layer-microservice-architecture-commitment.md
       - docs/archive/2026-05-13-serverless-architecture-future-direction.md
     tests:
       - gate/test_architecture_sync_gate.sh
       - gate/check_architecture_sync.sh
-    allowed_claim: "Service Layer (HTTP edge in `agent-service.service.platform` + cognitive runtime in `agent-service.service.runtime` + engine + orchestration SPI in `agent-execution-engine` + cross-plane control surfaces in `agent-bus`, post-ADR-0088 rc13 — supersedes the post-ADR-0078/0079 framing that named `agent-runtime-core`) deployed as long-running microservices coordinating via Agent Bus (cross-docker, cross-service). Bus traffic split LOCKED at ADR-0048 and amended by ADR-0050: Track 1 Control (centralized event bus — PAUSE/KILL/RESUME/scheduling/bidding); Track 2 Data (P2P; heavy payloads never traverse central broker); Track 3 Rhythm (independent — heartbeats/WAKEUP/SleepDeclaration; restored per ADR-0050 P0-4 closure). Substrate choice deferred to expanded ADR-0031. SPI primitives are redistributed to semantic-home modules per ADR-0088: SuspendSignal/Checkpointer/RunContext/ExecutorDefinition live in `agent-execution-engine.engine.orchestration.spi` (orchestration), Run/RunStatus/RunStateMachine/IdempotencyRecord live in `agent-service.service.runtime.runs` (runs/idempotency kernel re-consolidated), S2cCallbackTransport lives in `agent-bus.bus.spi.s2c` (S2C SPI). All three SPI homes remain serverless-friendly so W4+ migration stays open — deployment commitment is at service-layer level, not SPI level. The intermediate `agent-runtime-core` kernel-shim module (ADR-0079) was dissolved per ADR-0088 since the back-dep that motivated it was resolved by semantic co-location. Whitepaper §1.3 microservice-dictatorship trap mitigated by scoping microservice to the Service Layer (not per-agent) and routing inter-agent calls through the bus by intent. ADR-0048 is subordinate to ADR-0049/0050/0051/0052 per whitepaper-alignment remediation. Serverless five-tier topology analysis archived at docs/archive/2026-05-13-serverless-architecture-future-direction.md. §4 #46. ADR-0048."
+    allowed_claim: "Service Layer (HTTP edge in `agent-service.service.platform` + cognitive runtime in `agent-service.service.runtime` + engine adapter SPI in `agent-execution-engine` + neutral orchestration/engine SPI and cross-plane control surfaces in `agent-bus`, post-ADR-0158 — supersedes the post-ADR-0088 framing that co-located orchestration SPI with `agent-execution-engine`, which itself superseded the post-ADR-0078/0079 framing that named `agent-runtime-core`) deployed as long-running microservices coordinating via Agent Bus (cross-docker, cross-service). Bus traffic split LOCKED at ADR-0048 and amended by ADR-0050: Track 1 Control (centralized event bus — PAUSE/KILL/RESUME/scheduling/bidding); Track 2 Data (P2P; heavy payloads never traverse central broker); Track 3 Rhythm (independent — heartbeats/WAKEUP/SleepDeclaration; restored per ADR-0050 P0-4 closure). Substrate choice deferred to expanded ADR-0031. SPI primitives are redistributed to semantic-home modules: EnginePort/SuspendSignal/Checkpointer/RunContext/ExecutorDefinition live in `agent-bus.bus.spi.engine` (neutral orchestration/engine SPI re-homed per ADR-0158, with agent-execution-engine providing the InProcessEnginePort realization), Run/RunStatus/RunStateMachine/IdempotencyRecord live in `agent-service.service.runtime.runs` (runs/idempotency kernel re-consolidated per ADR-0088), S2cCallbackTransport lives in `agent-bus.bus.spi.s2c` (S2C SPI per ADR-0088). All three SPI homes remain serverless-friendly so W4+ migration stays open — deployment commitment is at service-layer level, not SPI level. The intermediate `agent-runtime-core` kernel-shim module (ADR-0079) was dissolved per ADR-0088 since the back-dep that motivated it was resolved by semantic co-location. Whitepaper §1.3 microservice-dictatorship trap mitigated by scoping microservice to the Service Layer (not per-agent) and routing inter-agent calls through the bus by intent. ADR-0048 is subordinate to ADR-0049/0050/0051/0052 per whitepaper-alignment remediation. Serverless five-tier topology analysis archived at docs/archive/2026-05-13-serverless-architecture-future-direction.md. §4 #46. ADR-0048."
 
   c_s_dynamic_hydration_protocol:
     status: design_accepted
     shipped: true
     l0_decision: docs/adr/0049-c-s-dynamic-hydration-protocol.md
     implementation:
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
       - docs/adr/0049-c-s-dynamic-hydration-protocol.md
       - docs/governance/whitepaper-alignment-matrix.md
     tests:
@@ -1346,7 +1350,7 @@ capabilities:
     shipped: true
     l0_decision: docs/adr/0050-workflow-intermediary-mailbox-rhythm-track.md
     implementation:
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
       - docs/adr/0050-workflow-intermediary-mailbox-rhythm-track.md
       - docs/adr/0048-service-layer-microservice-architecture-commitment.md
       - docs/adr/0031-three-track-channel-isolation.md
@@ -1361,7 +1365,7 @@ capabilities:
     shipped: true
     l0_decision: docs/adr/0051-memory-knowledge-ownership-boundary.md
     implementation:
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
       - docs/adr/0051-memory-knowledge-ownership-boundary.md
       - docs/adr/0034-memory-and-knowledge-taxonomy-at-l0.md
       - docs/governance/whitepaper-alignment-matrix.md
@@ -1375,7 +1379,7 @@ capabilities:
     shipped: true
     l0_decision: docs/adr/0052-skill-topology-scheduler-and-capability-bidding.md
     implementation:
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
       - docs/adr/0052-skill-topology-scheduler-and-capability-bidding.md
       - docs/adr/0030-skill-spi-lifecycle-resource-matrix.md
       - docs/adr/0038-skill-spi-resource-tier-classification.md
@@ -1425,7 +1429,7 @@ capabilities:
     shipped: false
     l0_decision: docs/adr/0053-cohesive-agent-swarm-execution.md
     l2_documents:
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
       - docs/adr/0053-cohesive-agent-swarm-execution.md
     implementation: null
     tests: []
@@ -1457,10 +1461,10 @@ capabilities:
     l0_decision: docs/adr/0053-cohesive-agent-swarm-execution.md
     l2_documents:
       - docs/adr/0053-cohesive-agent-swarm-execution.md
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/platform/tenant/TenantContextFilter.java
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/RunContext.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/RunContext.java
     tests:
       - agent-service/src/test/java/com/huawei/ascend/service/platform/tenant/TenantContextFilterIT.java
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/architecture/TenantPropagationPurityTest.java
@@ -1471,7 +1475,7 @@ capabilities:
     shipped: false
     l0_decision: docs/adr/0054-long-connection-containment-runtime-handles.md
     l2_documents:
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
       - docs/adr/0054-long-connection-containment-runtime-handles.md
     implementation: null
     tests: []
@@ -1485,9 +1489,9 @@ capabilities:
       - docs/adr/0054-long-connection-containment-runtime-handles.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/runs/Run.java
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/SuspendSignal.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/SuspendSignal.java
     tests:
-      - agent-service/src/test/java/com/huawei/ascend/engine/orchestration/spi/SuspendSignalTest.java
+      - agent-service/src/test/java/com/huawei/ascend/bus/spi/engine/SuspendSignalTest.java
     allowed_claim: "LogicalCallHandle is the L0 alias for Run+SuspendSignal: Run is the lifecycle identity; SuspendSignal is the one interrupt primitive that releases physical resources without losing the logical call. A LogicalCallHandle is NOT equivalent to a TCP connection, thread, or Netty channel. W0 shipped via Run entity + SuspendSignal."
 
   suspend_instead_of_hold_principle:
@@ -1497,9 +1501,9 @@ capabilities:
     l2_documents:
       - docs/adr/0054-long-connection-containment-runtime-handles.md
     implementation:
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/SuspendSignal.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/SuspendSignal.java
     tests:
-      - agent-service/src/test/java/com/huawei/ascend/engine/orchestration/spi/SuspendSignalTest.java
+      - agent-service/src/test/java/com/huawei/ascend/bus/spi/engine/SuspendSignalTest.java
     allowed_claim: "Named principle: a long wait MUST become a suspended workflow state when useful compute is not happening. W0 implemented via SuspendReason.RateLimited (ADR-0019) and SuspendReason.AwaitTimer. Idle waits must NOT consume scarce physical resources (threads, sockets, connections, event-loop slots). The principle composes with AdmissionDecision.Yielded (ADR-0050)."
 
   socket_per_tenant_cap:
@@ -1539,14 +1543,14 @@ capabilities:
     shipped: false
     l0_decision: docs/adr/0061-telemetry-vertical-layer.md
     l2_documents:
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
       - docs/adr/0061-telemetry-vertical-layer.md
       - docs/adr/0062-trace-run-session-identity.md
       - docs/adr/0063-client-sdk-observability-contract.md
       - docs/telemetry/policy.md
     implementation: null
     tests: []
-    allowed_claim: "Section 4 #53 invariant — Telemetry Vertical (Trace + Span + LlmCall) is a first-class cross-cutting concept in ARCHITECTURE.md §0.5.3. Every layer emits via TraceContext SPI or Hook SPI; direct emission forbidden. Full engine (OTel SDK + OTLP exporter + trace_store dual-write + Hook SPI un-deferred + LlmGateway GENERATION spans) lands at W2. See ADR-0061."
+    allowed_claim: "Section 4 #53 invariant — Telemetry Vertical (Trace + Span + LlmCall) is a first-class cross-cutting concept in architecture/docs/L0/ARCHITECTURE.md §0.5.3. Every layer emits via TraceContext SPI or Hook SPI; direct emission forbidden. Full engine (OTel SDK + OTLP exporter + trace_store dual-write + Hook SPI un-deferred + LlmGateway GENERATION spans) lands at W2. See ADR-0061."
 
   trace_context_spi:
     status: test_verified
@@ -1554,11 +1558,11 @@ capabilities:
     l0_decision: docs/adr/0061-telemetry-vertical-layer.md
     l2_documents:
       - docs/adr/0061-telemetry-vertical-layer.md
-      - agent-service/ARCHITECTURE.md
+      - architecture/docs/L1/agent-service/ARCHITECTURE.md
     implementation:
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/TraceContext.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/TraceContext.java
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/orchestration/NoopTraceContext.java
-      - agent-execution-engine/src/main/java/com/huawei/ascend/engine/orchestration/spi/RunContext.java
+      - agent-bus/src/main/java/com/huawei/ascend/bus/spi/engine/RunContext.java
     tests:
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/architecture/TelemetryVerticalArchTest.java
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/architecture/RunContextIdentityAccessorsTest.java
@@ -1571,7 +1575,7 @@ capabilities:
     l2_documents:
       - docs/adr/0061-telemetry-vertical-layer.md
       - docs/telemetry/policy.md
-      - agent-service/ARCHITECTURE.md
+      - architecture/docs/L1/agent-service/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/platform/observability/TraceExtractFilter.java
       - agent-service/src/main/java/com/huawei/ascend/service/platform/observability/TraceFilterAutoConfiguration.java
@@ -1600,7 +1604,7 @@ capabilities:
     l0_decision: docs/adr/0062-trace-run-session-identity.md
     l2_documents:
       - docs/adr/0062-trace-run-session-identity.md
-      - ARCHITECTURE.md
+      - architecture/docs/L0/ARCHITECTURE.md
     implementation:
       - agent-service/src/main/java/com/huawei/ascend/service/runtime/runs/Run.java
     tests:
@@ -1681,7 +1685,7 @@ capabilities:
     tests:
       - agent-service/src/test/java/com/huawei/ascend/service/runtime/architecture/SpiPurityGeneralizedArchTest.java
       - gate/check_architecture_sync.sh
-    allowed_claim: "Section 4 #63 / Rule R-D sub-clause .a shipped at L1.x — post-ADR-0088 (rc13, 2026-05-20) the orchestration / runs / s2c SPI packages live on semantic-home modules: orchestration SPI on `agent-execution-engine` (kind:domain) at `com.huawei.ascend.engine.orchestration.spi.*` (RunMode + RunContext + SuspendSignal + Checkpointer + Orchestrator + TraceContext + ExecutorDefinition, relocated from the dissolved `agent-runtime-core` per ADR-0088); runs/idempotency kernel on `agent-service` (kind:domain) at `com.huawei.ascend.service.runtime.runs.*` (Run + RunStatus + RunStateMachine + IdempotencyRecord, re-consolidated from `agent-runtime-core` per ADR-0088); S2C SPI on `agent-bus` (kind:domain) at `com.huawei.ascend.bus.spi.s2c` (S2cCallbackTransport + S2cCallbackEnvelope + S2cCallbackResponse, relocated from `agent-runtime-core` per ADR-0088 to pair with `bus.spi.ingress`); the memory SPI was deliberately NOT extracted — it remains on agent-service per ADR-0082; memory SPI + resilience SPI declared on `agent-service` (kind:domain) at `com.huawei.ascend.service.runtime.memory.spi` + `com.huawei.ascend.service.runtime.resilience.spi` per ADR-0078/0080/0082; engine SPI lives on `agent-execution-engine` (kind:domain) at `com.huawei.ascend.engine.spi.*` per ADR-0079 (the engine SPI extraction was preserved by ADR-0088); middleware SPI lives on `agent-middleware` (kind:domain) at `com.huawei.ascend.middleware.spi.*` per ADR-0073. `agent-runtime-core` (kind:domain, ADR-0079) was DISSOLVED by ADR-0088 (rc13). Each kind:platform / kind:domain module publishes a `docs/dfx/<module>.yaml` covering 5 DFX dimensions (releasability, resilience, availability, vulnerability, observability). Enforced by Gate Rule R-E dfx_yaml_present_and_wellformed, Gate Rule R-F domain_module_has_spi_package, ArchUnit E48 SpiPurityGeneralizedArchTest, plus Rules 75-78 + 85 SPI metadata integrity wave + Rule G-8.b SPI path parity (rc14). TCK module scaffolding + conformance content deferred per CLAUDE-deferred.md 32.b/32.c (W2 trigger)."
+    allowed_claim: "Section 4 #63 / Rule R-D sub-clause .a shipped at L1.x — post-ADR-0158 the neutral orchestration/engine SPI lives on `agent-bus` (kind:domain) at `com.huawei.ascend.bus.spi.engine.*` (EnginePort + RunMode + RunContext + SuspendSignal + Checkpointer + Orchestrator + TraceContext + ExecutorDefinition + ExecutionContext, re-homed per ADR-0158 as the transport-agnostic EnginePort boundary; agent-execution-engine provides the InProcessEnginePort realization); ADR-0088 had transiently co-located these with `agent-execution-engine.engine.orchestration.spi` before the ADR-0158 re-home; runs/idempotency kernel on `agent-service` (kind:domain) at `com.huawei.ascend.service.runtime.runs.*` (Run + RunStatus + RunStateMachine + IdempotencyRecord, re-consolidated from `agent-runtime-core` per ADR-0088); S2C SPI on `agent-bus` (kind:domain) at `com.huawei.ascend.bus.spi.s2c` (S2cCallbackTransport + S2cCallbackEnvelope + S2cCallbackResponse, relocated from `agent-runtime-core` per ADR-0088 to pair with `bus.spi.ingress`); the memory SPI was deliberately NOT extracted — it remains on agent-service per ADR-0082; memory SPI + resilience SPI declared on `agent-service` (kind:domain) at `com.huawei.ascend.service.runtime.memory.spi` + `com.huawei.ascend.service.runtime.resilience.spi` per ADR-0078/0080/0082; engine SPI lives on `agent-execution-engine` (kind:domain) at `com.huawei.ascend.engine.spi.*` per ADR-0079 (the engine SPI extraction was preserved by ADR-0088); middleware SPI lives on `agent-middleware` (kind:domain) at `com.huawei.ascend.middleware.spi.*` per ADR-0073. `agent-runtime-core` (kind:domain, ADR-0079) was DISSOLVED by ADR-0088 (rc13). Each kind:platform / kind:domain module publishes a `docs/dfx/<module>.yaml` covering 5 DFX dimensions (releasability, resilience, availability, vulnerability, observability). Enforced by Gate Rule R-E dfx_yaml_present_and_wellformed, Gate Rule R-F domain_module_has_spi_package, ArchUnit E48 SpiPurityGeneralizedArchTest, plus Rules 75-78 + 85 SPI metadata integrity wave + Rule G-8.b SPI path parity (rc14). TCK module scaffolding + conformance content deferred per CLAUDE-deferred.md 32.b/32.c (W2 trigger)."
 
   claude_md_token_budget:
     status: test_verified

@@ -1,0 +1,62 @@
+# Spring AI Ascend Architecture Profile — required properties per tag.
+#
+# Authority: ADR-0147. Validated against ProfileValidator.COMMON_PROPERTIES
+# and ProfileValidator.TAG_SPECIFIC by ProfileYamlParityTest.
+#
+# common[] is required on EVERY profile-tagged element. by_tag[X] is required
+# additionally when an element carries the SAA-X tag.
+
+required_properties:
+  common:
+    - saa.id
+    - saa.kind
+    - saa.level
+    - saa.view
+    - saa.status
+
+  by_tag:
+    SAA Capability:
+      - saa.owner
+      - saa.sourceAdr
+    SAA Feature:
+      - saa.owner
+      - saa.sourceAdr
+      - saa.capabilityDomain
+      - saa.synopsis
+      - saa.aiBoundary.canModifyCode
+      - saa.aiBoundary.canModifyContracts
+      - saa.aiBoundary.allowedStatusTransitions
+      - saa.aiBoundary.requiresHumanReviewAt
+      - saa.aiBoundary.sandboxPolicyRef
+    SAA FunctionPoint:
+      - saa.owner
+      - saa.sourceAdr
+    SAA Module:
+      - saa.owner
+    SAA Rule:
+      - saa.sourceAdr
+    SAA Enforcer:
+      - saa.owner
+      - saa.sourceFile
+      - saa.enforcerId
+    SAA Test:
+      - saa.owner
+      - saa.sourceFile
+    SAA SPI:
+      - saa.owner
+      - saa.sourceFile
+    SAA Contract:
+      - saa.owner
+      - saa.sourceFile
+      - saa.sourceAdr
+    SAA Principle:
+      - saa.principleId
+    SAA ADR:
+      - saa.adrId
+      - saa.adrStatus
+    SAA GeneratedProjection:
+      - saa.generated
+      - saa.sourceFile
+    SAA EngineeringFrame:
+      - saa.owner
+      - saa.sourceAdr

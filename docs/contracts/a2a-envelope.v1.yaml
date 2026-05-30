@@ -1,6 +1,6 @@
 # A2A Protocol Envelope schema, version 1.
 #
-# Authority: ADR-0100 (rc22) + future ADR-0105 (rc25 — A2A contract adoption).
+# Authority: ADR-0100 (rc22 — contract-only adoption; promotion to runtime_enforced gated on a future ADR landing the A2A interop test). Drop of the explicit ADR-0105 forward-pointer per AUD-2026-05-27 AUD-PARITY-6 — the forward-numbered reference was fragile.
 # Wave: design_only at rc25; runtime impl follows.
 #
 # Purpose: contract-layer adoption of the A2A (Agent-to-Agent) protocol
@@ -10,6 +10,8 @@
 # The mapping below allows internal RunState ↔ A2A state vocabulary
 # translation at the contract boundary; A2A interoperability is
 # achieved via mapping, not by importing an A2A SDK.
+
+product_claim: "PC-002|PC-004"
 
 schema: a2a-envelope/v1
 authority: ADR-0100

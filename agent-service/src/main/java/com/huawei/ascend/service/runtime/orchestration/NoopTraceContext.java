@@ -1,6 +1,6 @@
 package com.huawei.ascend.service.runtime.orchestration;
 
-import com.huawei.ascend.engine.orchestration.spi.TraceContext;
+import com.huawei.ascend.bus.spi.engine.TraceContext;
 
 import java.security.SecureRandom;
 import java.util.Objects;

@@ -19,7 +19,7 @@ package com.huawei.ascend.service.engine.spi;
  *
  * <p>Yield + SuspendSignal coexistence:
  * <ul>
- *   <li>{@link com.huawei.ascend.engine.orchestration.spi.SuspendSignal}
+ *   <li>{@link com.huawei.ascend.bus.spi.engine.SuspendSignal}
  *       (checked exception) is the current shipped canonical mechanism
  *       for state-machine suspension. The forward direction is
  *       value-based yield via a nullable {@code InterruptSignal}

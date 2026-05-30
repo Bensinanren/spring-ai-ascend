@@ -1,0 +1,97 @@
+id: ADR-0153
+title: "L1 Feature Registry closure — Rule G-14 blocking flip + plan completion"
+status: accepted
+governance_infra: true
+date: 2026-05-27
+level: L0
+view: scenarios
+affects_level: L1
+affects_view: scenarios
+authors:
+  - chao
+extends:
+  - ADR-0147    # Structurizr Workspace Authority
+  - ADR-0149    # W0-W5 shipped record (structurizr migration)
+  - ADR-0150    # Architecture docs consolidation under architecture/
+  - ADR-0151    # L1 Feature Registry canonical schema (Wave 1)
+  - ADR-0152    # Uniform L1 mechanism + L0 mounting (Wave 2)
+relates_to:
+  - ADR-0064    # Layer-0 governing principles
+context: |
+  The L1 Feature Registry plan (architecture-design system unification
+  + AI-readable feature inventory) lands across 5 waves. ADR-0151 + 0152
+  declared the canonical schema + uniform L1/L0 mechanism. This ADR
+  closes the plan: Rule G-14 (Feature Lifecycle Validity) promotes from
+  advisory to blocking, ADR chain finalised, baselines fixed, memory
+  entry recorded.
+
+  Wave summary:
+    * W1 (ADR-0151) — features.dsl + profile extension + Rule G-14
+      advisory + ProfileValidator/parity-test parity.
+    * W2 (ADR-0152) — _template/ canonical L1 skeleton + 6 module
+      conversions + L0 move to architecture/docs/L0/ + Rule G-1.a/G-1.1.d
+      kernel + card updates + ~100 path sweep.
+    * W3 — gate/lib/render_features_catalog.py + 7 per-module 9-section
+      catalogs + 3 missing L1 view DSL fragments + meta-template at
+      architecture/features/README.md + architecture/docs/README.md.
+    * W4 — 6 agent-service deep-dive FEAT- entries (rc55 per-layer
+      architecture); feature corpus grows from 9 → 15.
+    * W5 (this ADR) — Rule G-14 sub-clause .a flips to blocking
+      (`feature_lifecycle_validity` enforced as Rule 130 / E178).
+      Sub-clauses .b/.c/.d (git-history transition validity,
+      shipped-requires-verification FQN, deprecated-requires-sunset)
+      remain advisory; a follow-up sub-wave promotes them after one
+      additional 14-day soak window post-W5 ship.
+decision: |
+  Rule G-14 sub-clause .a — feature_lifecycle_validity — flips from
+  advisory to blocking at this ADR. The gate scans every
+  `"saa.status" "X"` property in architecture/features/features.dsl
+  and fails closed when X is not in the 9-state set
+  (proposed / accepted / design_only / ready_for_impl /
+  implemented_unverified / test_verified / shipped / deprecated /
+  removed).
+
+  Sub-clauses .b (forward-only transitions verified against git history),
+  .c (shipped requires saa.verificationTestFqns resolving to real test
+  classes), .d (deprecated requires saa.sunsetDate + relates_to ADR)
+  remain advisory at W5. They graduate to blocking in a follow-up
+  sub-wave after their own 14-day soak — the rule allows the corpus
+  to settle on .a before tightening to .b-.d.
+
+  Baselines fixed at W5 ship:
+    * 138 ADRs (W5 +1 ADR-0153 on the W4 baseline of 137).
+    * 144 active gate rules (W5 +1 Rule 130 feature_lifecycle_validity
+      on the W4 baseline of 143).
+    * 177 enforcer rows (W5 +1 E178 on the W4 baseline of 176).
+    * 44 active engineering rules unchanged (Rule G-14 was counted
+      in W1's bump to 44).
+    * Workspace: 575 elements + 420 relationships + 15 feature corpus
+      (W4 baseline retained).
+
+  Memory entry `project_l1_feature_registry_2026_05_27.md` records the
+  W1-W5 ship summary for future-session context.
+consequences: |
+  Positive
+  --------
+    * Rule G-14 sub-clause .a is enforced; any FEAT- author that
+      mistypes a lifecycle state surfaces in the gate.
+    * The L1 Feature Registry is fully operationalised: schema +
+      uniform L1 directory shape + render pipeline + 15 seed
+      features + advisory→blocking ratchet on the simplest
+      invariant.
+
+  Negative
+  --------
+    * Sub-clauses .b/.c/.d remain advisory at W5. A FEAT- can carry
+      `saa.status "shipped"` with empty `saa.verificationTestFqns`
+      and the gate will only warn, not fail. This is intentional —
+      the corpus is too young for the deeper checks to be safe to
+      block immediately.
+
+  Forward-looking
+  ---------------
+    * Follow-up sub-wave (post W5+14d soak): promote .b/.c/.d to
+      blocking.
+    * Future widening: add FEAT- depends_on FEAT- edges; render
+      catalog deep-dive per-feature .md files with rendered
+      front-matter.

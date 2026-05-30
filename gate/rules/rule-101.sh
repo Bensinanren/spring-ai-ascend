@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 101 — rule_namespace_authority_completeness. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 101 — rule_namespace_authority_completeness (enforcer E143)
 #
@@ -44,14 +44,17 @@ else
     _r101_fail=1
   fi
 
-  # (b) baseline_metrics.active_engineering_rules equals live CLAUDE.md count.
-  _r101_kernel_count=$(grep -cE '^#### Rule [A-Z]-' "$_r101_claude" 2>/dev/null || echo 0)
+  # (b) baseline_metrics.active_engineering_rules equals live count of active rule cards.
+  # Semantic shift 2026-05-28: with CLAUDE.md restructured to collaboration-only,
+  # the truthful "active engineering rules" count is the rule card count (cards are
+  # sole authority per Rule 68/69 semantic shift), not the CLAUDE.md heading count.
+  _r101_card_count=$(grep -lE '^status:[[:space:]]*active' "$_r101_cards_dir"/rule-*.md 2>/dev/null | wc -l | tr -d '[:space:]')
   _r101_declared=$(awk '/^[[:space:]]+active_engineering_rules:/{print $2; exit}' "$_r101_status_yaml")
   if [[ -z "$_r101_declared" ]]; then
     fail_rule "rule_namespace_authority_completeness" "$_r101_status_yaml missing active_engineering_rules: under baseline_metrics -- Rule 101 / E143 (b)"
     _r101_fail=1
-  elif [[ "$_r101_declared" != "$_r101_kernel_count" ]]; then
-    fail_rule "rule_namespace_authority_completeness" "$_r101_status_yaml baseline_metrics.active_engineering_rules=$_r101_declared but CLAUDE.md has $_r101_kernel_count '#### Rule ' headers -- Rule 101 / E143 (b)"
+  elif [[ "$_r101_declared" != "$_r101_card_count" ]]; then
+    fail_rule "rule_namespace_authority_completeness" "$_r101_status_yaml baseline_metrics.active_engineering_rules=$_r101_declared but $_r101_cards_dir/ has $_r101_card_count cards with status:active -- Rule 101 / E143 (b)"
     _r101_fail=1
   fi
 

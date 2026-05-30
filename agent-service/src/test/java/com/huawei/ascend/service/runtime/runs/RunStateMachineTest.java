@@ -1,6 +1,6 @@
 package com.huawei.ascend.service.runtime.runs;
 
-import com.huawei.ascend.engine.orchestration.spi.RunMode;
+import com.huawei.ascend.bus.spi.engine.RunMode;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

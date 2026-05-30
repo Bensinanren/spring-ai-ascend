@@ -1,6 +1,7 @@
 id: ADR-0112
 title: "Engine stateless executor — value-based yield (no checked exception); A2A InterruptType ↔ SuspendReason mapping"
 status: accepted
+product_claim: "PC-004"
 date: 2026-05-23
 level: L0
 view: logical
@@ -81,17 +82,23 @@ decision: |
   `INPUT_REQUIRED` / `SUB_TASK_AWAIT` / `TOOL_EXECUTION` /
   `DELAY_AWAIT` / `POLICY_APPROVAL`.
 
-  Internal `SuspendReason` is DFA vocab (7 cases per ADR-0019/0021/0044):
+  Internal `SuspendReason` is DFA vocab. The canonical L1 set is 6 cases
+  (per ADR-0146 codifying the 2026-05-22 expansion-proposal-response doc
+  line 141; supersedes the original ADR-0019 names):
 
-  | SuspendReason | → A2A InterruptType |
-  |---|---|
-  | ChildRun | SUB_TASK_AWAIT |
-  | AwaitChildren(JoinPolicy) | SUB_TASK_AWAIT |
-  | AwaitClientCallback | INPUT_REQUIRED |
-  | AwaitTool | TOOL_EXECUTION |
-  | AwaitApproval | INPUT_REQUIRED |
-  | AwaitTimer | DELAY_AWAIT |
-  | RateLimited | POLICY_APPROVAL |
+  | SuspendReason | → A2A InterruptType | source ADR |
+  |---|---|---|
+  | AwaitClientCallback | INPUT_REQUIRED | ADR-0074 (canonical) |
+  | AwaitChildRun | SUB_TASK_AWAIT | ADR-0146 (renamed from ADR-0019 ChildRun) |
+  | AwaitToolResult | TOOL_EXECUTION | ADR-0146 (renamed from ADR-0019 AwaitExternal / earlier ADR-0044 AwaitTool) |
+  | AwaitTimer | DELAY_AWAIT | ADR-0019 |
+  | RequiresApproval | INPUT_REQUIRED | ADR-0146 (renamed from ADR-0019 AwaitApproval) |
+  | RateLimited | POLICY_APPROVAL | ADR-0070 |
+
+  Fan-out variant `AwaitChildren(JoinPolicy)` is deferred to a follow-up
+  ADR (not part of canonical L1 set); when it lands it will be a 7th
+  variant. ADR-0146 §1 is the authority for this table; this ADR's Part B
+  is aligned to it post-2026-05-27.
 
   Direction: internal → wire is many-to-one (lossy by design).
   Wire → internal on inbound A2A peer message requires payload

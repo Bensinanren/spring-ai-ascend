@@ -1,6 +1,6 @@
 package com.huawei.ascend.engine.runtime;
 
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

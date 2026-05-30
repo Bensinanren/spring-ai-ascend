@@ -1,9 +1,12 @@
 package com.huawei.ascend.service.runtime.orchestration.inmemory;
 
 import com.huawei.ascend.engine.runtime.EngineRegistry;
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
-import com.huawei.ascend.engine.orchestration.spi.RunMode;
-import com.huawei.ascend.engine.orchestration.spi.SuspendSignal;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.RunMode;
+import com.huawei.ascend.bus.spi.engine.SuspendSignal;
+import com.huawei.ascend.engine.exec.IterativeAgentLoopExecutor;
+import com.huawei.ascend.engine.exec.SequentialGraphExecutor;
+import com.huawei.ascend.service.runtime.orchestration.TestEnginePorts;
 import com.huawei.ascend.service.runtime.runs.Run;
 import com.huawei.ascend.service.runtime.runs.RunStatus;
 import com.huawei.ascend.service.runtime.runs.spi.RunRepository;
@@ -36,7 +39,7 @@ class SyncOrchestratorCancelRaceTest {
         EngineRegistry engines = new EngineRegistry()
                 .register(new SequentialGraphExecutor())
                 .register(new IterativeAgentLoopExecutor());
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 runs, new InMemoryCheckpointer(), engines);
 
         CountDownLatch executorEntered = new CountDownLatch(1);
@@ -93,7 +96,7 @@ class SyncOrchestratorCancelRaceTest {
         EngineRegistry engines = new EngineRegistry()
                 .register(new SequentialGraphExecutor())
                 .register(new IterativeAgentLoopExecutor());
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 runs, new InMemoryCheckpointer(), engines);
 
         CountDownLatch executorEntered = new CountDownLatch(1);
@@ -166,7 +169,7 @@ class SyncOrchestratorCancelRaceTest {
         EngineRegistry engines = new EngineRegistry()
                 .register(new SequentialGraphExecutor())
                 .register(new IterativeAgentLoopExecutor());
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 runs, new InMemoryCheckpointer(), engines);
 
         ExecutorDefinition.AgentLoopDefinition def = new ExecutorDefinition.AgentLoopDefinition(
@@ -224,9 +227,9 @@ class SyncOrchestratorCancelRaceTest {
         }
 
         @Override
-        public Optional<Run> updateIfNotTerminal(UUID runId, UnaryOperator<Run> mutator) {
+        public Optional<Run> updateIfNotTerminal(String tenantId, UUID runId, UnaryOperator<Run> mutator) {
             injectCancelIfRunning(runId);
-            return delegate.updateIfNotTerminal(runId, mutator);
+            return delegate.updateIfNotTerminal(tenantId, runId, mutator);
         }
 
         @Override

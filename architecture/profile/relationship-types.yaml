@@ -1,0 +1,110 @@
+# Spring AI Ascend Architecture Profile — relationship vocabulary.
+#
+# Authority: ADR-0147. Validated against ProfileValidator.RELATIONSHIP_TYPES
+# by ProfileYamlParityTest. The relationship's machine type lives in the
+# property saa.rel; the Structurizr-level description remains free-form text
+# for human readers.
+#
+# source_tags / target_tags constrain endpoint types for each relationship.
+# Wave 1 ships the matrix; Wave 5 promotes it from advisory to blocking.
+
+relationship_types:
+  contains:
+    source_tags: [SAA Capability, SAA Feature, SAA Module]
+    target_tags: [SAA Feature, SAA FunctionPoint, SAA EngineeringFrame]
+    description: Hierarchical ownership inside the L1 feature/function-point inventory; also Module -> EngineeringFrame on the structural axis.
+
+  implements:
+    source_tags: [SAA Module]
+    target_tags: [SAA Feature, SAA FunctionPoint, SAA Contract]
+    description: Module realises a feature / function point / contract.
+
+  verifies:
+    source_tags: [SAA Enforcer, SAA Test]
+    target_tags: [SAA Rule, SAA Feature, SAA FunctionPoint, SAA Contract]
+    description: Enforcer or test verifies a rule / feature / function point / contract.
+
+  constrains:
+    source_tags: [SAA Principle, SAA Rule]
+    target_tags: [SAA Module, SAA Contract, SAA Capability, SAA FunctionPoint]
+    description: Principle / rule constrains a target.
+
+  depends_on:
+    source_tags: [SAA Module, SAA Feature, SAA FunctionPoint]
+    target_tags: [SAA Module, SAA Feature, SAA FunctionPoint]
+    description: Dependency. Module dependency direction enforced by Rule R-C.1.
+
+  declares_spi:
+    source_tags: [SAA Module]
+    target_tags: [SAA SPI]
+    description: Module owns an SPI package.
+
+  publishes_contract:
+    source_tags: [SAA Module]
+    target_tags: [SAA Contract]
+    description: Module owns a contract surface.
+
+  decides:
+    source_tags: [SAA ADR]
+    target_tags: [SAA Rule, SAA Feature, SAA Capability, SAA Contract]
+    description: ADR is the decision-source for a rule / feature / capability / contract.
+
+  operationalised_by:
+    source_tags: [SAA Principle]
+    target_tags: [SAA Rule]
+    description: Principle is operationalised by a rule (mirrors principle-coverage.yaml).
+
+  enforced_by:
+    source_tags: [SAA Rule]
+    target_tags: [SAA Enforcer]
+    description: Rule is enforced by an enforcer (mirrors enforcers.yaml).
+
+  supersedes:
+    source_tags: [SAA ADR]
+    target_tags: [SAA ADR]
+    description: ADR supersedes an earlier ADR. DAG.
+
+  extends:
+    source_tags: [SAA ADR]
+    target_tags: [SAA ADR]
+    description: ADR extends an earlier ADR.
+
+  relates_to:
+    source_tags: [SAA ADR]
+    target_tags: [SAA ADR]
+    description: ADR relates to another without superseding or extending.
+
+  indexes:
+    source_tags: [SAA Principle, SAA Rule, SAA Enforcer, SAA Module, SAA Capability, SAA FunctionPoint, SAA Feature, SAA SPI, SAA Contract, SAA ADR]
+    target_tags: [SAA Principle, SAA Rule, SAA Enforcer, SAA Module, SAA Capability, SAA FunctionPoint, SAA Feature, SAA SPI, SAA Contract, SAA ADR]
+    description: Level/view indexing edge.
+
+  projects_to:
+    source_tags: [SAA Module, SAA Capability, SAA Feature, SAA FunctionPoint, SAA Rule, SAA Enforcer, SAA ADR]
+    target_tags: [SAA GeneratedProjection]
+    description: Source element is projected into a generated output (graph.yaml, mermaid, rendered .md, etc.).
+
+  decided_by:
+    source_tags: [SAA Feature, SAA FunctionPoint, SAA Capability, SAA Contract]
+    target_tags: [SAA ADR]
+    description: Authority for the element's existence and scope; the ADR that decided this. Inverse of `decides`.
+
+  contained_by:
+    source_tags: [SAA Feature]
+    target_tags: [SAA Capability]
+    description: Feature is contained by a capability. Inverse of `contains` (capability -> feature direction). One-hop AI traversal from FEAT- to CAP-.
+
+  anchors:
+    source_tags: [SAA EngineeringFrame]
+    target_tags: [SAA FunctionPoint]
+    description: EngineeringFrame anchors a function point — the structural axis (Module -> EngineeringFrame -> FunctionPoint).
+
+  traverses:
+    source_tags: [SAA Feature]
+    target_tags: [SAA EngineeringFrame]
+    description: Feature traverses an engineering frame — the value axis crossing the structural map.
+
+  requires:
+    source_tags: [SAA Feature]
+    target_tags: [SAA FunctionPoint]
+    description: Feature requires / drives a function point — the value axis. A value thread drives behaviours; it does not structurally own them (contrast the structural `anchors` edge from EngineeringFrame).

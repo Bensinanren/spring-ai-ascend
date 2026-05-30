@@ -1,6 +1,6 @@
 package com.huawei.ascend.service.agent;
 
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
 import com.huawei.ascend.service.agent.spi.Agent;
 import com.huawei.ascend.service.agent.spi.AgentDefinition;
 

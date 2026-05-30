@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 18 — deleted_spi_starter_names_outside_catalog. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 18 — deleted_spi_starter_names_outside_catalog
 # ADR-0041 extends Rule 13: deleted SPI/starter names must not appear in
@@ -23,7 +23,7 @@ _deleted_names18=(
 # (~1s) — same 16 fixed-string patterns, same file set, identical
 # pass/fail semantics. ADR-0043 (widened to full ACTIVE_NORMATIVE_DOCS).
 _r18_files=$(find . -name '*.md' -o -name '*.yaml' 2>/dev/null \
-  | grep -vE '/docs/(archive|logs/reviews|adr|delivery|v6-rationale|plans)/|/third_party/|/target/|/\.git/' \
+  | grep -vE '/docs/(archive|logs/reviews|adr|delivery|v6-rationale|plans|competitive|superpowers)/|/third_party/|/target/|/\.git/' \
   | sort || true)
 if [[ -n "$_r18_files" ]]; then
   _r18_patterns=$(printf '%s\n' "${_deleted_names18[@]}")

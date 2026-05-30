@@ -2,7 +2,7 @@
 
 A developer-facing narrative of what the platform is, why it exists, and how its
 pieces fit together. For the formal, gate-enforced architecture (system boundary,
-constraint corpus, SPI contracts) see [ARCHITECTURE.md](../ARCHITECTURE.md); for
+constraint corpus, SPI contracts) see [ARCHITECTURE.md](../architecture/docs/L0/ARCHITECTURE.md); for
 the per-capability shipped/deferred ledger see
 [architecture-status.yaml](governance/architecture-status.yaml).
 
@@ -91,7 +91,7 @@ Kunpeng CPUs while model-serving workloads target Ascend NPUs.
 |---|---|
 | The 60-second pitch + quickstart | [README.md](../README.md) |
 | This narrative overview | you are here |
-| The formal architecture + constraints | [ARCHITECTURE.md](../ARCHITECTURE.md) |
+| The formal architecture + constraints | [ARCHITECTURE.md](../architecture/docs/L0/ARCHITECTURE.md) |
 | What's shipped vs. deferred, per capability | [architecture-status.yaml](governance/architecture-status.yaml) |
 | The contracts (HTTP, SPI, engine, S2C) | [docs/contracts/](contracts/) |
 | Why a decision was made | [docs/adr/](adr/) |

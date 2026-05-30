@@ -24,3 +24,4 @@ gate/check_architecture_sync.ps1
 gate/check_formal_release_transaction.sh
 gate/run_operator_shape_smoke.sh
 gate/test_architecture_sync_gate.sh
+gate/check_architecture_workspace.sh

@@ -3,13 +3,13 @@ package com.huawei.ascend.service.runtime.orchestration;
 import com.huawei.ascend.engine.runtime.EngineRegistry;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.InMemoryCheckpointer;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.InMemoryRunRegistry;
-import com.huawei.ascend.service.runtime.orchestration.inmemory.IterativeAgentLoopExecutor;
-import com.huawei.ascend.service.runtime.orchestration.inmemory.SequentialGraphExecutor;
+import com.huawei.ascend.engine.exec.IterativeAgentLoopExecutor;
+import com.huawei.ascend.engine.exec.SequentialGraphExecutor;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.SyncOrchestrator;
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
-import com.huawei.ascend.engine.orchestration.spi.Orchestrator;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.Orchestrator;
 import com.huawei.ascend.service.runtime.runs.Run;
-import com.huawei.ascend.engine.orchestration.spi.RunMode;
+import com.huawei.ascend.bus.spi.engine.RunMode;
 import com.huawei.ascend.service.runtime.runs.RunStatus;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +31,7 @@ class RunStatusTransitionIT {
         EngineRegistry engines = new EngineRegistry()
                 .register(new SequentialGraphExecutor())
                 .register(new IterativeAgentLoopExecutor());
-        Orchestrator orchestrator = new SyncOrchestrator(registry, new InMemoryCheckpointer(), engines);
+        Orchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(registry, new InMemoryCheckpointer(), engines);
 
         // Child graph: single terminal node
         ExecutorDefinition.GraphDefinition childGraph = new ExecutorDefinition.GraphDefinition(

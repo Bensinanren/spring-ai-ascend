@@ -1,12 +1,12 @@
 package com.huawei.ascend.service.runtime.orchestration.inmemory;
 
 import com.huawei.ascend.service.runtime.orchestration.NoopTraceContext;
-import com.huawei.ascend.engine.orchestration.spi.Checkpointer;
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
-import com.huawei.ascend.engine.orchestration.spi.RunContext;
-import com.huawei.ascend.engine.orchestration.spi.SuspendSignal;
-import com.huawei.ascend.engine.orchestration.spi.TraceContext;
-import com.huawei.ascend.engine.orchestration.spi.RunMode;
+import com.huawei.ascend.bus.spi.engine.Checkpointer;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.RunContext;
+import com.huawei.ascend.bus.spi.engine.SuspendSignal;
+import com.huawei.ascend.bus.spi.engine.TraceContext;
+import com.huawei.ascend.bus.spi.engine.RunMode;
 
 import java.util.Objects;
 import java.util.UUID;

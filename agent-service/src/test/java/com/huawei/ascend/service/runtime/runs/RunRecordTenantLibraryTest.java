@@ -1,6 +1,6 @@
 package com.huawei.ascend.service.runtime.runs;
 
-import com.huawei.ascend.engine.orchestration.spi.RunMode;
+import com.huawei.ascend.bus.spi.engine.RunMode;
 
 import com.huawei.ascend.service.runtime.idempotency.IdempotencyRecord;
 import org.junit.jupiter.api.Test;

@@ -3,14 +3,15 @@ package com.huawei.ascend.service.runtime.s2c;
 import com.huawei.ascend.engine.runtime.EngineRegistry;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.InMemoryCheckpointer;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.InMemoryRunRegistry;
-import com.huawei.ascend.service.runtime.orchestration.inmemory.IterativeAgentLoopExecutor;
-import com.huawei.ascend.service.runtime.orchestration.inmemory.SequentialGraphExecutor;
+import com.huawei.ascend.engine.exec.IterativeAgentLoopExecutor;
+import com.huawei.ascend.engine.exec.SequentialGraphExecutor;
+import com.huawei.ascend.service.runtime.orchestration.TestEnginePorts;
 import com.huawei.ascend.service.runtime.orchestration.inmemory.SyncOrchestrator;
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
 import com.huawei.ascend.middleware.spi.HookOutcome;
 import com.huawei.ascend.middleware.spi.HookPoint;
 import com.huawei.ascend.middleware.spi.RuntimeMiddleware;
-import com.huawei.ascend.engine.orchestration.spi.SuspendSignal;
+import com.huawei.ascend.bus.spi.engine.SuspendSignal;
 import com.huawei.ascend.service.runtime.runs.Run;
 import com.huawei.ascend.service.runtime.runs.spi.RunRepository;
 import com.huawei.ascend.service.runtime.runs.RunStatus;
@@ -90,7 +91,7 @@ class S2cFailureTransitionsRunToFailedIT {
         };
         engines.registerMiddleware(tap);
 
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 runs, new InMemoryCheckpointer(), engines);
 
         AtomicReference<S2cCallbackEnvelope> captured = new AtomicReference<>();
@@ -192,7 +193,7 @@ class S2cFailureTransitionsRunToFailedIT {
                 .register(new SequentialGraphExecutor())
                 .register(new IterativeAgentLoopExecutor());
         // No transport registered -> s2c_transport_unavailable
-        SyncOrchestrator orchestrator = new SyncOrchestrator(
+        SyncOrchestrator orchestrator = TestEnginePorts.inProcessOrchestrator(
                 new InMemoryRunRegistry(), new InMemoryCheckpointer(), engines);
 
         AtomicReference<S2cCallbackEnvelope> captured = new AtomicReference<>();

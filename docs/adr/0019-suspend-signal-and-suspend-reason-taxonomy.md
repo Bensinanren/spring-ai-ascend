@@ -1,8 +1,9 @@
 # 0019. SuspendSignal: Checked-Exception Primitive and Sealed SuspendReason Taxonomy
 
-**Status:** accepted
+**Status:** accepted (variant names superseded by ADR-0146 — see "Post-2026-05-27 alignment note" below)
 **Deciders:** architecture
 **Date:** 2026-05-12
+**Post-2026-05-27 alignment note:** Per the 2026-05-27 agent-service L1 architecture audit, the variant names in this ADR's §Decision Outcome (Part 2) are superseded by [ADR-0146](0146-suspend-reason-taxonomy-alignment-2026-05-22.yaml) which codifies the canonical 6-variant set `{AwaitClientCallback, AwaitChildRun, AwaitToolResult, AwaitTimer, RequiresApproval, RateLimited}` per the 2026-05-22 expansion-proposal-response doc line 141. Specifically: `ChildRun` → `AwaitChildRun`; `AwaitExternal` → `AwaitToolResult`; `AwaitApproval` → `RequiresApproval`. Fan-out variant `AwaitChildren(JoinPolicy)` deferred to a follow-up ADR (not part of the canonical L1 set). User precedence rule: doc > ADR; this ADR's body retained verbatim for historical record.
 **Technical story:** Third architecture reviewer raised two issues: (Issue 1) SuspendSignal as a checked exception poisons functional composition; (Issue 2) composition model supports only sequential parent→child nesting and cannot express fan-out. Self-audit surfaced three additional gaps: (HD-A.1) no suspend deadline, (HD-A.2) child failure propagation undefined, (HD-A.3) per-reason resume-payload schema missing. This ADR addresses all five through one cohesive design move.
 
 ## Context

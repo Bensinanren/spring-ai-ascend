@@ -80,11 +80,11 @@ share infrastructure:
 | `spring-ai-ascend-graphmemory-starter` | Bus & State Hub | Graph-memory auto-config starter |
 
 Each module declares its identity in `module-metadata.yaml`, its L1 design in
-`ARCHITECTURE.md`, and its five DFX dimensions in `docs/dfx/<module>.yaml`.
+`architecture/docs/L0/ARCHITECTURE.md`, and its five DFX dimensions in `docs/dfx/<module>.yaml`.
 Cross-service traffic on the Bus & State Hub plane is sliced into three
 physically isolated channels — `control` (PAUSE/KILL intents, never blocked),
 `data` (run payloads), `rhythm` (heartbeats). The full system boundary, the
-constraint corpus, and the SPI contracts live in [ARCHITECTURE.md](ARCHITECTURE.md);
+constraint corpus, and the SPI contracts live in [architecture/docs/L0/ARCHITECTURE.md](architecture/docs/L0/ARCHITECTURE.md);
 the narrative tour is [docs/overview.md](docs/overview.md).
 
 ## Extending the platform
@@ -105,15 +105,26 @@ the narrative tour is [docs/overview.md](docs/overview.md).
 
 Full matrix: [docs/cross-cutting/posture-model.md](docs/cross-cutting/posture-model.md).
 
-## Where to go next
+## Reading path
 
-- [docs/overview.md](docs/overview.md) — narrative platform overview (read this after the README).
-- [ARCHITECTURE.md](ARCHITECTURE.md) — system boundary, architectural constraints, SPI contracts, decision chains.
-- [docs/quickstart.md](docs/quickstart.md) — first-agent-run walkthrough.
-- [docs/contracts/](docs/contracts/) — HTTP API + SPI semantic contracts, engine envelope/hooks, S2C callback.
-- [docs/adr/README.md](docs/adr/README.md) — Architecture Decision Records.
-- [CLAUDE.md](CLAUDE.md) — Layer-0 governing principles + Layer-1 engineering rules.
+Whether you are a new human contributor or an AI assistant, follow this order for an unbiased architecture picture. Each step names the surface's **rhetorical stance** so you don't conflate it with another slice.
+
+1. **`architecture/workspace.dsl`** + **`architecture/README.md`** — the architecture authority (`唯一主入口` / sole main entry; ADR-0147 + ADR-0150). Structurizr DSL workspace carrying system/container/component structure, Feature/Capability/FunctionPoint instances, dependencies, contracts, decisions, and views.
+2. **`architecture/docs/L0/ARCHITECTURE.md`** (this repo root, L0 frozen) — **declarative** L0 system boundary + 65 numbered architectural constraints (§4 #1..#65). What the platform commits to structurally.
+3. **`CLAUDE.md`** — **enforceable** Layer-0 governing principles (P-A..P-M) + Layer-1 engineering rules (D-/R-/G-/M- namespace). Each rule cites the §4 constraint it enforces.
+4. **`architecture/docs/L1/README.md`** — L1 module design index. Pick the module you're working on; read its `.md` or 4+1 directory.
+5. **`docs/contracts/contract-catalog.md`** — **runtime promise** surface (HTTP API + SPI + envelopes + OpenAPI). What the system commits to at runtime.
+6. **`docs/quickstart.md`** — **operational** onboarding (boot, post `POST /v1/runs`, observe).
+7. **`docs/overview.md`** — narrative tour (after-the-fact prose for non-architecture readers).
+
+These 7 surfaces present **distinct slices**: workspace (structure) → constraints (declarative) → rules (enforceable) → L1 (module design) → contracts (runtime) → quickstart (boot) → overview (narrative). Loading all 7 in order produces a complete, unbiased architecture understanding. Loading any one in isolation produces a partial view.
+
+## Where to go next (cross-links beyond the Reading path)
+
+- [docs/contracts/](docs/contracts/) — full contract corpus (each contract has authority ADR + enforcer).
+- [docs/adr/README.md](docs/adr/README.md) — full Architecture Decision Records corpus (the canonical count lives in docs/governance/architecture-status.yaml#architecture_sync_gate.baseline_metrics; currently 138 active+locked YAMLs but only the baseline_metrics number is authoritative).
 - [docs/governance/architecture-status.yaml](docs/governance/architecture-status.yaml) — per-capability shipped/deferred ledger.
+- [docs/governance/SESSION-START-CONTEXT.md](docs/governance/SESSION-START-CONTEXT.md) — same Reading path, expressed as an always-load table for AI sessions.
 
 ## Project status & governance
 
@@ -126,9 +137,9 @@ design contracts. Per-capability detail is the single source of truth in
 
 A Code-as-Contract gate keeps the documentation and the code in lockstep and
 fails closed on drift. Its current baseline:
-**65 §4 constraints · 130 ADRs · 143 active gate rules · 260 gate self-tests**,
-plus 13 Layer-0 governing principles, 43 active engineering rules, 176 enforcer
-rows, and a 612-node / 1153-edge architecture graph — all maintained in
+**65 §4 constraints · 139 ADRs · 157 active gate rules · 287 gate self-tests**,
+plus 13 Layer-0 governing principles, 55 active engineering rules, 190 enforcer
+rows, and a 674-node / 1301-edge architecture graph — all maintained in
 [`docs/governance/architecture-status.yaml#architecture_sync_gate.baseline_metrics`](docs/governance/architecture-status.yaml)
 (the canonical source for every count); see [gate/README.md](gate/README.md) for
 how it runs.

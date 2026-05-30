@@ -1,6 +1,6 @@
 package com.huawei.ascend.service.runtime.orchestration.inmemory;
 
-import com.huawei.ascend.engine.orchestration.spi.Checkpointer;
+import com.huawei.ascend.bus.spi.engine.Checkpointer;
 import com.huawei.ascend.service.runtime.posture.AppPostureGate;
 
 import java.util.Arrays;

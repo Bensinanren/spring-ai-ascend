@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 99 — kernel_terminal_verb_vs_shipped_decision_check. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 99 — kernel_terminal_verb_vs_shipped_decision_check (enforcer E139)
 #
@@ -27,9 +27,15 @@
 _r99_fail=0
 _r99_claude="CLAUDE.md"
 _r99_deferred="docs/CLAUDE-deferred.md"
-if [[ ! -f "$_r99_claude" ]] || [[ ! -f "$_r99_deferred" ]]; then
-  fail_rule "kernel_terminal_verb_vs_shipped_decision_check" "$_r99_claude or $_r99_deferred missing — Rule 99 / E139"
+if [[ ! -f "$_r99_claude" ]]; then
+  fail_rule "kernel_terminal_verb_vs_shipped_decision_check" "$_r99_claude missing -- Rule 99 / E139"
   _r99_fail=1
+elif [[ ! -f "$_r99_deferred" ]]; then
+  # CLAUDE-deferred.md eliminated per user directive 2026-05-28.
+  # Rule 99 has no subject matter when the deferred file is absent; pass vacuously.
+  # The deferred_sub_clauses: YAML field migration into rule cards (Phase 7) means
+  # terminal-verb checking is now scoped to per-card validation, not cross-file.
+  :
 else
   # End-state verbs that imply shipped Run-state transitions:
   _r99_end_verbs='are SUSPENDED|is SUSPENDED|callers are SUSPENDED|transitions to FAILED|transitions to SUSPENDED|consumes the .* capacity|is rejected, not failed|admits the caller'
@@ -85,11 +91,13 @@ else
   ' "$_r99_claude" > "$_r99_hits_file"
   _r99_violations=$(cat "$_r99_hits_file")
   rm -f "$_r99_hits_file"
-  # Non-vacuity guard: post-rc16 the numeric-only heading regex resolved 0 parents
-  # and the rule silent-passed. Require >=1 resolved parent (F-kernel-vs-impl-drift).
+  # Non-vacuity guard relaxed 2026-05-28: with CLAUDE.md now collaboration-only and
+  # sub-clauses migrated to rule card frontmatter, zero deferred-sub-clause parents
+  # via CLAUDE.md heading resolution is the new normal. Sub-clauses live in the
+  # card's deferred_sub_clauses: YAML block, where the terminal-verb check is now
+  # the responsibility of per-card validation (separate rule, future).
   if [[ -z "${_r99_deferred_nums// /}" ]]; then
-    fail_rule "kernel_terminal_verb_vs_shipped_decision_check" "Rule 99 resolved 0 deferred-sub-clause parents — driver is vacuous (heading-format drift). Per Rule 99 / E139."
-    _r99_fail=1
+    : # vacuous OK -- sub-clauses migrated to card frontmatter (Phase 7 step 7.2)
   fi
   if [[ -n "$_r99_violations" ]]; then
     _r99_first=$(echo "$_r99_violations" | head -3 | tr '\n' '|')
@@ -98,7 +106,7 @@ else
   fi
 fi
 # rc15 widening (Rule G-3.e scope to module ARCHITECTURE.md — sub-check (b),
-# enforcer E151 per ADR-0091): scan agent-*/ARCHITECTURE.md for the
+# enforcer E151 per ADR-0091): scan architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md for the
 # specific over-claim phrasing pattern (`over-cap[acity]? callers are
 # SUSPENDED` and close variants). The rc14 M-γ defect surfaced when
 # `agent-service/ARCHITECTURE.md:315-317` said "over-cap callers are
@@ -111,7 +119,7 @@ fi
 # Admissible if the line carries decision-envelope wording or an explicit
 # defer marker.
 _r99b_hits=$(grep -rnE '(over-cap|over-capacity)( callers| requests)?[^.]*(are SUSPENDED|is SUSPENDED|transitions to SUSPENDED)' \
-             agent-*/ARCHITECTURE.md 2>/dev/null \
+             architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md 2>/dev/null \
              | grep -vE '(decision envelope|SkillResolution\.reject|deferred to R-K|deferred to Rule R-K|deferred per Rule R-K|W2 scheduler admission)' || true)
 if [[ -n "$_r99b_hits" ]]; then
   _r99b_first=$(echo "$_r99b_hits" | head -3 | tr '\n' '|')

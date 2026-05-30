@@ -1,0 +1,166 @@
+id: ADR-0152
+title: "Uniform L1 per-view mechanism + L0 mounting under architecture/docs/L0/"
+status: accepted
+governance_infra: true
+date: 2026-05-27
+level: L0
+view: scenarios
+affects_level: L0, L1
+affects_view: scenarios, logical, development
+authors:
+  - chao
+extends:
+  - ADR-0147    # Structurizr Workspace Authority
+  - ADR-0149    # W0-W5 shipped record
+  - ADR-0150    # Architecture docs consolidation under architecture/
+  - ADR-0151    # L1 Feature Registry canonical schema (Wave 1)
+supersedes_partial:
+  - ADR-0068    # Root ARCHITECTURE.md is L0 canonical — superseded for LOCATION only; declarative role unchanged
+  - ADR-0143    # Module-owner picks single-.md OR per-view directory — superseded by uniform directory mechanism
+  - ADR-0150    # docs/ → architecture/docs/ consolidation — superseded for the L1 single-.md fallback shape
+context: |
+  After ADR-0150 (W8 docs consolidation), the L1 corpus shape was
+  asymmetric: `architecture/docs/L1/agent-service/` shipped as a full
+  per-view 4+1 directory (rc55 + W3-W5 + audit Wave 3) while the
+  other 6 modules (`agent-bus`, `agent-client`, `agent-evolve`,
+  `agent-execution-engine`, `agent-middleware`, `graphmemory-starter`)
+  shipped as single-narrative `.md` files. ADR-0150 explicitly allowed
+  module owners to pick either shape based on module maturity.
+
+  The user directive 2026-05-27 (after ADR-0151 W1 lands):
+
+    > "AgentService 只是架构设计中的一个模块，这里面多个模块之间要有一套
+    > 统一的长效机制，不是为 AgentService 现状去定制；AgentService 的
+    > 现状就是其他模块的未来。"
+
+  This corrects the ADR-0150 framing: the per-view directory shape is
+  NOT a feature of agent-service's current maturity — it is the
+  long-term shape EVERY L1 module must reach. agent-service is the
+  canonical instance; the other 6 modules adopt the same shape now
+  with stub view content (filled in as modules mature).
+
+  Separately, L0 `ARCHITECTURE.md` lived at repo root, outside
+  `architecture/docs/`. Structurizr's `!docs docs` directive
+  (wired in W8 ADR-0150) therefore did NOT import L0 into the
+  workspace — L0 was a Reading-path reference, not a workspace node.
+  The user directive 2026-05-27 (`L0 mounting Q2=A`):
+
+    > "把 ARCHITECTURE.md 移到 architecture/docs/L0/ARCHITECTURE.md
+    > （与 L1 模块根的 W8 迁移同形）"
+
+  Adopted. The move puts L0 under the `!docs docs` import scope so
+  workspace.dsl reaches the L0 corpus directly.
+decision: |
+  Two changes ship together in Wave 2 of the L1 Feature Registry
+  plan:
+
+    1. Uniform L1 directory mechanism
+       ---------------------------------
+       Every `kind: domain` Maven module's L1 corpus MUST live at
+       `architecture/docs/L1/<module>/` with the canonical 9-file
+       set:
+
+         README.md           — module summary + navigation
+         ARCHITECTURE.md     — shipped-state grounding
+         logical.md          — 4+1 logical view (stub allowed)
+         process.md          — 4+1 process view (stub allowed)
+         physical.md         — 4+1 physical view (stub allowed)
+         development.md      — 4+1 development view (RENDERED at W3)
+         scenarios.md        — 4+1 scenarios view (stub allowed)
+         spi-appendix.md     — SPI interface appendix (RENDERED at W3)
+         features/README.md  — 9-section L1 Feature Catalog (RENDERED
+                               at W3 from architecture/features/features.dsl
+                               filtered by saa.owner)
+
+       Single-narrative `<module>.md` shape is RETIRED. The shape is
+       fixed by Rule G-1.1 sub-clause .d (added by this ADR; advisory
+       at W2, blocking at W5 after soak).
+
+       `architecture/docs/L1/_template/` ships as the canonical
+       skeleton. New modules copy from `_template/`; the gate
+       enforces basename parity with `_template/` per Rule G-1.1.d.
+
+       Content depth varies by module maturity; structure does not.
+       Mature modules (agent-service) have authored prose; fresh
+       modules carry stub view content with `<!-- W2-stub: ... -->`
+       markers. The 6 newly-converted modules retain blame on the
+       moved single-.md content (which becomes `<module>/ARCHITECTURE.md`).
+
+    2. L0 mounting under workspace closure
+       ------------------------------------
+       Root `ARCHITECTURE.md` moves to
+       `architecture/docs/L0/ARCHITECTURE.md`. The frontmatter
+       `freeze_id: W1-russell-2026-05-14` carries over; the move IS
+       a frozen-doc edit and is paired with a review log
+       (`docs/logs/reviews/2026-05-27-wave-2-uniform-l1-and-l0-mounting.md`)
+       declaring `affects_artefact: [ARCHITECTURE.md]` per Rule 44.
+
+       The workspace `!docs docs` directive at
+       `architecture/workspace.dsl` now imports L0 + L1 + L2 under
+       the unified `architecture/docs/` subtree.
+
+       Rule G-1.a kernel + card update: L0 regex changes from
+       `^ARCHITECTURE\.md$` to
+       `^architecture/docs/L0/ARCHITECTURE\.md$`. L1 regex narrows
+       from `architecture/docs/L1/<module>{.md,/}` to
+       `architecture/docs/L1/<module>/` (single-.md alternative
+       retired).
+
+  Path sweep: ~80-130 references across gate scripts, templates,
+  top-level docs, module-metadata files updated to the new locations.
+  AdrMirrorCli `ANCHOR_IDS` extends to ADR-0152.
+
+  Soak window: the W5 14-day Structurizr soak (2026-05-27 →
+  2026-06-10) continues unchanged. ADR-0152 lands during the W5 soak
+  because it does NOT change authority direction — it only relocates
+  files and enforces structural uniformity. W6 sub-wave soaks (15
+  days each) are unaffected.
+consequences: |
+  Positive
+  --------
+    * L1 module shape is uniform — newcomers (human or AI) navigate
+      every module the same way; the only difference is content
+      depth.
+    * agent-service's mature shape is the canonical template; future
+      module maturity work fills in stub view content without
+      changing structure.
+    * L0 ARCHITECTURE.md is now a workspace node (imported by
+      `!docs docs`), aligning physical layout with the workspace
+      authority direction from ADR-0147.
+    * Rule G-1.1.d (added by this ADR) prevents single-.md drift —
+      any module that drops a canonical file fails the gate.
+    * `_template/` makes new-module bootstrap a `cp -r` away from
+      uniform shape.
+
+  Negative
+  --------
+    * 6 module conversions touch many files; git mv preserves blame
+      on the single-.md content (now `<module>/ARCHITECTURE.md`)
+      but the other 7 files in each module are bootstrapped stubs.
+    * Path sweep across ~80-130 references is mechanical but
+      large-surface; mass regex with explicit dry-run on one file
+      per memory `feedback_bulk_regex_dry_run_first`.
+    * ARCHITECTURE.md move triggers Rule 44 frozen-doc review log
+      requirement; the review log lands in the same commit.
+    * Rule G-1.1.d advisory at W2 — the gate logs violations but
+      exits 0. W5 promotes to blocking after soak.
+
+  Mitigation
+  ----------
+    * Template directory `_template/` ensures structure consistency.
+    * Render-driven content for `development.md` + `spi-appendix.md`
+      lands in W3 (DevTreeRenderer + SpiAppendixEmitter) so the 6
+      newly-converted modules' stub views become rendered outputs
+      before W5 promotes G-1.1.d to blocking.
+    * AdrMirrorCli automatically picks up new anchor ADRs (no manual
+      mirror); workspace.dsl `!adrs decisions` resolves on next build.
+
+  Forward-looking
+  ---------------
+    * Wave 3 (this plan) renders the 9-section feature catalog from
+      `architecture/features/features.dsl` and adds the 3 missing
+      L1 view DSL fragments (process/physical/scenarios).
+    * Wave 4 migrates agent-service's existing `features/*.md` deep-dive
+      content to the new schema; 14-day soak begins.
+    * Wave 5 promotes Rule G-14 + Rule G-1.1.d from advisory to
+      blocking. ADR-0153 closes the plan.

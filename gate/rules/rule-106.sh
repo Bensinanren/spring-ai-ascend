@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 106 — cross_authority_parity. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 106 — cross_authority_parity (enforcers E146 + E147 + E148 + E149)
 #
@@ -73,7 +73,7 @@ _r106_pom_modules=$(awk '/<modules>/,/<\/modules>/' pom.xml 2>/dev/null \
                     | grep -oE '<module>[^<]+</module>' \
                     | sed -E 's,</?module>,,g' | sort -u || true)
 _r106_pom_count=$(echo -n "$_r106_pom_modules" | grep -c . || true)
-_r106_reactor_declared=$(awk '/^\s+reactor_modules:/{print $2; exit}' "$_r106_status")
+_r106_reactor_declared=$(awk '/^[[:space:]]+reactor_modules:/{print $2; exit}' "$_r106_status")
 _r106_metadata_files=$(find . -maxdepth 2 -name module-metadata.yaml -type f 2>/dev/null \
                        | grep -v '^./target/' | sort -u | wc -l | tr -d ' ')
 if [[ -n "$_r106_reactor_declared" && "$_r106_pom_count" != "$_r106_reactor_declared" ]]; then
@@ -91,7 +91,7 @@ fi
 # the patterns they prevent.
 _r106_prose_hits=$(grep -rnE 'each of the [0-9]+ (reactor )?modules' \
                    --include='*.md' --include='*.yaml' \
-                   ARCHITECTURE.md agent-*/ARCHITECTURE.md docs/governance/architecture-status.yaml docs/contracts/contract-catalog.md 2>/dev/null \
+                   ARCHITECTURE.md architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md docs/governance/architecture-status.yaml docs/contracts/contract-catalog.md 2>/dev/null \
                    | grep -v 'docs/archive/' | grep -v 'docs/logs/' || true)
 while IFS= read -r _r106_line; do
   [[ -z "$_r106_line" ]] && continue
@@ -106,7 +106,7 @@ while IFS= read -r _r106_line; do
 done <<< "$_r106_prose_hits"
 
 # --- (d) Current-claim grammar (post-ADR-NNNN marker is NOT historical) ---
-# Scope: authority surfaces only (root ARCHITECTURE.md + agent-*/ARCHITECTURE.md
+# Scope: authority surfaces only (root ARCHITECTURE.md + architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md
 # + architecture-status.yaml + contract-catalog.md). docs/governance/rules/*.md
 # is intentionally excluded — rule cards document patterns, including the
 # patterns they prevent (so they legitimately quote old prose).
@@ -114,7 +114,7 @@ done <<< "$_r106_prose_hits"
 # `extracted to`, `is deployed`) close the rc14 M-β gap.
 _r106_grammar_hits=$(grep -rnE '(agent-platform|agent-runtime-core|agent-runtime[^-])' \
                      --include='*.md' --include='*.yaml' \
-                     docs/governance/architecture-status.yaml ARCHITECTURE.md agent-*/ARCHITECTURE.md docs/contracts/contract-catalog.md docs/contracts/s2c-callback.v1.yaml 2>/dev/null \
+                     docs/governance/architecture-status.yaml ARCHITECTURE.md architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md docs/contracts/contract-catalog.md docs/contracts/s2c-callback.v1.yaml 2>/dev/null \
                      | grep -v 'docs/archive/' | grep -v 'docs/logs/' \
                      | grep -E '(now reads|lives in|^[^#]*\bdeclares\b|each of the [0-9]+ (reactor )?modules|shared kernel in|extracted to|is deployed)' \
                      | grep -vE '(formerly|historical|until dissolved|pre-rc13|pre-rc12|pre-Phase-C|narration|dissolved|relocated|was consolidated|was extracted|was dissolved|<!--)' || true)

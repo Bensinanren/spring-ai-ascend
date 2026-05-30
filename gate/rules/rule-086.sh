@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 86 — root_architecture_count_and_path_truth. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 86 — root_architecture_count_and_path_truth (enforcer E119)
 #
@@ -12,7 +12,7 @@
 # marker within +/-3 lines. Operationalises rc6 post-response review P0-2 closure.
 # ---------------------------------------------------------------------------
 _r86_fail=0
-_r86_arch="ARCHITECTURE.md"
+_r86_arch="architecture/docs/L0/ARCHITECTURE.md"
 _r86_pom="pom.xml"
 _r86_status_yaml="docs/governance/architecture-status.yaml"
 if [[ ! -f "$_r86_arch" ]]; then

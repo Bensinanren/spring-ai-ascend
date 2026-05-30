@@ -1,6 +1,6 @@
 package com.huawei.ascend.engine.runtime;
 
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
 
 import java.util.Map;
 import java.util.Objects;

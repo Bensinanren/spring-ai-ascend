@@ -137,7 +137,7 @@
 #  82.  baseline_metrics_single_source                   -- architecture-status.yaml#architecture_sync_gate.baseline_metrics exists with required keys; README.md + gate/README.md point to the block by substring; rc6 strengthening: numeric-drift detection on entrypoint count phrases (P1-1 prevention + rc5-P1-1 strengthening, enforcer E115)
 #  83.  design_only_contract_registered_in_catalog       -- every docs/contracts/*.v1.yaml with status: design_only OR runtime_enforced: false is listed in contract-catalog.md AND cites an existing ADR (P1-3 prevention, enforcer E116)
 #  --- 2026-05-18 rc5 post-response review response prevention wave (Rules 84-85; enforcers E117-E118) ---
-#  84.  active_module_architecture_path_truth           -- every agent-*/ARCHITECTURE.md (status != skeleton|deferred) inline path claim "<module>/src/main/java/..." must resolve on disk OR carry a historical/moved/extracted-per-ADR/superseded/deferred marker within +/-3 lines (rc5 P0-1 prevention, enforcer E117)
+#  84.  active_module_architecture_path_truth           -- every architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md (status != skeleton|deferred) inline path claim "<module>/src/main/java/..." must resolve on disk OR carry a historical/moved/extracted-per-ADR/superseded/deferred marker within +/-3 lines (rc5 P0-1 prevention, enforcer E117)
 #  85.  catalog_spi_row_matches_module_spi_metadata     -- every non-(internal) row in contract-catalog.md SPI table must have its package in <module>/module-metadata.yaml#spi_packages AND docs/dfx/<module>.yaml#spi_packages; the (N total) header MUST equal the non-internal row count (rc5 P1-2 prevention, enforcer E118)
 #  --- 2026-05-19 rc10 post-corrective review response prevention wave (Rules 99-100 + Rule 94/98 widening; enforcers E139-E142) ---
 #  99.  kernel_terminal_verb_vs_shipped_decision_check  -- For every #### Rule N kernel block in CLAUDE.md with a matching ## Rule N.<letter> sub-clause in CLAUDE-deferred.md, the kernel MUST NOT use end-state verb tokens (`are SUSPENDED`, `is SUSPENDED`, `transitions to FAILED`, `consumes the * capacity`, `is rejected, not failed`, `admits the caller`) that overclaim shipped behaviour. Closes rc10 P1-1 (J-α family; Rule 41 kernel said "callers are SUSPENDED" while shipped code returns SkillResolution.reject — the actual transition is deferred to Rule 41.c).
@@ -575,7 +575,7 @@ if [[ $_r13_fail -eq 0 ]]; then pass_rule "contract_catalog_no_deleted_spi_or_st
 # is probe.probe(). Fails if probe.check() appears in any module ARCHITECTURE.md.
 # ---------------------------------------------------------------------------
 _r14_fail=0
-for _maf in agent-*/ARCHITECTURE.md; do
+for _maf in architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md; do
   if [[ -f "$_maf" ]]; then
     if grep -q 'probe\.check()' "$_maf" 2>/dev/null; then
       fail_rule "module_arch_method_name_truth" "$_maf references probe.check() but actual method in OssApiProbe is probe.probe(). Per ADR-0036 Gate Rule 14 method names in docs must match source."
@@ -755,7 +755,7 @@ _deleted_names18=(
 # (~1s) — same 16 fixed-string patterns, same file set, identical
 # pass/fail semantics. ADR-0043 (widened to full ACTIVE_NORMATIVE_DOCS).
 _r18_files=$(find . -name '*.md' -o -name '*.yaml' 2>/dev/null \
-  | grep -vE '/docs/(archive|logs/reviews|adr|delivery|v6-rationale|plans)/|/third_party/|/target/|/\.git/' \
+  | grep -vE '/docs/(archive|logs/reviews|adr|delivery|v6-rationale|plans|competitive|superpowers)/|/third_party/|/target/|/\.git/' \
   | sort || true)
 if [[ -n "$_r18_files" ]]; then
   _r18_patterns=$(printf '%s\n' "${_deleted_names18[@]}")
@@ -982,7 +982,7 @@ from pathlib import Path
 LINK_RE = re.compile(r'\]\(([^)]+)\)')
 EXCLUDE_DIRS = ('./docs/archive/', './docs/logs/', './docs/adr/',
                 './docs/delivery/', './docs/v6-rationale/', './docs/plans/',
-                './third_party/')
+                './docs/superpowers/', './third_party/', './discovery/')
 EXCLUDE_DIR_NAMES = {'target', '.git', 'node_modules'}
 
 def is_excluded(p: str) -> bool:
@@ -1494,7 +1494,7 @@ _r28c_fail=0
 _secret_patterns='AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36}'
 # docs/governance/enforcers.yaml is the index — it DOCUMENTS the patterns and
 # is intentionally excluded; the index does not contain real secrets.
-_28c_hits=$(git grep -lE "$_secret_patterns" -- ':!target/' ':!*.jar' ':!*.png' ':!*.jpg' ':!*.pdf' ':!docs/governance/enforcers.yaml' ':!gate/check_architecture_sync.sh' ':!gate/check_architecture_sync.ps1' 2>/dev/null || true)
+_28c_hits=$(git grep -lE "$_secret_patterns" -- ':!target/' ':!*.jar' ':!*.png' ':!*.jpg' ':!*.pdf' ':!docs/governance/enforcers.yaml' ':!architecture/generated/enforcers.dsl' ':!gate/check_architecture_sync.sh' ':!gate/check_architecture_sync.ps1' 2>/dev/null || true)
 if [[ -n "$_28c_hits" ]]; then
   while IFS= read -r _hit; do
     [[ -z "$_hit" ]] && continue
@@ -2134,7 +2134,7 @@ if [[ $_r36_fail -eq 0 ]]; then pass_rule "domain_module_has_spi_package"; fi
 #
 # Every L0/L1/L2 architecture artefact MUST declare a level: + view:
 # front-matter (YAML at top of file for .md; top-level key for .yaml).
-# Targets: ARCHITECTURE.md, agent-*/ARCHITECTURE.md, docs/L2/**/*.md (excluding
+# Targets: ARCHITECTURE.md, architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md, architecture/docs/L2/**/*.md (excluding
 # README.md while empty), docs/adr/*.yaml.
 # ---------------------------------------------------------------------------
 _r37_fail=0
@@ -2235,7 +2235,7 @@ for d in sorted(os.listdir('.')):
     p = os.path.join(d, 'ARCHITECTURE.md')
     if os.path.isfile(p) and p != 'ARCHITECTURE.md':
         targets_md.append(p.replace('\\', '/'))
-targets_md.extend(sorted(glob.glob('docs/L2/**/*.md', recursive=True)))
+targets_md.extend(sorted(glob.glob('architecture/docs/L2/**/*.md', recursive=True)))
 for p in targets_md: check_md(p)
 
 for p in sorted(glob.glob('docs/adr/*.yaml')):
@@ -3036,7 +3036,7 @@ if [[ $_r59_fail -eq 0 ]]; then pass_rule "evolution_scope_yaml_present_and_well
 # Rule 60 — schema_first_domain_contracts (enforcer E85, Rule 48, ADR-0077)
 #
 # Forbid new prose-defined enum sites in the architecture corpus. Scan
-# ARCHITECTURE.md (root) + agent-*/ARCHITECTURE.md for the prose-enum pattern
+# ARCHITECTURE.md (root) + architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md for the prose-enum pattern
 # `<UPPERCASE_TYPE> | <UPPERCASE_TYPE>` outside fenced code blocks and
 # markdown tables. For every match, the rule passes only when one of:
 #   (a) the file path appears as a prefix line in gate/schema-first-grandfathered.txt
@@ -3053,8 +3053,8 @@ if [[ ! -f "$_r60_grandfather" ]]; then
   fail_rule "schema_first_domain_contracts" "$_r60_grandfather missing -- Rule 48 grandfather list required"
   _r60_fail=1
 else
-  # Phase 7 audit fix (Rule 48 sunset discipline -- plan F2/F3 in
-  # D:/.claude/plans/spi-atomic-willow.md). Each grandfather entry MUST be
+  # Phase 7 audit fix (Rule 48 sunset discipline -- plan F2/F3).
+  # Each grandfather entry MUST be
   # pipe-delimited <path>|<sunset_date>|<desc>. Validate sunset_date format
   # and that today <= sunset_date for every entry.
   _r60_today=$(date +%Y-%m-%d)
@@ -3391,7 +3391,6 @@ if [[ $_r66_fail -eq 0 ]]; then pass_rule "spi_package_exhaustiveness"; fi
 # ===========================================================================
 # CLAUDE.md token-optimization wave -- PR1 (2026-05-17)
 # Authority: docs/governance/rules/rule-{67..71}.md
-#            + D:\.claude\plans\tokens-token-buzzing-sprout.md
 # Goal: shrink always-loaded governance set from ~99K -> ~10.6K tokens.
 # Rules 67-71 with enforcer rows E97-E101 and 10 self-tests (2 per rule).
 # ===========================================================================
@@ -3459,34 +3458,40 @@ fi
 # ---------------------------------------------------------------------------
 # Rule 68 — claude_md_kernel_matches_card (enforcer E98)
 #
-# For every docs/governance/rules/rule-NN.md card, extract the kernel: scalar
-# from the YAML front-matter, normalise whitespace, and assert the same text
-# appears verbatim in the body of "#### Rule NN" in CLAUDE.md. Fails on drift.
-# If no cards exist (initial PR1 landing), the rule is vacuously true.
+# For every docs/governance/rules/rule-NN.md card with status:active, if the
+# card's rule_id appears as "#### Rule <id>" in CLAUDE.md, the body paragraph
+# MUST byte-match the kernel: scalar (after whitespace normalisation). Cards
+# whose rule_id does NOT appear in CLAUDE.md are NOT drift -- CLAUDE.md is the
+# team-collaboration kernel only, and rule cards are sole authority for rule
+# definitions. Cards with status:deferred/retired/proposed may exist without
+# any CLAUDE.md heading.
+# If no cards exist, the rule is vacuously true.
 # ---------------------------------------------------------------------------
 _r68_fail=0
 _r68_claude='CLAUDE.md'
 _r68_cards_dir='docs/governance/rules'
-_r68_deferred_doc='docs/CLAUDE-deferred.md'
 if [[ ! -f "$_r68_claude" ]]; then
   fail_rule "claude_md_kernel_matches_card" "$_r68_claude missing"
   _r68_fail=1
 elif [[ ! -d "$_r68_cards_dir" ]]; then
   pass_rule "claude_md_kernel_matches_card"
 else
-  # Perf fix (2026-05-23): replace per-card 22-fork awk/sed/tr pipeline
-  # (~50 cards × ~22 forks = ~1100 forks per gate run, ~17s on WSL/mnt/d)
-  # with a single python pass that reads all cards + CLAUDE.md once.
-  _r68_drift="$("${GATE_PYTHON_BIN:-python3}" - "$_r68_cards_dir" "$_r68_claude" "$_r68_deferred_doc" <<'PYEOF'
-import os, re, sys, pathlib
-cards_dir, claude_md, deferred_doc = sys.argv[1:4]
+  _r68_drift="$("${GATE_PYTHON_BIN:-python3}" - "$_r68_cards_dir" "$_r68_claude" <<'PYEOF'
+import re, sys, pathlib
+cards_dir, claude_md = sys.argv[1:3]
 
 def norm(s: str) -> str:
-    """Collapse all whitespace runs to single spaces; strip outer."""
     return re.sub(r"\s+", " ", s).strip()
 
-# Parse CLAUDE.md once. For each "#### Rule <id> ..." heading, capture body lines
-# until blank-line+`Enforced` OR `---` OR next "####" heading.
+def extract_field(text: str, field: str) -> str:
+    m = re.search(rf"(?m)^{re.escape(field)}:\s*(.+?)$", text)
+    if not m:
+        return ""
+    val = m.group(1).strip()
+    if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+        val = val[1:-1]
+    return val
+
 claude_text = pathlib.Path(claude_md).read_text(encoding="utf-8", errors="replace").splitlines()
 bodies: dict[str, str] = {}
 i, n = 0, len(claude_text)
@@ -3507,22 +3512,20 @@ while i < n:
         continue
     i += 1
 
-deferred_text = ""
-if os.path.isfile(deferred_doc):
-    deferred_text = pathlib.Path(deferred_doc).read_text(encoding="utf-8", errors="replace")
-
 drift = []
 for card in sorted(pathlib.Path(cards_dir).glob("rule-*.md")):
-    base = card.stem  # rule-XX
-    rid = base[5:]    # strip "rule-"
+    base = card.stem
+    rid = base[5:]
     if not rid:
         continue
-    # Normalise integer ids by stripping leading zeros for heading match.
     rid_match = re.sub(r"^0+(?=\d)", "", rid) if rid.isdigit() else rid
 
-    # Extract kernel: scalar (literal block `|` or inline). Stop at next
-    # top-level key or `---`.
-    txt = card.read_text(encoding="utf-8", errors="replace").splitlines()
+    card_text = card.read_text(encoding="utf-8", errors="replace")
+    status = extract_field(card_text, "status").lower()
+    if status and status != "active":
+        continue
+
+    txt = card_text.splitlines()
     kernel_lines: list[str] = []
     in_block = False
     for line in txt:
@@ -3545,12 +3548,9 @@ for card in sorted(pathlib.Path(cards_dir).glob("rule-*.md")):
 
     body = bodies.get(rid_match, "")
     if not body:
-        # Deferred-only sub-clause cards (e.g. R-A.c) live in CLAUDE-deferred.md.
-        # Check for `Rule <id>` reference there before flagging drift.
-        if deferred_text and re.search(rf"(^|[^A-Za-z0-9])Rule\s+{re.escape(rid_match)}([^A-Za-z0-9]|$)", deferred_text):
-            continue
-        drift.append(f"Rule {rid_match}: card exists but no body in CLAUDE.md")
-    elif kernel != body:
+        # Active card not in CLAUDE.md -- OK. CLAUDE.md is collaboration-only.
+        continue
+    if kernel != body:
         drift.append(f"Rule {rid_match} drift")
 sys.stdout.write("; ".join(drift))
 PYEOF
@@ -3567,61 +3567,34 @@ fi
 # ---------------------------------------------------------------------------
 # Rule 69 — every_active_rule_has_card (enforcer E99)
 #
-# Every "#### Rule NN" heading in CLAUDE.md MUST have a sibling
-# docs/governance/rules/rule-NN.md (zero-padded). Every card MUST either
-# (a) appear as a heading in CLAUDE.md, or
-# (b) appear as a "Rule NN" reference in docs/CLAUDE-deferred.md.
-# Orphan cards that satisfy neither are a fail.
+# Every "#### Rule <id>" heading in CLAUDE.md MUST have a sibling
+# docs/governance/rules/rule-<id>.md card. The reverse direction (every card
+# must appear in CLAUDE.md or in an alt-home file) is NO LONGER enforced --
+# cards exist independently as the sole authority for rule definitions per
+# user directive 2026-05-28. Orphan-card check eliminated; the CLAUDE-deferred.md
+# alt-home semantics retired with that file's elimination.
 #
 # Initial PR1 mode (loose): if docs/governance/rules/ does not exist yet,
-# the rule is vacuously true so the budget-gate and other rules can land first.
+# the rule is vacuously true.
 # ---------------------------------------------------------------------------
 _r69_fail=0
 _r69_claude='CLAUDE.md'
-_r69_deferred='docs/CLAUDE-deferred.md'
 _r69_cards_dir='docs/governance/rules'
 if [[ ! -d "$_r69_cards_dir" ]]; then
   pass_rule "every_active_rule_has_card"
 else
-  # rc9 hardening: use temp files instead of multi-line shell variables to avoid
-  # SIGPIPE races under the parallel orchestrator (`xargs -P8` + nested subshells +
-  # in-loop `echo "$var" | grep -qxF` can truncate the producer's output, producing
-  # flaky false-positive "active rules with no card: NN" / "orphan cards: NN"
-  # failures on Linux CI even when local WSL passes consistently).
   _r69_active_f=$(mktemp 2>/dev/null || echo "/tmp/r69_active.$$")
   _r69_cards_f=$(mktemp 2>/dev/null || echo "/tmp/r69_cards.$$")
-  # Active rule IDs: extract the identifier after `#### Rule ` (can be integer
-  # OR namespaced: D-1, R-C.a, G-3.f, M-2.b). Normalise zero-padding away for
-  # comparison with card filenames (which may also still have integer form during
-  # transition).
   grep -oE '^#### Rule [A-Za-z0-9.-]+' "$_r69_claude" 2>/dev/null \
     | sed -E 's/^#### Rule //; s/^0*([0-9])/\1/' | sort -u > "$_r69_active_f"
-  # Card filenames: rule-<id>.md where <id> may be integer or namespaced.
   find "$_r69_cards_dir" -maxdepth 1 -name 'rule-*.md' -type f 2>/dev/null \
     | sed -E 's|.*/rule-(.+)\.md$|\1|; s/^0*([0-9])/\1/' | sort -u > "$_r69_cards_f"
-  # Missing cards: active - cards (set difference via comm).
   _r69_missing=$(comm -23 "$_r69_active_f" "$_r69_cards_f" | tr '\n' ' ' | sed 's/[[:space:]]*$//')
   if [[ -n "$_r69_missing" ]]; then
     fail_rule "every_active_rule_has_card" "active rules with no card: $_r69_missing"
     _r69_fail=1
   fi
-  # Orphan cards: card exists but rule is neither active nor deferred.
-  _r69_orphans=""
-  while IFS= read -r _n; do
-    [[ -z "$_n" ]] && continue
-    if grep -qxF "$_n" "$_r69_active_f"; then
-      continue
-    fi
-    if [[ -f "$_r69_deferred" ]] && grep -qE "Rule[[:space:]]+${_n}([.][a-z])?\b" "$_r69_deferred"; then
-      continue
-    fi
-    _r69_orphans+="$_n "
-  done < "$_r69_cards_f"
   rm -f "$_r69_active_f" "$_r69_cards_f"
-  if [[ -n "$_r69_orphans" ]]; then
-    fail_rule "every_active_rule_has_card" "orphan cards (no active or deferred reference): $_r69_orphans"
-    _r69_fail=1
-  fi
   if [[ $_r69_fail -eq 0 ]]; then
     pass_rule "every_active_rule_has_card"
   fi
@@ -3682,7 +3655,7 @@ if [[ $_r71_fail -eq 0 ]]; then pass_rule "deferred_doc_not_in_always_loaded"; f
 
 # ===========================================================================
 # Gate-script efficiency wave PR-E1 (2026-05-17)
-# Authority: D:/.claude/plans/tokens-token-buzzing-sprout.md + docs/governance/rules/rule-73.md
+# Authority: docs/governance/rules/rule-73.md
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
@@ -3765,7 +3738,6 @@ if [[ $_r74_fail -eq 0 ]]; then pass_rule "linux_first_dev_doc_present"; fi
 
 # ===========================================================================
 # Wave 4 — small rule activations (2026-05-18)
-# Authority: D:/.claude/plans/spicy-mixing-galaxy.md Wave 4.
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
@@ -3873,7 +3845,6 @@ fi
 # ===========================================================================
 # SPI metadata integrity wave (2026-05-18)
 # Authority: docs/governance/rules/rule-{75..78}.md
-#            + D:\.claude\plans\spi-smooth-llama.md
 # Rules 75-78 with enforcer rows E108-E111. Prevents the SPI declaration vs
 # physical layout drift surfaced by the 2026-05-18 SPI integrity audit
 # (T2.B2 extraction left engine.spi empty + orchestration.spi double-claimed
@@ -4079,7 +4050,6 @@ if [[ $_r78_fail -eq 0 ]]; then pass_rule "dfx_spi_packages_match_module_metadat
 # ===========================================================================
 # 2026-05-18 beyond-SDD review response wave -- Rule 79
 # Authority: docs/governance/rules/rule-79.md
-#            + D:/.claude/plans/d-chao-workspace-spring-ai-ascend-docs-shimmering-milner.md
 # Operationalises the "Telemetry-First Debugging" remediation proposal from
 # docs/logs/reviews/spring-ai-ascend-beyond-sdd-en.md by requiring an executable
 # debug-sequence runbook to exist on disk, cited by the rule card, with the
@@ -4127,7 +4097,7 @@ if [[ $_r79_fail -eq 0 ]]; then pass_rule "rule_79_runbook_present_and_cited"; f
 # Rule 80 — s2c_callback_signal_historical_only_in_authority (enforcer E113)
 #
 # In authoritative entrypoints (CLAUDE.md, README.md, root ARCHITECTURE.md,
-# agent-*/ARCHITECTURE.md, docs/contracts/*.v1.yaml, docs/adr/*.yaml,
+# architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md, docs/contracts/*.v1.yaml, docs/adr/*.yaml,
 # docs/adr/*.md), the deleted Java type name S2cCallbackSignal MUST appear
 # only in paragraphs marked historical / deleted / refactored from /
 # amendments / rc3-unification (within +/-5 lines). v2.0.0-rc3 unified S2C
@@ -4160,7 +4130,7 @@ for p in ('CLAUDE.md', 'README.md', 'ARCHITECTURE.md'):
 targets.extend(sorted(glob.glob('docs/contracts/*.v1.yaml')))
 targets.extend(sorted(glob.glob('docs/adr/*.yaml')))
 targets.extend(sorted(glob.glob('docs/adr/*.md')))
-for arch in sorted(glob.glob('agent-*/ARCHITECTURE.md')):
+for arch in sorted(glob.glob('architecture/docs/L1/agent-*.md') + glob.glob('architecture/docs/L1/agent-service/ARCHITECTURE.md')):
     targets.append(arch)
 
 for path in targets:
@@ -4194,7 +4164,7 @@ if [[ $_r80_fail -eq 0 ]]; then pass_rule "s2c_callback_signal_historical_only_i
 # agent-middleware post-ADR-0073) MUST NOT carry a "skeleton" status.
 # ---------------------------------------------------------------------------
 _r81_fail=0
-for _r81_arch in agent-*/ARCHITECTURE.md; do
+for _r81_arch in architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md; do
   [[ -f "$_r81_arch" ]] || continue
   _r81_status=$(awk 'BEGIN{infm=0} /^---[[:space:]]*$/{infm=!infm; next} infm && /^status:/{print; exit}' "$_r81_arch" 2>/dev/null)
   if [[ "$_r81_status" == *skeleton* ]]; then
@@ -4421,7 +4391,7 @@ if [[ $_r83_fail -eq 0 ]]; then pass_rule "design_only_contract_registered_in_ca
 
 # Rule 84 — active_module_architecture_path_truth (enforcer E117)
 #
-# Every agent-*/ARCHITECTURE.md whose front-matter status: token does NOT
+# Every architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md whose front-matter status: token does NOT
 # contain "skeleton" or "deferred" MUST have every inline path claim of the
 # shape "<module>/src/main/java/..." resolve to a real file on disk OR carry
 # a historical/moved/extracted-per-ADR/superseded/deferred/formerly marker
@@ -4436,7 +4406,7 @@ _r84_path_re='agent-[a-z-]+/src/main/java/[a-zA-Z0-9_/.-]+'
 # Perf fix (2026-05-23): replaced per-line `echo | grep -oE` + per-claim
 # `sed | grep` with mapfile + bash-native regex. On WSL/mnt/d the original
 # took ~52s per gate run; the rewrite finishes in ~1s.
-for _r84_arch in agent-*/ARCHITECTURE.md; do
+for _r84_arch in architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md; do
   [[ -f "$_r84_arch" ]] || continue
   _r84_status=$(awk 'BEGIN{infm=0} /^---[[:space:]]*$/{infm=!infm; next} infm && /^status:/{print; exit}' "$_r84_arch" 2>/dev/null)
   [[ "$_r84_status" == *skeleton* ]] && continue
@@ -4594,7 +4564,7 @@ if [[ $_r85_fail -eq 0 ]]; then pass_rule "catalog_spi_row_matches_module_spi_me
 # marker within +/-3 lines. Operationalises rc6 post-response review P0-2 closure.
 # ---------------------------------------------------------------------------
 _r86_fail=0
-_r86_arch="ARCHITECTURE.md"
+_r86_arch="architecture/docs/L0/ARCHITECTURE.md"
 _r86_pom="pom.xml"
 _r86_status_yaml="docs/governance/architecture-status.yaml"
 if [[ ! -f "$_r86_arch" ]]; then
@@ -4833,8 +4803,12 @@ else
     | sort -u)
   _r88_parallel_set=$(awk '
     /^# Rule [0-9]+.?[a-z]? (—|--) / {
-      match($0, /^# Rule [0-9]+.?[a-z]? (—|--) ([a-z0-9_]+)/, arr)
-      print arr[2]
+      str = substr($0, 8)
+      space_idx = index(str, " ")
+      rest = substr(str, space_idx + 1)
+      sub(/^[^a-zA-Z0-9_]*/, "", rest)
+      match(rest, /^[a-zA-Z0-9_]+/)
+      print substr(rest, RSTART, RLENGTH)
     }
     /^# === END OF RULES ===$/ { exit }
   ' "$_r88_canonical" | sort -u)
@@ -4999,7 +4973,7 @@ else
     if [[ ! -f "$_r92_expected" ]]; then
       _r92_missing="${_r92_missing}${_r92_rid} "
     fi
-  done < <(awk '/^# === END OF RULES ===$/{exit} /^# Rule [0-9]+.?[a-z]? — /{match($0, /^# Rule ([0-9]+.?[a-z]?) — /, a); print a[1]}' "$_r92_canonical")
+  done < <(awk '/^# === END OF RULES ===$/{exit} /^# Rule [0-9]+.?[a-z]? — /{ str=substr($0, 8); space_idx=index(str, " "); print substr(str, 1, space_idx - 1) }' "$_r92_canonical")
   if [[ -n "$_r92_missing" ]]; then
     fail_rule "gate_rules_corpus_freshness" "$_r92_dir lacks rule file(s) for canonical header(s): ${_r92_missing}-- Rule 92 / E125 (run bash gate/lib/extract_rules.sh to refresh)"
     _r92_fail=1
@@ -5205,9 +5179,13 @@ if [[ $_r95_fail -eq 0 ]]; then pass_rule "spi_catalog_exhaustiveness"; fi
 _r96_fail=0
 _r96_claude="CLAUDE.md"
 _r96_deferred="docs/CLAUDE-deferred.md"
-if [[ ! -f "$_r96_claude" ]] || [[ ! -f "$_r96_deferred" ]]; then
-  fail_rule "kernel_deferred_clause_coherence" "$_r96_claude or $_r96_deferred missing — Rule 96 / E133"
+if [[ ! -f "$_r96_claude" ]]; then
+  fail_rule "kernel_deferred_clause_coherence" "$_r96_claude missing -- Rule 96 / E133"
   _r96_fail=1
+elif [[ ! -f "$_r96_deferred" ]]; then
+  # CLAUDE-deferred.md eliminated per user directive 2026-05-28 (authority-drift source).
+  # Rule has no subject matter when the deferred file is absent; pass vacuously.
+  :
 else
   _r96_missing=""
   _r96_seen=0
@@ -5254,12 +5232,14 @@ else
       _r96_missing="${_r96_missing}[${_r96_ref}] "
     fi
   done < <(grep -E '^## Rule ' "$_r96_deferred" | sed -E 's/^## Rule //')
-  # Non-vacuity guard (F-kernel-vs-implementation-drift / F-recursive-prevention-irony):
-  # the pre-rc36 numeric-only regex matched 0 namespaced headings and silent-passed.
-  # Require the driver to resolve >=1 deferred sub-clause to an active parent.
+  # Non-vacuity guard relaxed 2026-05-28: with CLAUDE.md now the collaboration-only
+  # kernel, parent rules (R-K, R-M, etc.) of deferred sub-clauses live in rule
+  # cards, not in CLAUDE.md headings. Resolving zero parents via CLAUDE.md headings
+  # is the new normal, not drift. Rule's coherence check (kernel+card OR card alone
+  # references the sub-clause name) is now subsumed by the deferred_sub_clauses:
+  # YAML field migration into rule cards (Phase 7 step 7.2).
   if [[ $_r96_seen -eq 0 ]]; then
-    fail_rule "kernel_deferred_clause_coherence" "Rule 96 resolved 0 deferred sub-clauses to active #### Rule blocks — driver is vacuous (heading-format drift). Per Rule 96 / E133."
-    _r96_fail=1
+    : # vacuous OK -- sub-clauses now live in rule card frontmatter, not deferred file
   fi
   if [[ -n "$_r96_missing" ]]; then
     fail_rule "kernel_deferred_clause_coherence" "Active rule kernel + rule card pair does not acknowledge deferred sub-clause(s): ${_r96_missing}-- Rule 96 / E133 (add explicit 'Rule N.X' literal-string reference in either CLAUDE.md kernel block OR docs/governance/rules/rule-NN.md card; rc8 post-corrective P1-1 closure)"
@@ -5362,8 +5342,11 @@ else
               window = ""
               for (j = lo; j <= hi; j++) window = window " " lines[j]
               # Match `<N>/<M> self-tests` or `<N>/<M> tests passed` or `<N>/<M> gate self-tests`
-              if (match(line, /([0-9]+)\/([0-9]+)[[:space:]]+(self-tests|tests passed|tests pass|gate self-tests)/, arr)) {
-                denom = arr[2]
+              if (match(line, /[0-9]+\/[0-9]+[[:space:]]+(self-tests|tests passed|tests pass|gate self-tests)/)) {
+                matched_str = substr(line, RSTART, RLENGTH)
+                split(matched_str, parts, "/")
+                match(parts[2], /^[0-9]+/)
+                denom = substr(parts[2], RSTART, RLENGTH)
                 if (denom != live && window !~ markers) {
                   print i ":self_tests_denom:claim=" denom ":live=" live ":" line
                 }
@@ -5486,9 +5469,15 @@ if [[ $_r98_fail -eq 0 ]]; then pass_rule "broad_corpus_deleted_module_name_trut
 _r99_fail=0
 _r99_claude="CLAUDE.md"
 _r99_deferred="docs/CLAUDE-deferred.md"
-if [[ ! -f "$_r99_claude" ]] || [[ ! -f "$_r99_deferred" ]]; then
-  fail_rule "kernel_terminal_verb_vs_shipped_decision_check" "$_r99_claude or $_r99_deferred missing — Rule 99 / E139"
+if [[ ! -f "$_r99_claude" ]]; then
+  fail_rule "kernel_terminal_verb_vs_shipped_decision_check" "$_r99_claude missing -- Rule 99 / E139"
   _r99_fail=1
+elif [[ ! -f "$_r99_deferred" ]]; then
+  # CLAUDE-deferred.md eliminated per user directive 2026-05-28.
+  # Rule 99 has no subject matter when the deferred file is absent; pass vacuously.
+  # The deferred_sub_clauses: YAML field migration into rule cards (Phase 7) means
+  # terminal-verb checking is now scoped to per-card validation, not cross-file.
+  :
 else
   # End-state verbs that imply shipped Run-state transitions:
   _r99_end_verbs='are SUSPENDED|is SUSPENDED|callers are SUSPENDED|transitions to FAILED|transitions to SUSPENDED|consumes the .* capacity|is rejected, not failed|admits the caller'
@@ -5544,11 +5533,13 @@ else
   ' "$_r99_claude" > "$_r99_hits_file"
   _r99_violations=$(cat "$_r99_hits_file")
   rm -f "$_r99_hits_file"
-  # Non-vacuity guard: post-rc16 the numeric-only heading regex resolved 0 parents
-  # and the rule silent-passed. Require >=1 resolved parent (F-kernel-vs-impl-drift).
+  # Non-vacuity guard relaxed 2026-05-28: with CLAUDE.md now collaboration-only and
+  # sub-clauses migrated to rule card frontmatter, zero deferred-sub-clause parents
+  # via CLAUDE.md heading resolution is the new normal. Sub-clauses live in the
+  # card's deferred_sub_clauses: YAML block, where the terminal-verb check is now
+  # the responsibility of per-card validation (separate rule, future).
   if [[ -z "${_r99_deferred_nums// /}" ]]; then
-    fail_rule "kernel_terminal_verb_vs_shipped_decision_check" "Rule 99 resolved 0 deferred-sub-clause parents — driver is vacuous (heading-format drift). Per Rule 99 / E139."
-    _r99_fail=1
+    : # vacuous OK -- sub-clauses migrated to card frontmatter (Phase 7 step 7.2)
   fi
   if [[ -n "$_r99_violations" ]]; then
     _r99_first=$(echo "$_r99_violations" | head -3 | tr '\n' '|')
@@ -5557,7 +5548,7 @@ else
   fi
 fi
 # rc15 widening (Rule G-3.e scope to module ARCHITECTURE.md — sub-check (b),
-# enforcer E151 per ADR-0091): scan agent-*/ARCHITECTURE.md for the
+# enforcer E151 per ADR-0091): scan architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md for the
 # specific over-claim phrasing pattern (`over-cap[acity]? callers are
 # SUSPENDED` and close variants). The rc14 M-γ defect surfaced when
 # `agent-service/ARCHITECTURE.md:315-317` said "over-cap callers are
@@ -5570,7 +5561,7 @@ fi
 # Admissible if the line carries decision-envelope wording or an explicit
 # defer marker.
 _r99b_hits=$(grep -rnE '(over-cap|over-capacity)( callers| requests)?[^.]*(are SUSPENDED|is SUSPENDED|transitions to SUSPENDED)' \
-             agent-*/ARCHITECTURE.md 2>/dev/null \
+             architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md 2>/dev/null \
              | grep -vE '(decision envelope|SkillResolution\.reject|deferred to R-K|deferred to Rule R-K|deferred per Rule R-K|W2 scheduler admission)' || true)
 if [[ -n "$_r99b_hits" ]]; then
   _r99b_first=$(echo "$_r99b_hits" | head -3 | tr '\n' '|')
@@ -5683,14 +5674,17 @@ else
     _r101_fail=1
   fi
 
-  # (b) baseline_metrics.active_engineering_rules equals live CLAUDE.md count.
-  _r101_kernel_count=$(grep -cE '^#### Rule [A-Z]-' "$_r101_claude" 2>/dev/null || echo 0)
+  # (b) baseline_metrics.active_engineering_rules equals live count of active rule cards.
+  # Semantic shift 2026-05-28: with CLAUDE.md restructured to collaboration-only,
+  # the truthful "active engineering rules" count is the rule card count (cards are
+  # sole authority per Rule 68/69 semantic shift), not the CLAUDE.md heading count.
+  _r101_card_count=$(grep -lE '^status:[[:space:]]*active' "$_r101_cards_dir"/rule-*.md 2>/dev/null | wc -l | tr -d '[:space:]')
   _r101_declared=$(awk '/^[[:space:]]+active_engineering_rules:/{print $2; exit}' "$_r101_status_yaml")
   if [[ -z "$_r101_declared" ]]; then
     fail_rule "rule_namespace_authority_completeness" "$_r101_status_yaml missing active_engineering_rules: under baseline_metrics -- Rule 101 / E143 (b)"
     _r101_fail=1
-  elif [[ "$_r101_declared" != "$_r101_kernel_count" ]]; then
-    fail_rule "rule_namespace_authority_completeness" "$_r101_status_yaml baseline_metrics.active_engineering_rules=$_r101_declared but CLAUDE.md has $_r101_kernel_count '#### Rule ' headers -- Rule 101 / E143 (b)"
+  elif [[ "$_r101_declared" != "$_r101_card_count" ]]; then
+    fail_rule "rule_namespace_authority_completeness" "$_r101_status_yaml baseline_metrics.active_engineering_rules=$_r101_declared but $_r101_cards_dir/ has $_r101_card_count cards with status:active -- Rule 101 / E143 (b)"
     _r101_fail=1
   fi
 
@@ -5794,7 +5788,7 @@ for _r103_f in "${_r103_files[@]}"; do
       for (i = 1; i <= NR; i++) {
         line = lines[i]
         # Check for agent-platform or agent-runtime (not -core variant)
-        match_pf = (line ~ /\<agent-platform\>/)
+        match_pf = (line ~ /([^a-zA-Z0-9_-]|^)agent-platform([^a-zA-Z0-9_-]|$)/)
         match_rt = (line ~ /agent-runtime[^-]/) || (line ~ /agent-runtime$/)
         if (!match_pf && !match_rt) continue
         # Build ±3 marker window
@@ -5974,7 +5968,7 @@ _r106_pom_modules=$(awk '/<modules>/,/<\/modules>/' pom.xml 2>/dev/null \
                     | grep -oE '<module>[^<]+</module>' \
                     | sed -E 's,</?module>,,g' | sort -u || true)
 _r106_pom_count=$(echo -n "$_r106_pom_modules" | grep -c . || true)
-_r106_reactor_declared=$(awk '/^\s+reactor_modules:/{print $2; exit}' "$_r106_status")
+_r106_reactor_declared=$(awk '/^[[:space:]]+reactor_modules:/{print $2; exit}' "$_r106_status")
 _r106_metadata_files=$(find . -maxdepth 2 -name module-metadata.yaml -type f 2>/dev/null \
                        | grep -v '^./target/' | sort -u | wc -l | tr -d ' ')
 if [[ -n "$_r106_reactor_declared" && "$_r106_pom_count" != "$_r106_reactor_declared" ]]; then
@@ -5992,7 +5986,7 @@ fi
 # the patterns they prevent.
 _r106_prose_hits=$(grep -rnE 'each of the [0-9]+ (reactor )?modules' \
                    --include='*.md' --include='*.yaml' \
-                   ARCHITECTURE.md agent-*/ARCHITECTURE.md docs/governance/architecture-status.yaml docs/contracts/contract-catalog.md 2>/dev/null \
+                   ARCHITECTURE.md architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md docs/governance/architecture-status.yaml docs/contracts/contract-catalog.md 2>/dev/null \
                    | grep -v 'docs/archive/' | grep -v 'docs/logs/' || true)
 while IFS= read -r _r106_line; do
   [[ -z "$_r106_line" ]] && continue
@@ -6007,7 +6001,7 @@ while IFS= read -r _r106_line; do
 done <<< "$_r106_prose_hits"
 
 # --- (d) Current-claim grammar (post-ADR-NNNN marker is NOT historical) ---
-# Scope: authority surfaces only (root ARCHITECTURE.md + agent-*/ARCHITECTURE.md
+# Scope: authority surfaces only (root ARCHITECTURE.md + architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md
 # + architecture-status.yaml + contract-catalog.md). docs/governance/rules/*.md
 # is intentionally excluded — rule cards document patterns, including the
 # patterns they prevent (so they legitimately quote old prose).
@@ -6015,7 +6009,7 @@ done <<< "$_r106_prose_hits"
 # `extracted to`, `is deployed`) close the rc14 M-β gap.
 _r106_grammar_hits=$(grep -rnE '(agent-platform|agent-runtime-core|agent-runtime[^-])' \
                      --include='*.md' --include='*.yaml' \
-                     docs/governance/architecture-status.yaml ARCHITECTURE.md agent-*/ARCHITECTURE.md docs/contracts/contract-catalog.md docs/contracts/s2c-callback.v1.yaml 2>/dev/null \
+                     docs/governance/architecture-status.yaml ARCHITECTURE.md architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md docs/contracts/contract-catalog.md docs/contracts/s2c-callback.v1.yaml 2>/dev/null \
                      | grep -v 'docs/archive/' | grep -v 'docs/logs/' \
                      | grep -E '(now reads|lives in|^[^#]*\bdeclares\b|each of the [0-9]+ (reactor )?modules|shared kernel in|extracted to|is deployed)' \
                      | grep -vE '(formerly|historical|until dissolved|pre-rc13|pre-rc12|pre-Phase-C|narration|dissolved|relocated|was consolidated|was extracted|was dissolved|<!--)' || true)
@@ -6085,10 +6079,37 @@ _r107_fail=0
 _r107_coverage="docs/governance/principle-coverage.yaml"
 _r107_deferred="docs/CLAUDE-deferred.md"
 _r107_claude="CLAUDE.md"
-if [[ -f "$_r107_coverage" && -f "$_r107_deferred" && -f "$_r107_claude" ]]; then
-  # Collect deferred-section headings as `Rule-X.<letter>` tokens.
-  _r107_deferred_headings=$(grep -oE '^## Rule [A-Z](-[A-Z])?(\.[a-z](\.[a-z])?)?' "$_r107_deferred" \
-                            | sed -E 's/^## Rule /Rule-/' | sed 's/ /-/g' | sort -u || true)
+_r107_cards_dir="docs/governance/rules"
+if [[ -f "$_r107_coverage" && -f "$_r107_claude" && -d "$_r107_cards_dir" ]]; then
+  # Collect deferred-section headings as `Rule-X.<letter>` tokens from CLAUDE-deferred.md
+  # if the file still exists (transitional support during Phase 7 cleanup).
+  _r107_deferred_headings=""
+  if [[ -f "$_r107_deferred" ]]; then
+    _r107_deferred_headings=$(grep -oE '^## Rule [A-Z](-[A-Z])?(\.[a-z](\.[a-z])?)?' "$_r107_deferred" \
+                              | sed -E 's/^## Rule /Rule-/' | sed 's/ /-/g' | sort -u || true)
+  fi
+  # Also collect migrated deferred sub-clauses from rule card frontmatter
+  # `deferred_sub_clauses: - id: ".x"` (Phase 7 step 7.2 migration target).
+  # Card filename rule-R-X.md + id ".y" -> token "Rule-R-X.y".
+  _r107_card_headings=$(
+    for _r107_card in "$_r107_cards_dir"/rule-*.md; do
+      [[ -f "$_r107_card" ]] || continue
+      _r107_base=$(basename "$_r107_card" .md | sed 's/^rule-//')
+      awk -v parent="$_r107_base" '
+        /^deferred_sub_clauses:/{flag=1; next}
+        flag && /^[^[:space:]-]/{flag=0}
+        flag && /^[[:space:]]*-[[:space:]]+id:[[:space:]]*/{
+          val=$0
+          sub(/^[[:space:]]*-[[:space:]]+id:[[:space:]]*/, "", val)
+          gsub(/["'\'']/, "", val)
+          sub(/^\./, "", val)
+          if (val != "") print "Rule-" parent "." val
+        }
+      ' "$_r107_card"
+    done | sort -u || true
+  )
+  # Union of both sources.
+  _r107_all_headings=$(printf '%s\n%s\n' "$_r107_deferred_headings" "$_r107_card_headings" | sort -u)
   # Collect deferred-clause names listed in principle-coverage.yaml.
   _r107_listed_clauses=$(awk '
       /deferred_operationalisers:/{flag=1; next}
@@ -6102,10 +6123,10 @@ if [[ -f "$_r107_coverage" && -f "$_r107_deferred" && -f "$_r107_claude" ]]; the
     ' "$_r107_coverage" | sort -u || true)
   while IFS= read -r _r107_clause; do
     [[ -z "$_r107_clause" ]] && continue
-    # Only sub-letter clauses are expected as deferred headings.
+    # Only sub-letter clauses are expected as deferred entries.
     if echo "$_r107_clause" | grep -qE '\.[a-z]'; then
-      if ! echo "$_r107_deferred_headings" | grep -qFx "$_r107_clause"; then
-        fail_rule "cross_authority_clause_parity" "principle-coverage.yaml lists deferred operationaliser $_r107_clause but no matching ## heading exists in CLAUDE-deferred.md -- Rule 107 / E152 (Family A per ADR-0093)"
+      if ! echo "$_r107_all_headings" | grep -qFx "$_r107_clause"; then
+        fail_rule "cross_authority_clause_parity" "principle-coverage.yaml lists deferred operationaliser $_r107_clause but no matching ## heading in CLAUDE-deferred.md AND no matching deferred_sub_clauses entry in $_r107_cards_dir/ -- Rule 107 / E152 (Family A per ADR-0093)"
         _r107_fail=1
       fi
     fi
@@ -6161,7 +6182,7 @@ for _r108_dir in docs/governance/rules docs/governance/principles; do
         [[ $_r108_start -lt 1 ]] && _r108_start=1
         _r108_end=$((_r108_lineno + 2))
         _r108_context=$(sed -n "${_r108_start},${_r108_end}p" "$_r108_file" 2>/dev/null || true)
-        if echo "$_r108_context" | grep -qE '(formerly|renamed from|pre-rc[0-9]+|superseded|removed|historical|deleted|deprecated)'; then
+        if echo "$_r108_context" | grep -qE '(formerly|renamed from|pre-rc[0-9]+|superseded|removed|historical|deleted|deprecated|[Dd]eferred to W|deferred_body|Rule \(draft\)|draft\):)'; then
           continue
         fi
         # Look for the class file
@@ -6206,7 +6227,7 @@ if [[ $_r108_fail -eq 0 ]]; then pass_rule "governance_text_java_anchor_truth"; 
 # rc12 Rule 101 was scoped narrowly per ADR-0086 gate_layer_boundary;
 # this rule widens to ALL semantic-authority surfaces. Per ADR-0093.
 #
-# scope_surfaces: docs/governance/principles/P-*.md, docs/governance/rules/*.md, agent-*/ARCHITECTURE.md, docs/contracts/*.yaml, docs/contracts/*.md
+# scope_surfaces: docs/governance/principles/P-*.md, docs/governance/rules/*.md, architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md, docs/contracts/*.yaml, docs/contracts/*.md
 #
 # Numeric Rule references MUST carry a legacy marker (formerly|legacy|
 # historical|Gate Rule|gate Rule|was Rule|ex-Rule) within the SAME line.
@@ -6214,7 +6235,7 @@ if [[ $_r108_fail -eq 0 ]]; then pass_rule "governance_text_java_anchor_truth"; 
 # ---------------------------------------------------------------------------
 _r109_fail=0
 _r109_surfaces=$(find docs/governance/principles docs/governance/rules \
-                   agent-*/ARCHITECTURE.md docs/contracts \
+                   architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md docs/contracts \
                    -type f \( -name '*.md' -o -name '*.yaml' \) 2>/dev/null \
                  | grep -v 'docs/archive/' | grep -v 'docs/logs/' || true)
 while IFS= read -r _r109_file; do
@@ -6270,7 +6291,7 @@ if [[ -f "$_r110_test_file" && -f "$_r110_gate_file" ]]; then
       fail_rule "prevention_rule_scope_completeness" "Rule $_r110_rid declares scope_surfaces in $_r110_gate_file but has only $_r110_fixture_count test_rule_${_r110_rid}_* fixtures (need ≥2) -- Rule 110 / E155 (META per ADR-0093)"
       _r110_fail=1
     fi
-  done < <(awk '/^# Rule [0-9]+ — /{match($0,/^# Rule ([0-9]+)/,m); cr=m[1]; ls=0; next} cr!="" { ls++; if (ls>20){cr=""; next} if ($0 ~ /^# scope_surfaces:/){print cr; cr=""} }' "$_r110_gate_file" 2>/dev/null)
+  done < <(awk '/^# Rule [0-9]+ — /{ str=substr($0, 8); space_idx=index(str, " "); cr=substr(str, 1, space_idx - 1); ls=0; next } cr!="" { ls++; if (ls>20){cr=""; next} if ($0 ~ /^# scope_surfaces:/){print cr; cr=""} }' "$_r110_gate_file" 2>/dev/null)
 fi
 if [[ $_r110_fail -eq 0 ]]; then pass_rule "prevention_rule_scope_completeness"; fi
 
@@ -7012,8 +7033,499 @@ else
   pass_rule "contract_spi_count_truth"
 fi
 
+# Rule 130 — feature_lifecycle_validity (enforcer E178, kernel Rule G-14)
+#
+# Authority: ADR-0151 (L1 Feature Registry canonical schema, W1) +
+#            ADR-0153 (L1 Feature Registry closure, W5).
+#
+# Sub-clause .a — every SAA Feature element in features.dsl declares
+#   saa.status ∈ the 9-state lifecycle set. Implemented at W5
+#   (advisory→blocking flip). Sub-clauses .b/.c/.d (git-history
+#   transition validity, shipped-requires-verification,
+#   deprecated-requires-sunset) remain advisory through W5 and ship
+#   blocking in a follow-up sub-wave.
+# ---------------------------------------------------------------------------
+_r130_fail=0
+_r130_dsl="architecture/features/features.dsl"
+_r130_valid_states="proposed accepted design_only ready_for_impl implemented_unverified test_verified shipped deprecated removed"
+if [[ ! -f "$_r130_dsl" ]]; then
+  fail_rule "feature_lifecycle_validity" "$_r130_dsl missing -- Rule G-14.a / E178"
+  _r130_fail=1
+else
+  # Walk every "saa.status" "X" property and check X ∈ allowed set.
+  while IFS= read -r _r130_status; do
+    _r130_status=$(echo "$_r130_status" | tr -d '\r')
+    if [[ -z "$_r130_status" ]]; then continue; fi
+    _r130_match=0
+    for _s in $_r130_valid_states; do
+      if [[ "$_r130_status" == "$_s" ]]; then _r130_match=1; break; fi
+    done
+    if [[ $_r130_match -eq 0 ]]; then
+      fail_rule "feature_lifecycle_validity" "$_r130_dsl declares saa.status \"$_r130_status\" which is not in the 9-state lifecycle (proposed/accepted/design_only/ready_for_impl/implemented_unverified/test_verified/shipped/deprecated/removed) -- Rule G-14.a / E178"
+      _r130_fail=1
+    fi
+  done < <(grep -oE '"saa\.status"[[:space:]]+"[^"]+"' "$_r130_dsl" | sed -E 's/.*"saa\.status"[[:space:]]+"([^"]+)".*/\1/')
+fi
+if [[ $_r130_fail -eq 0 ]]; then
+  pass_rule "feature_lifecycle_validity"
+fi
+
+# ---------------------------------------------------------------------------
+# Rule 131 — fact_layer_integrity (enforcer E179, kernel Rule G-15)
+#
+# Authority: ADR-0154 (Fact-Layer Authority, Wave 1).
+#
+# Sub-clause .a — architecture/facts/{README.md, schema/fact.schema.yaml,
+#   generated/} and architecture/profile/saa-property-authority.yaml MUST
+#   exist; the YAML surfaces MUST parse. ADVISORY at W1 (no fail-closed,
+#   just logged); BLOCKING from W2.
+#
+# Sub-clauses .b (provenance fields), .c (byte-identical regen + LLM-
+# no-author banner), .d (FunctionPoint hard-evidence fields) activate in
+# Waves 2, 4, and 5-6 respectively. The single python driver
+# gate/lib/check_fact_layer_integrity.py accepts --enforce a,b,c,d to
+# select sub-clauses; today only 'a' is enforced.
+# ---------------------------------------------------------------------------
+_r131_fail=0
+_r131_facts_dir="architecture/facts"
+
+if [[ ! -d "$_r131_facts_dir" ]]; then
+  fail_rule "fact_layer_integrity" "$_r131_facts_dir missing -- Rule G-15.a requires the fact directory structure; land it from architecture/facts/README.md scaffolding -- Rule G-15 / E179"
+  _r131_fail=1
+else
+  # Round-4 Wave Alpha (2026-05-28 fourth-correction R3 redesign):
+  # the bash gate enforces sub-clauses .a (structural existence), .b
+  # (provenance/schema validation), .c.structural (banner present —
+  # part of .c that doesn't need compiled classes), and .d (FunctionPoint
+  # resolver). Sub-clause .c.bytes (byte-identity to extractor
+  # re-emission) moved to Maven Surefire test `FactLayerByteIdentityIT`.
+  # The Python checker's --enforce 'c' covers the structural banner
+  # check that doesn't need target/classes; the byte-diff lives in
+  # Maven where target/classes is guaranteed by lifecycle.
+  _r131_out=$(python3 gate/lib/check_fact_layer_integrity.py --enforce a,b,c,d 2>&1)
+  _r131_rc=$?
+  if [[ $_r131_rc -ne 0 ]]; then
+    _r131_first=$(printf '%s' "$_r131_out" | head -1)
+    fail_rule "fact_layer_integrity" "${_r131_first:-rc=$_r131_rc} -- Rule G-15.a/b/c.structural/d / E179 (sub-clause .c.bytes is enforced by Maven test FactLayerByteIdentityIT)"
+    _r131_fail=1
+  fi
+fi
+
+# Round-4 Wave Alpha (2026-05-28 fourth-correction R3 redesign): the
+# byte-identity-to-extractor-re-emission contract (sub-clause .c.bytes)
+# moved out of the bash gate and into a Maven Surefire test
+# `FactLayerByteIdentityIT` under tools/architecture-workspace, where
+# `target/classes` is guaranteed by Maven's compile-phase ordering.
+# The bash gate retains structural / provenance / resolver checks
+# (sub-clauses .a + .b + .c.structural + .d) which do not require
+# compiled classes. This eliminates the precondition-gymnastics that
+# bred three rounds of fail-open mechanisms (`|| true`, advisory-skip,
+# env-var-opt-in) — there is no longer a "is target/classes present?"
+# branch in the bash Rule 131 to be fail-open under.
+
+[[ $_r131_fail -eq 0 ]] && pass_rule "fact_layer_integrity"
+
+# ---------------------------------------------------------------------------
+# Rule 132 — feature_catalog_render_idempotency (enforcer E180, kernel Rule G-13 sibling)
+#
+# Authority: ADR-0154 (Fact-Layer Authority) + Round-4 second-correction
+# request R2 (2026-05-28). Wires gate/lib/render_features_catalog.py
+# --check into the canonical gate so feature-catalog drift fails closed.
+# Round-1 declared "rendered L1 feature catalogs" as an in-scope drift
+# surface; Rounds 1-3 verified the detector existed but never invoked
+# it from the canonical sync gate (sibling of Rule G-13.b for templated
+# Markdown). This rule closes that gate-coverage gap.
+# ---------------------------------------------------------------------------
+_r132_fail=0
+_r132_render_script="gate/lib/render_features_catalog.py"
+if [[ ! -f "$_r132_render_script" ]]; then
+  fail_rule "feature_catalog_render_idempotency" "$_r132_render_script missing -- Rule G-13 sibling / E180"
+  _r132_fail=1
+else
+  _r132_out=$(python3 "$_r132_render_script" --check 2>&1)
+  _r132_rc=$?
+  if [[ $_r132_rc -ne 0 ]]; then
+    _r132_first=$(printf '%s' "$_r132_out" | grep "^DRIFT:" | head -1)
+    fail_rule "feature_catalog_render_idempotency" "feature catalog drift: ${_r132_first:-rc=$_r132_rc} -- Rule G-13 sibling / E180"
+    _r132_fail=1
+  fi
+fi
+[[ $_r132_fail -eq 0 ]] && pass_rule "feature_catalog_render_idempotency"
+
+# ---------------------------------------------------------------------------
+# Rule 133 — productclaim_referential_integrity (enforcer E181, kernel Rule G-16)
+#
+# Phase A Wave 5 (advisory at landing 2026-05-28; promotes to blocking when
+# placeholder count reaches 0 per Rule G-21). Every product_claim: value in
+# ADR YAML, rule card frontmatter, enforcer rows, SAA feature saa.productClaim,
+# or contract frontmatter MUST resolve to a PC-NNN id declared in
+# product/claims.yaml -- OR carry one of the explicit sentinel values
+# governance_infra:true or product_claim_placeholder:true. Bare missing field
+# is checked by Rule 134 (no_orphan_artefacts), not this rule.
+#
+# scope_surfaces: product/claims.yaml, docs/governance/rules/*.md (frontmatter),
+# docs/governance/enforcers.yaml, architecture/features/features.dsl,
+# architecture/decisions/*.yaml, docs/contracts/*.yaml
+# ---------------------------------------------------------------------------
+_r133_fail=0
+_r133_claims="product/claims.yaml"
+if [[ ! -f "$_r133_claims" ]]; then
+  : # vacuous pass before product authority lands
+else
+  _r133_valid_ids=$(grep -oE '^  - id: PC-[0-9]+' "$_r133_claims" 2>/dev/null | awk '{print $3}')
+  _r133_bad=$(grep -rhEn '^\s*product_claim:\s*"?(PC-[0-9]+(\|PC-[0-9]+)*)"?\s*$|^\s+"saa\.productClaim"\s+"(PC-[0-9]+(\|PC-[0-9]+)*)"\s*$' \
+              docs/governance/rules/ architecture/decisions/ docs/contracts/ architecture/features/ 2>/dev/null \
+              | grep -oE 'PC-[0-9]+' | sort -u | while read _r133_ref; do
+      if ! echo "$_r133_valid_ids" | grep -qxF "$_r133_ref"; then
+        echo "$_r133_ref"
+      fi
+    done | head -3 | tr '\n' ' ')
+  if [[ -n "$_r133_bad" ]]; then
+    fail_rule "productclaim_referential_integrity" "product_claim references that don't resolve in product/claims.yaml: $_r133_bad -- Rule G-16 / E181 (advisory at W5 landing; blocking when placeholder count reaches 0)"
+    _r133_fail=1
+  fi
+fi
+[[ $_r133_fail -eq 0 ]] && pass_rule "productclaim_referential_integrity"
+
+# ---------------------------------------------------------------------------
+# Rule 134 — no_orphan_artefacts (enforcer E182, kernel Rule G-17)
+#
+# Phase A Wave 5 (advisory at landing 2026-05-28). Every ADR YAML / rule card /
+# enforcer / SAA Feature / contract MUST declare one of: (a) product_claim: with
+# a PC-NNN value, (b) governance_infra: true, (c) product_claim_placeholder: true
+# (Wave 4 backfill marker). Missing all three = orphan. Counts orphans and emits
+# info; doesn't fail unless orphan count exceeds the per-corpus advisory
+# threshold (currently 100% -- vacuous-PASS until Wave 4 backfill brings the
+# threshold down).
+# ---------------------------------------------------------------------------
+_r134_fail=0
+# BLOCKING from Phase B convergence (2026-05-28, placeholder count reached 0).
+# Every ADR yaml / contract yaml / rule card / principle card MUST carry one of
+# product_claim: / governance_infra: / product_claim_placeholder: markers.
+_r134_orphans=""
+for _r134_f in docs/adr/*.yaml architecture/decisions/*.yaml docs/contracts/*.yaml docs/governance/rules/rule-*.md docs/governance/principles/P-*.md; do
+  [[ -f "$_r134_f" ]] || continue
+  if ! grep -qE '^[[:space:]]*(product_claim|governance_infra|product_claim_placeholder):' "$_r134_f"; then
+    _r134_orphans="${_r134_orphans}$(basename "$_r134_f") "
+  fi
+done
+if [[ -n "$_r134_orphans" ]]; then
+  fail_rule "no_orphan_artefacts" "artefacts without a ProductClaim marker (orphans): ${_r134_orphans}-- Rule G-17 / E182 (blocking from Phase B convergence)"
+  _r134_fail=1
+fi
+[[ $_r134_fail -eq 0 ]] && pass_rule "no_orphan_artefacts"
+
+# ---------------------------------------------------------------------------
+# Rule 135 — traceability_chain_completeness (enforcer E183, kernel Rule G-18)
+#
+# Phase A Wave 5 (advisory at landing). Every PC-NNN in product/claims.yaml MUST
+# have >=1 SAA Feature referencing it via saa.productClaim. Vacuously passes
+# until Wave 4 backfill threads the chain across the corpus.
+# ---------------------------------------------------------------------------
+_r135_fail=0
+# BLOCKING from Phase B convergence: every PC-NNN declared in product/claims.yaml
+# MUST be referenced by >=1 artefact (feature / rule / contract / ADR).
+_r135_claims="product/claims.yaml"
+if [[ -f "$_r135_claims" ]]; then
+  for _r135_pc in $(grep -oE '^[[:space:]]*-?[[:space:]]*id:[[:space:]]*PC-[0-9]+' "$_r135_claims" | grep -oE 'PC-[0-9]+' | sort -u); do
+    if ! grep -rqE "${_r135_pc}([^0-9]|$)" docs/contracts docs/governance/rules architecture/features docs/adr docs/governance/principles 2>/dev/null; then
+      fail_rule "traceability_chain_completeness" "${_r135_pc} declared in product/claims.yaml but referenced by zero artefacts -- Rule G-18 / E183 (blocking from Phase B convergence)"
+      _r135_fail=1
+    fi
+  done
+fi
+[[ $_r135_fail -eq 0 ]] && pass_rule "traceability_chain_completeness"
+
+# ---------------------------------------------------------------------------
+# Rule 136 — autoload_tier_integrity (enforcer E184, kernel Rule G-19)
+#
+# Phase A Wave 5 (BLOCKING from landing). gate/always-loaded-budget.txt MUST
+# contain product/PRODUCT.md at a non-zero ceiling AND CLAUDE.md MUST have a
+# ceiling <= 12000 bytes. Enforces the Tier-1 product-authority + collab-only
+# kernel discipline established by the 2026-05-28 surgery.
+# ---------------------------------------------------------------------------
+_r136_fail=0
+_r136_budget="gate/always-loaded-budget.txt"
+if [[ ! -f "$_r136_budget" ]]; then
+  fail_rule "autoload_tier_integrity" "$_r136_budget missing -- Rule G-19 / E184"
+  _r136_fail=1
+else
+  if ! grep -qE '^product/PRODUCT\.md=[1-9][0-9]*' "$_r136_budget"; then
+    fail_rule "autoload_tier_integrity" "$_r136_budget missing or zero-ceiling product/PRODUCT.md entry -- Rule G-19 / E184"
+    _r136_fail=1
+  fi
+  _r136_claude_ceiling=$(awk -F= '/^CLAUDE\.md=/{print $2; exit}' "$_r136_budget")
+  if [[ -z "$_r136_claude_ceiling" ]]; then
+    fail_rule "autoload_tier_integrity" "$_r136_budget missing CLAUDE.md entry -- Rule G-19 / E184"
+    _r136_fail=1
+  elif [[ "$_r136_claude_ceiling" -gt 12000 ]]; then
+    fail_rule "autoload_tier_integrity" "$_r136_budget CLAUDE.md ceiling=$_r136_claude_ceiling exceeds 12000 (collab-only kernel discipline) -- Rule G-19 / E184"
+    _r136_fail=1
+  fi
+fi
+[[ $_r136_fail -eq 0 ]] && pass_rule "autoload_tier_integrity"
+
+# ---------------------------------------------------------------------------
+# Rule 137 — governance_infra_honesty (enforcer E185, kernel Rule G-20)
+#
+# Phase A Wave 5 (advisory at landing). An artefact (rule card, ADR, contract,
+# feature) marked governance_infra:true MUST NOT use product-value vocabulary
+# (customer / beneficiary / user-facing claim / saves time/cost) in its body
+# prose. Words reserved for product-claim-bound artefacts. Advisory until
+# enough artefacts are classified to support precise lexicon enforcement.
+# ---------------------------------------------------------------------------
+_r137_fail=0
+# BLOCKING from Phase B convergence: artefacts marked governance_infra:true MUST
+# NOT use product-value vocabulary in body prose. Narrow phrase list (not bare
+# "user") to avoid false positives on governance docs that legitimately mention users.
+_r137_hits=""
+while IFS= read -r _r137_f; do
+  [[ -z "$_r137_f" ]] && continue
+  if grep -qiE 'delivers (customer|user) value|saves (the )?(customer|user)|user-facing (benefit|value)|customer benefit|compounds value for' "$_r137_f"; then
+    _r137_hits="${_r137_hits}$(basename "$_r137_f") "
+  fi
+done < <(grep -rlE '^[[:space:]]*governance_infra:[[:space:]]*true' docs/governance/rules docs/adr docs/contracts 2>/dev/null)
+if [[ -n "$_r137_hits" ]]; then
+  fail_rule "governance_infra_honesty" "governance_infra:true artefact(s) use product-value vocabulary: ${_r137_hits}-- Rule G-20 / E185 (blocking from Phase B convergence)"
+  _r137_fail=1
+fi
+[[ $_r137_fail -eq 0 ]] && pass_rule "governance_infra_honesty"
+
+# ---------------------------------------------------------------------------
+# Rule 138 — productclaim_placeholder_decreasing (enforcer E186, kernel Rule G-21)
+#
+# Phase A Wave 5 (advisory at landing). Count of product_claim_placeholder:true
+# markers in the corpus MUST decrease monotonically across Phase B cluster
+# cycles; reaching zero is the Phase B convergence signal. At landing the
+# count is the Phase B backlog baseline; the rule passes vacuously until a
+# baseline is recorded.
+# ---------------------------------------------------------------------------
+_r138_fail=0
+# BLOCKING from Phase B convergence (2026-05-28): count of REAL product_claim_placeholder
+# field markers (frontmatter/yaml field lines, not prose mentions in meta-rule docs)
+# MUST be 0. Reaching 0 was the G-21 convergence signal that promoted G-16/17/18/20
+# from advisory to blocking.
+_r138_count=$(grep -rlE '^[[:space:]]*product_claim_placeholder:[[:space:]]*true[[:space:]]*$' docs/adr architecture/decisions docs/contracts docs/governance/rules docs/governance/principles architecture/features 2>/dev/null | wc -l | tr -d '[:space:]')
+if [[ "${_r138_count:-0}" -gt 0 ]]; then
+  fail_rule "productclaim_placeholder_decreasing" "${_r138_count} artefact(s) still carry product_claim_placeholder:true; Phase B convergence requires 0 -- Rule G-21 / E186 (blocking from convergence)"
+  _r138_fail=1
+fi
+[[ $_r138_fail -eq 0 ]] && pass_rule "productclaim_placeholder_decreasing"
+
+# ---------------------------------------------------------------------------
+# Rule 139 — accepted_adr_frame_map_coherence (enforcer E187, kernel Rule G-22)
+#
+# Authority: ADR-0157 (EngineeringFrame Ontology) + ADR-0158 (transport-agnostic
+# EnginePort boundary). Closes external review F1.4: an accepted ADR that
+# declares an EngineeringFrame re-home or new frame in its decision text MUST be
+# reflected in architecture/features/engineering-frames.dsl, else the frame map
+# silently lies about the structural axis.
+#
+# Targeted assertion keyed off the live ADR-0158 case: the DSL MUST declare
+# EF-ENGINE-PORT (owner agent-bus) AND place EF-ORCHESTRATION-SPI (owner
+# agent-bus) under a genModule_agent_bus contains edge.
+#
+# scope_surfaces: docs/adr/0158-*.yaml, architecture/features/engineering-frames.dsl
+# ---------------------------------------------------------------------------
+_r139_fail=0
+_r139_dsl="architecture/features/engineering-frames.dsl"
+_r139_adr=$(ls docs/adr/0158-*.yaml 2>/dev/null | head -1)
+if [[ -z "$_r139_adr" ]]; then
+  : # vacuous pass before ADR-0158 lands as yaml
+elif ! grep -qE '^[[:space:]]*status:[[:space:]]*accepted' "$_r139_adr"; then
+  : # ADR-0158 not accepted yet — frame-map coherence not yet required
+elif [[ ! -f "$_r139_dsl" ]]; then
+  fail_rule "accepted_adr_frame_map_coherence" "$_r139_dsl missing but ADR-0158 is accepted and declares the EnginePort frame re-home -- Rule G-22 / E187"
+  _r139_fail=1
+else
+  # (a) EF-ENGINE-PORT present with owner agent-bus.
+  _r139_ep_block=$(awk '/"saa\.id"[[:space:]]+"EF-ENGINE-PORT"/{f=1} f{print} f&&/^}/{exit}' "$_r139_dsl")
+  if ! grep -qE '"saa\.id"[[:space:]]+"EF-ENGINE-PORT"' "$_r139_dsl"; then
+    fail_rule "accepted_adr_frame_map_coherence" "$_r139_dsl missing EF-ENGINE-PORT frame required by accepted ADR-0158 -- Rule G-22 / E187"
+    _r139_fail=1
+  elif ! printf '%s\n' "$_r139_ep_block" | grep -qE '"saa\.owner"[[:space:]]+"agent-bus"'; then
+    fail_rule "accepted_adr_frame_map_coherence" "EF-ENGINE-PORT in $_r139_dsl is not owner=agent-bus as ADR-0158 requires -- Rule G-22 / E187"
+    _r139_fail=1
+  fi
+  # (b) EF-ORCHESTRATION-SPI owner agent-bus AND genModule_agent_bus contains edge.
+  _r139_os_block=$(awk '/"saa\.id"[[:space:]]+"EF-ORCHESTRATION-SPI"/{f=1} f{print} f&&/^}/{exit}' "$_r139_dsl")
+  if ! grep -qE '"saa\.id"[[:space:]]+"EF-ORCHESTRATION-SPI"' "$_r139_dsl"; then
+    fail_rule "accepted_adr_frame_map_coherence" "$_r139_dsl missing EF-ORCHESTRATION-SPI frame required by accepted ADR-0158 -- Rule G-22 / E187"
+    _r139_fail=1
+  elif ! printf '%s\n' "$_r139_os_block" | grep -qE '"saa\.owner"[[:space:]]+"agent-bus"'; then
+    fail_rule "accepted_adr_frame_map_coherence" "EF-ORCHESTRATION-SPI in $_r139_dsl is not owner=agent-bus as ADR-0158 requires -- Rule G-22 / E187"
+    _r139_fail=1
+  elif ! grep -qE '^genModule_agent_bus[[:space:]]*->[[:space:]]*efOrchestrationSpi' "$_r139_dsl"; then
+    fail_rule "accepted_adr_frame_map_coherence" "$_r139_dsl missing the genModule_agent_bus -> efOrchestrationSpi contains edge required by ADR-0158 -- Rule G-22 / E187"
+    _r139_fail=1
+  fi
+fi
+[[ $_r139_fail -eq 0 ]] && pass_rule "accepted_adr_frame_map_coherence"
+
+# ---------------------------------------------------------------------------
+# Rule 140 — shipped_frame_anchor_integrity (enforcer E188, kernel Rule G-23)
+#
+# Authority: ADR-0157 (EngineeringFrame Ontology) + ADR-0158. Closes external
+# review F8.3: every SAA EngineeringFrame with saa.status "shipped" MUST anchor
+# >=1 FunctionPoint (an anchors edge in engineering-frames.dsl), else the
+# shipped status is a structural lie. Frame elements live in BOTH
+# engineering-frames.dsl and features.dsl; the anchors edges live in
+# engineering-frames.dsl. ADR-backed exceptions are listed in
+# gate/frame-shipped-zero-anchor-allowlist.txt (ships empty).
+#
+# scope_surfaces: architecture/features/engineering-frames.dsl, architecture/features/features.dsl, gate/frame-shipped-zero-anchor-allowlist.txt, gate/lib/check_frame_shipped_anchors.py
+# ---------------------------------------------------------------------------
+_r140_fail=0
+_r140_helper="gate/lib/check_frame_shipped_anchors.py"
+if [[ ! -f "$_r140_helper" ]]; then
+  fail_rule "shipped_frame_anchor_integrity" "$_r140_helper missing -- Rule G-23 / E188"
+  _r140_fail=1
+elif [[ -z "$GATE_PYTHON_BIN" ]]; then
+  : # vacuous pass on hosts without python (Rule G-7 lists WSL as canonical env)
+else
+  _r140_out=$("$GATE_PYTHON_BIN" "$_r140_helper" 2>&1)
+  _r140_rc=$?
+  if [[ $_r140_rc -ne 0 ]]; then
+    _r140_first=$(printf '%s' "$_r140_out" | grep -E '^(MISSING-ANCHOR|MISSING-FILE):' | head -1)
+    fail_rule "shipped_frame_anchor_integrity" "shipped EngineeringFrame anchors no FunctionPoint: ${_r140_first:-rc=$_r140_rc} -- Rule G-23 / E188"
+    _r140_fail=1
+  fi
+fi
+[[ $_r140_fail -eq 0 ]] && pass_rule "shipped_frame_anchor_integrity"
+
+# ---------------------------------------------------------------------------
+# Rule 141 — old_orchestration_spi_package_ban (enforcer E189, kernel Rule G-24)
+#
+# Authority: ADR-0158. Closes external review F6.3: active authority surfaces
+# MUST NOT name the old orchestration/engine SPI package
+# `engine.orchestration.spi` / `engine/orchestration/spi` as the CURRENT home
+# (ADR-0158 re-homed it to com.huawei.ascend.bus.spi.engine). Past-tense
+# re-home / dissolution prose is legitimate and skipped via per-line historical
+# markers. Scoped to current-authority surfaces (templates + rendered docs +
+# inline authority); excludes docs/logs, docs/adr, rule-history, archive,
+# scripts, and generated artefacts.
+#
+# NOTE: the rendered architecture/docs/**.md are re-rendered from the fixed .j2
+# in a later wave (W6). The live-tree PASS of this rule is validated POST-RENDER
+# (W8); the .j2 sources + inline surfaces are already clean.
+#
+# scope_surfaces: docs/governance/templates/*.j2, architecture/docs/*.md, docs/dfx/*, docs/quickstart.md, docs/cross-cutting/oss-bill-of-materials.md, docs/governance/enforcers.yaml, docs/governance/architecture-status.yaml, docs/contracts/contract-catalog.md, architecture/features/*, gate/lib/check_old_orchestration_spi_package.py
+# ---------------------------------------------------------------------------
+_r141_fail=0
+_r141_helper="gate/lib/check_old_orchestration_spi_package.py"
+if [[ ! -f "$_r141_helper" ]]; then
+  fail_rule "old_orchestration_spi_package_ban" "$_r141_helper missing -- Rule G-24 / E189"
+  _r141_fail=1
+elif [[ -z "$GATE_PYTHON_BIN" ]]; then
+  : # vacuous pass on hosts without python (Rule G-7 lists WSL as canonical env)
+else
+  _r141_out=$("$GATE_PYTHON_BIN" "$_r141_helper" 2>&1)
+  _r141_rc=$?
+  if [[ $_r141_rc -ne 0 ]]; then
+    _r141_count=$(printf '%s\n' "$_r141_out" | grep -cE '^OLD-PACKAGE:')
+    _r141_first=$(printf '%s' "$_r141_out" | grep -E '^OLD-PACKAGE:' | head -1)
+    fail_rule "old_orchestration_spi_package_ban" "active authority surface(s) name the old engine.orchestration.spi package as current ($_r141_count line(s), first: ${_r141_first:-rc=$_r141_rc}) -- Rule G-24 / E189"
+    _r141_fail=1
+  fi
+fi
+[[ $_r141_fail -eq 0 ]] && pass_rule "old_orchestration_spi_package_ban"
+
+# ---------------------------------------------------------------------------
+# Rule 142 — tier1_non_english_lint (enforcer E190, kernel Rule G-25)
+#
+# Authority: CLAUDE.md kernel "Translate all instructions into English".
+# Closes external review P1-3: every file with a non-zero budget in
+# gate/always-loaded-budget.txt (the always-loaded Tier-1 set) MUST be free of
+# CJK code points [U+4E00..U+9FFF] and common UTF-8/GBK mojibake markers
+# (U+FFFD plus the literal sequences for double-decoded text). Fails closed.
+# The checker reports line:col + byte offset ONLY and MUST NOT echo the
+# offending non-English text, so the gate log never embeds non-English source.
+#
+# scope_surfaces: gate/always-loaded-budget.txt, gate/lib/check_tier1_non_english.py
+# ---------------------------------------------------------------------------
+_r142_fail=0
+_r142_helper="gate/lib/check_tier1_non_english.py"
+if [[ ! -f "$_r142_helper" ]]; then
+  fail_rule "tier1_non_english_lint" "$_r142_helper missing -- Rule G-25 / E190"
+  _r142_fail=1
+elif [[ -z "$GATE_PYTHON_BIN" ]]; then
+  : # vacuous pass on hosts without python (Rule G-7 lists WSL as canonical env)
+else
+  _r142_out=$("$GATE_PYTHON_BIN" "$_r142_helper" 2>&1)
+  _r142_rc=$?
+  if [[ $_r142_rc -ne 0 ]]; then
+    _r142_count=$(printf '%s\n' "$_r142_out" | grep -cE '^(NON-ENGLISH|MISSING-SURFACE|MISSING-BUDGET|NO-SCOPE|UNREADABLE):')
+    _r142_first=$(printf '%s' "$_r142_out" | grep -E '^(NON-ENGLISH|MISSING-SURFACE|MISSING-BUDGET|NO-SCOPE|UNREADABLE):' | head -1)
+    fail_rule "tier1_non_english_lint" "always-loaded Tier-1 surface(s) carry non-English / mojibake ($_r142_count finding(s), first: ${_r142_first:-rc=$_r142_rc}) -- Rule G-25 / E190 (line:col + byte offset only; offending text intentionally not echoed)"
+    _r142_fail=1
+  fi
+fi
+[[ $_r142_fail -eq 0 ]] && pass_rule "tier1_non_english_lint"
+
+# ---------------------------------------------------------------------------
+# Rule 143 — local_plan_path_ban (enforcer E191, kernel Rule G-26)
+#
+# Authority: 2026-05-29 EnginePort/Frame review P1-4. Closes the defect class of
+# active authority referencing a local agent-host plan path (`D:\.claude\plans`
+# or `D:/.claude/plans`, BOTH separators). SCOPE: product/, docs/adr/,
+# docs/governance/ (excluding rule-history.md), architecture/, CLAUDE.md,
+# AGENTS.md. The only permitted surfaces are listed in
+# gate/local-plan-path-exemptions.txt (Linux-first workflow docs + history +
+# gate helpers/fixtures that construct synthetic inputs).
+#
+# scope_surfaces: product/*, docs/adr/*, docs/governance/*, architecture/*, CLAUDE.md, AGENTS.md, gate/local-plan-path-exemptions.txt
+# ---------------------------------------------------------------------------
+_r143_fail=0
+_r143_exempt="gate/local-plan-path-exemptions.txt"
+# Match BOTH path separators: D:\.claude\plans and D:/.claude/plans.
+_r143_pat='D:[\\/]\.claude[\\/]plans'
+_r143_hits=$(grep -rEln "$_r143_pat" \
+               product docs/adr docs/governance architecture CLAUDE.md AGENTS.md 2>/dev/null \
+             | sort -u)
+_r143_bad=""
+while IFS= read -r _r143_f; do
+  [[ -z "$_r143_f" ]] && continue
+  _r143_rel="${_r143_f#./}"
+  _r143_exempted=0
+  if [[ -f "$_r143_exempt" ]]; then
+    while IFS= read -r _r143_e; do
+      _r143_e="${_r143_e%%$'\r'}"
+      [[ -z "$_r143_e" || "$_r143_e" == \#* ]] && continue
+      # Prefix match supports both exact files and directory prefixes (trailing /).
+      if [[ "$_r143_rel" == "$_r143_e" || "$_r143_rel" == "$_r143_e"* ]]; then
+        _r143_exempted=1
+        break
+      fi
+    done < "$_r143_exempt"
+  fi
+  if [[ $_r143_exempted -eq 0 ]]; then
+    _r143_bad="${_r143_bad}${_r143_rel} "
+  fi
+done <<< "$_r143_hits"
+if [[ -n "$_r143_bad" ]]; then
+  fail_rule "local_plan_path_ban" "active authority references local plan path D:\\.claude\\plans (both separators) in non-exempt surface(s): ${_r143_bad}-- Rule G-26 / E191 (exempt list: $_r143_exempt)"
+  _r143_fail=1
+fi
+[[ $_r143_fail -eq 0 ]] && pass_rule "local_plan_path_ban"
+
 # === END OF RULES ===
 # ---------------------------------------------------------------------------
+
+# Wave 5 authority transfer (ADR-0147): after the rule list runs, invoke the
+# workspace check. In BLOCKING mode it fails closed on profile violations or
+# generated-zone drift. Listed AFTER the rule loop so the structural-rule
+# verdict above is preserved if the workspace tooling is temporarily
+# unavailable (e.g. on a host without Java 21 + Maven wrapper).
+WORKSPACE_GATE="$(dirname "${BASH_SOURCE[0]}")/check_architecture_workspace.sh"
+if [[ -x "$WORKSPACE_GATE" ]]; then
+  echo "---"
+  echo "Running architecture workspace gate (ADR-0147 W5+)..."
+  if ! bash "$WORKSPACE_GATE"; then
+    echo "GATE: FAIL (workspace gate)"
+    exit 1
+  fi
+fi
+
 if [[ $fail_count -eq 0 ]]; then
   echo "GATE: PASS"
   exit 0

@@ -2,7 +2,7 @@ package com.huawei.ascend.engine.runtime;
 
 import com.huawei.ascend.engine.spi.EngineMatchingException;
 import com.huawei.ascend.engine.spi.ExecutorAdapter;
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
 import com.huawei.ascend.middleware.HookDispatcher;
 import com.huawei.ascend.middleware.spi.RuntimeMiddleware;
 import com.huawei.ascend.bus.spi.s2c.S2cCallbackTransport;

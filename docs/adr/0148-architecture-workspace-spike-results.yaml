@@ -1,0 +1,160 @@
+id: ADR-0148
+title: "Wave 0 spike results — Structurizr workspace authority feasibility"
+status: accepted
+governance_infra: true
+date: 2026-05-27
+level: L0
+view: scenarios
+affects_level: L0, L1
+affects_view: scenarios
+authors:
+  - chao
+relates_to:
+  - ADR-0147    # Structurizr workspace authority (parent decision)
+context: |
+  ADR-0147 §spike-gate requires Wave 0 to validate four technical
+  assumptions on a single module (agent-bus, smallest L1 by
+  ARCHITECTURE.md line count = 182) before scaling to Wave 1+.
+  This ADR records the measured evidence.
+
+  The spike scope is intentionally minimal:
+  - architecture-spike/tools/architecture-workspace-spike/ (Maven
+    module outside the reactor)
+  - One DSL fixture covering agent-bus module + 1 capability + 1
+    function point + 1 SPI + 3 relationships (contains, implements,
+    declares_spi)
+  - One negative fixture (capability missing required saa.* properties)
+  - Three JUnit 5 tests: positive parse+validate, negative violation
+    detection, 3× idempotent emission via SHA-256 comparison
+
+decision: |
+  Wave 0 spike decision: PROCEED to Wave 1.
+
+  All 4 gates measure PASS. ADR-0147 authority direction is
+  validated. The 7-wave plan (historical session plan, local-only)
+  proceeds.
+
+  Spike artifacts under `architecture-spike/` remain in the tree
+  as a regression suite for the design decisions until Wave 7
+  cleanup explicitly removes them.
+
+spike_evidence: |
+  Date measured: 2026-05-27
+  Host: Windows 11 + WSL2 + Aliyun Maven Central mirror
+  Java: Temurin 21.0.11 LTS
+  Maven: Apache Maven 3.9.15
+  Structurizr: com.structurizr:structurizr-dsl:6.2.1 (Apache-2.0)
+
+  ---
+
+  GATE G1 (DSL parse + profile validator) — PASS
+  Command: ./mvnw.cmd -B -f architecture-spike/tools/architecture-workspace-spike/pom.xml test
+  Result:
+    [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0 -- NormalizedModelIdempotencyTest
+    [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 -- SpikeProfileValidatorTest
+    [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+    [INFO] BUILD SUCCESS
+  Profile validator catches both `saa.owner` and `saa.sourceAdr`
+  missing on the `SAA Capability` negative fixture (exactly 2
+  violations — no double-counting).
+
+  GATE G2 (idempotent normalized-JSON emission) — PASS
+  Implementation: NormalizedModelIdempotencyTest.threeConsecutiveEmissionsAreByteIdentical
+  Method: parse workspace, emit normalized JSON 3 times into temp
+  files, SHA-256 each, assert all three hashes equal AND assert
+  string equality of file contents. Sorted keys + sorted arrays +
+  LF-only line endings + UTF-8 enforced in NormalizedModelWriter.
+
+  GATE G3 (build time < 30s warm) — PASS
+  Cold first build: 3m30s (one-time Aliyun Maven mirror download
+  of structurizr-core, structurizr-dsl, structurizr-export,
+  structurizr-client, jackson-databind, snakeyaml, JUnit 5).
+  Warm test run: 4.2s wall-clock (`time ./mvnw.cmd test`).
+  Test execution time excluding JVM startup: 0.249s.
+
+  GATE G4 (always-loaded context budget delta < 500 bytes) — PASS
+  No CLAUDE.md, SESSION-START-CONTEXT.md, or other always-loaded
+  file modified in Wave 0. Delta = 0 bytes. Wave 0 changes:
+    - architecture-spike/** (NOT always-loaded)
+    - docs/adr/0147-*.yaml (NOT always-loaded; on-demand only)
+    - docs/adr/0148-*.yaml (NOT always-loaded; this ADR)
+    - docs/governance/architecture-status.yaml#baseline_metrics (rendered downstream into README via template)
+    - docs/governance/recurring-defect-families.yaml#last_updated (Rule G-9.b freshness)
+    - docs/governance/architecture-graph.yaml (generated; recount)
+
+  ---
+
+  EMPIRICAL FINDING #1 (correcting prior research):
+  In structurizr-dsl 6.2.1, `Model.getElements()` returns a
+  Set<Element> that INCLUDES CustomElements. Direct empirical
+  evidence: a fixture with 1 `element` declaration and 0 native
+  containers yields:
+    workspace.getModel().getElements().size()       == 1
+    workspace.getModel().getCustomElements().size() == 1
+  Decompilation of structurizr-core-6.2.1's Model.class confirms
+  `CustomElement extends GroupableElement extends Element`. The
+  prior research claim that the sets are "disjoint" is incorrect
+  for 6.2.1. ProfileValidator MUST walk `getElements()` exactly
+  once; concatenating with `getCustomElements()` double-counts.
+
+  EMPIRICAL FINDING #2:
+  `!identifiers hierarchical` directive scopes identifiers to
+  their parent. A relationship written at model-block scope using
+  `agentBus -> X` where `agentBus` is declared inside
+  `softwareSystem { ... }` will fail to resolve with "The source
+  element agentBus does not exist". Either use the fully-qualified
+  identifier (`springAiAscend.agentBus -> X`) OR remove the
+  hierarchical directive (default `flat` scope keeps short names
+  globally unique). Wave 1+ uses `flat` scope.
+
+  EMPIRICAL FINDING #3:
+  `structurizr-export` jar is transitively pulled by `structurizr-dsl`
+  via its own `<dependency>` declaration; no separate
+  com.structurizr:structurizr-export Maven coordinate needed.
+  Confirmed by inspecting ~/.m2/repository/com/structurizr/ after
+  first build pulled all of: structurizr-client, structurizr-component,
+  structurizr-core, structurizr-dsl, structurizr-export,
+  structurizr-import.
+
+  EMPIRICAL FINDING #4:
+  Aliyun Maven Central mirror (https://maven.aliyun.com/repository/public)
+  resolves structurizr-dsl:6.2.1.pom with HTTP 200. The user's
+  ~/.m2/settings.xml configuration (mirrorOf=central) works for
+  Structurizr artifacts without additional config. Network
+  reachability validated 2026-05-27.
+
+consequences: |
+  Positive:
+  - ADR-0147 authority direction is empirically validated; the
+    7-wave plan proceeds.
+  - Three surprise findings (CustomElement subclass relationship;
+    hierarchical scope behavior; structurizr-export transitivity)
+    caught at Wave 0 before they propagated into 600+ generated
+    DSL elements in Wave 3.
+  - The spike artifacts under `architecture-spike/` serve as
+    regression fixtures for the production ProfileValidator that
+    lands in Wave 1.
+
+  Negative / residual:
+  - One-time first-build cost of 3m30s to download Structurizr +
+    Jackson + SnakeYAML + JUnit. CI machines will pay this once
+    per fresh container.
+  - The 4-gate spike pattern adds a 1-2 week wall-clock cost vs.
+    "just start Wave 1". User's standing rule
+    "never estimate, always measure" justifies this cost.
+
+alternatives_considered: |
+  - (A) Skip Wave 0 and start Wave 1 immediately. Rejected —
+    would have shipped a validator that double-counts every
+    custom-element violation (defect F2 in the corrected analysis)
+    and a DSL fixture that fails to parse (defect F1).
+
+  - (B) Spike on agent-service (largest L1, 789 lines) instead
+    of agent-bus. Rejected — agent-service slice has 5+ SPI
+    packages, 20+ classes; agent-bus's smaller surface lets the
+    spike isolate DSL+profile concerns from inventory-scale
+    concerns.
+
+  - (C) Use structurizr-onpremises Docker image for spike.
+    Rejected — adds licensing surface (server is commercial)
+    and is unnecessary for the parse/validate/emit chain.

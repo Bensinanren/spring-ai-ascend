@@ -1,6 +1,7 @@
 id: ADR-0100
 title: "rc22 — agent-service L1 runtime-role decomposition (5-component model + Run≤Task≤Session lifecycle + 3 new SPIs + Yield/SuspendSignal coexistence)"
 status: accepted
+governance_infra: true
 date: 2026-05-22
 level: L1
 view: scenarios
@@ -18,6 +19,16 @@ relates_to:
   - ADR-0088
   - ADR-0099
   - ADR-0104
+  - ADR-0137    # SuspendSignal canonical / InterruptSignal glossary (2026-05-26)
+  - ADR-0146    # SuspendReason canonical 6-variant alignment to 2026-05-22 doc (2026-05-27)
+# Post-2026-05-27 audit clarification: this ADR's "Yield/SuspendSignal
+# coexistence" non_goal is reaffirmed by ADR-0137 (SuspendSignal
+# canonical at the L1 vocabulary surface; InterruptSignal is a
+# glossary synonym only). Per the 2026-05-22 expansion-proposal-response
+# doc R9 and 29 active call-sites, SuspendSignal remains canonical;
+# ADR-0112 Part A's proposed `Mono<StateDelta(InterruptSignal)>`
+# direction is a runtime composition variant, not a vocabulary
+# replacement.
 context: |
   The 2026-05-21 proposal `docs/logs/reviews/2026-05-21-agent-service-l1-expansion-proposal.en.md`
   addresses agent-service concentration risk: today's module owns HTTP

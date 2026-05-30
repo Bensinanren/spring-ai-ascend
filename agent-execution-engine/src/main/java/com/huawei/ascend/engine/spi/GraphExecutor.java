@@ -1,8 +1,8 @@
 package com.huawei.ascend.engine.spi;
 
-import com.huawei.ascend.engine.orchestration.spi.ExecutorDefinition;
-import com.huawei.ascend.engine.orchestration.spi.RunContext;
-import com.huawei.ascend.engine.orchestration.spi.SuspendSignal;
+import com.huawei.ascend.bus.spi.engine.ExecutorDefinition;
+import com.huawei.ascend.bus.spi.engine.RunContext;
+import com.huawei.ascend.bus.spi.engine.SuspendSignal;
 
 /**
  * SPI for deterministic graph execution. Pure Java — no Spring imports.

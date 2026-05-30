@@ -1,0 +1,42 @@
+# Spring AI Ascend Architecture Profile
+#
+# Authority: ADR-0147 (Structurizr Workspace Authority).
+# Schema: architecture/profile/profile.schema.yaml
+#
+# This file is human-readable; the gate-enforced source-of-truth is the
+# hard-coded set in
+# tools/architecture-workspace/src/main/java/com/huawei/ascend/tools/architecture/ProfileValidator.java.
+# Lockstep is verified by ProfileYamlParityTest.
+#
+# Tags carry semantic meaning beyond the bare Structurizr "type" string.
+# Every architecture element with one or more SAA-* tags MUST satisfy the
+# required-properties.yaml schema for those tags.
+
+profile: spring-ai-ascend-architecture-profile
+version: 1
+authority_adr: ADR-0147
+description: |
+  Spring AI Ascend Architecture Profile. The DSL keyword for custom element
+  declarations is `element` (not `customElement`). Property values are quoted
+  strings; dotted property keys (`saa.id`, etc.) work in Structurizr DSL 6.2.1+.
+  Validator MUST walk Model.getElements() exactly once (CustomElement extends
+  Element; getCustomElements() is a strict subset that would double-count).
+
+tags:
+  - SAA Principle
+  - SAA Rule
+  - SAA Enforcer
+  - SAA Test
+  - SAA Module
+  - SAA Capability
+  - SAA Feature
+  - SAA FunctionPoint
+  - SAA SPI
+  - SAA Contract
+  - SAA ADR
+  - SAA GeneratedProjection
+  - SAA EngineeringFrame
+
+relationship_property: saa.rel
+required_property_prefix: saa.
+relationship_tag: "SAA Relationship"

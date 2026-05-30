@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 80 — s2c_callback_signal_historical_only_in_authority. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 80 — s2c_callback_signal_historical_only_in_authority (enforcer E113)
 #
 # In authoritative entrypoints (CLAUDE.md, README.md, root ARCHITECTURE.md,
-# agent-*/ARCHITECTURE.md, docs/contracts/*.v1.yaml, docs/adr/*.yaml,
+# architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md, docs/contracts/*.v1.yaml, docs/adr/*.yaml,
 # docs/adr/*.md), the deleted Java type name S2cCallbackSignal MUST appear
 # only in paragraphs marked historical / deleted / refactored from /
 # amendments / rc3-unification (within +/-5 lines). v2.0.0-rc3 unified S2C
@@ -39,7 +39,7 @@ for p in ('CLAUDE.md', 'README.md', 'ARCHITECTURE.md'):
 targets.extend(sorted(glob.glob('docs/contracts/*.v1.yaml')))
 targets.extend(sorted(glob.glob('docs/adr/*.yaml')))
 targets.extend(sorted(glob.glob('docs/adr/*.md')))
-for arch in sorted(glob.glob('agent-*/ARCHITECTURE.md')):
+for arch in sorted(glob.glob('architecture/docs/L1/agent-*.md') + glob.glob('architecture/docs/L1/agent-service/ARCHITECTURE.md')):
     targets.append(arch)
 
 for path in targets:

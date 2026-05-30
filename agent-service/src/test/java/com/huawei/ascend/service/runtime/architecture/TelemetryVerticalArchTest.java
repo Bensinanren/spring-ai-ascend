@@ -1,6 +1,6 @@
 package com.huawei.ascend.service.runtime.architecture;
 
-import com.huawei.ascend.engine.orchestration.spi.TraceContext;
+import com.huawei.ascend.bus.spi.engine.TraceContext;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import org.junit.jupiter.api.Test;
@@ -32,14 +32,14 @@ class TelemetryVerticalArchTest {
     void trace_context_spi_resides_in_orchestration_spi_package() {
         assertThat(TraceContext.class.getPackageName())
                 .as("TraceContext SPI MUST live alongside RunContext in orchestration.spi (§4 #53, ADR-0061 §2)")
-                .isEqualTo("com.huawei.ascend.engine.orchestration.spi");
+                .isEqualTo("com.huawei.ascend.bus.spi.engine");
     }
 
     @Test
     void trace_context_implementations_live_only_in_orchestration_package() {
         long count = RUNTIME_MAIN_CLASSES.stream()
-                .filter(c -> c.isAssignableTo("com.huawei.ascend.engine.orchestration.spi.TraceContext"))
-                .filter(c -> !c.getName().equals("com.huawei.ascend.engine.orchestration.spi.TraceContext"))
+                .filter(c -> c.isAssignableTo("com.huawei.ascend.bus.spi.engine.TraceContext"))
+                .filter(c -> !c.getName().equals("com.huawei.ascend.bus.spi.engine.TraceContext"))
                 .filter(c -> !c.getPackageName().startsWith("com.huawei.ascend.service.runtime.orchestration"))
                 .count();
         assertThat(count)

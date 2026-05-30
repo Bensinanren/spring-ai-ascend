@@ -1,7 +1,7 @@
 package com.huawei.ascend.service.platform.web.runs;
 
 import com.huawei.ascend.service.runtime.runs.Run;
-import com.huawei.ascend.engine.orchestration.spi.RunMode;
+import com.huawei.ascend.bus.spi.engine.RunMode;
 import com.huawei.ascend.service.runtime.runs.spi.RunRepository;
 import com.huawei.ascend.service.runtime.runs.RunStatus;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -79,6 +79,20 @@ class RunHttpContractIT {
         @Primary
         JwtDecoder fixtureJwtDecoder() {
             return JwtTestFixture.decoder();
+        }
+
+        /**
+         * Non-executing dispatcher so Runs remain PENDING. This suite asserts
+         * HTTP status / idempotency / tenant-scoping contracts that depend on a
+         * Run staying in a controllable state (e.g. cancel-while-PENDING);
+         * end-to-end execution to SUCCEEDED is covered by {@code RunExecutionIT}.
+         */
+        @Bean
+        @Primary
+        AsyncRunDispatcher nonExecutingDispatcher() {
+            return (Run run) -> {
+                // intentionally no-op: leave the Run in its created (PENDING) state
+            };
         }
     }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-extracted from gate/check_architecture_sync.sh by gate/lib/extract_rules.sh
 # Rule 97 — release_note_numeric_truth. DO NOT HAND-EDIT — re-run extract_rules.sh to refresh.
-# Authority: PR-E5 (D:/.claude/plans/spicy-mixing-galaxy.md).
+# Authority: PR-E5.
 
 # Rule 97 — release_note_numeric_truth (enforcer E135)
 #
@@ -96,8 +96,11 @@ else
               window = ""
               for (j = lo; j <= hi; j++) window = window " " lines[j]
               # Match `<N>/<M> self-tests` or `<N>/<M> tests passed` or `<N>/<M> gate self-tests`
-              if (match(line, /([0-9]+)\/([0-9]+)[[:space:]]+(self-tests|tests passed|tests pass|gate self-tests)/, arr)) {
-                denom = arr[2]
+              if (match(line, /[0-9]+\/[0-9]+[[:space:]]+(self-tests|tests passed|tests pass|gate self-tests)/)) {
+                matched_str = substr(line, RSTART, RLENGTH)
+                split(matched_str, parts, "/")
+                match(parts[2], /^[0-9]+/)
+                denom = substr(parts[2], RSTART, RLENGTH)
                 if (denom != live && window !~ markers) {
                   print i ":self_tests_denom:claim=" denom ":live=" live ":" line
                 }

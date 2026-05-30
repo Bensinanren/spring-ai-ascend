@@ -1,7 +1,7 @@
 package com.huawei.ascend.service.runtime.architecture;
 
-import com.huawei.ascend.engine.orchestration.spi.RunContext;
-import com.huawei.ascend.engine.orchestration.spi.TraceContext;
+import com.huawei.ascend.bus.spi.engine.RunContext;
+import com.huawei.ascend.bus.spi.engine.TraceContext;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -61,7 +61,7 @@ class RunContextIdentityAccessorsTest {
                     .satisfiesAnyOf(
                             p -> assertThat(p).startsWith("java"),
                             p -> assertThat(p).startsWith("com.huawei.ascend.service.runtime"),
-                            p -> assertThat(p).startsWith("com.huawei.ascend.engine.orchestration.spi")
+                            p -> assertThat(p).startsWith("com.huawei.ascend.bus.spi.engine")
                     );
         }
     }

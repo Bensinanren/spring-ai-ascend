@@ -4,6 +4,11 @@
 - Date: 2026-05-14
 - Authority: L1 plan `l1-modular-russell` §8; architect guidance §10.
 
+> **Post-2026-05-27 audit clarification.** The 2026-05-27 agent-service L1 architecture audit (AUD-IDEM-1, AUD-IDEM-2, AUD-IDEM-3, AUD-IDEM-9) confirms two things this ADR's W2-deferral claim makes implicit and which deserve explicit statement here:
+> (a) the `Status.COMPLETED` and `Status.FAILED` enum members declared in `IdempotencyStore.Status` are **unreached** in L1 production code — only `CLAIMED` is ever written by either impl. The schema CHECK constraint accepts them but no Java write-site transitions a row out of CLAIMED. Family: `F-half-built-state-machine`.
+> (b) `request_hash` body-drift detection is **scoped to a single TTL window only**: when `JdbcIdempotencyStore` performs the TTL re-claim (`ON CONFLICT … DO UPDATE SET request_hash = EXCLUDED.request_hash WHERE expires_at <= EXCLUDED.created_at`) it replaces the prior hash wholesale, so a third request with the original pre-TTL body would no longer be flagged as drift. This is the intended semantics (TTL re-claim IS a fresh claim) but the L1 contract should be explicit. The L1 process.md "200 cached response" alt-branch (AUD-IDEM-3) is unreachable at L1 — that branch is W2-design per §2 deferral.
+>
+
 ## Context
 
 L0 ships `IdempotencyHeaderFilter` which validates the `Idempotency-Key` header as a UUID and increments missing/invalid counters. The W0 `IdempotencyStore` is a `@PostConstruct`-only stub: it logs a warning in `dev` posture and throws `IllegalStateException` in `research`/`prod`. No deduplication actually happens.
@@ -185,7 +190,7 @@ prevents a misconfigured prod environment from silently falling back.
 
 ## References
 
-- L1 plan `D:\.claude\plans\l1-modular-russell.md` §8, §11 (E12, E13, E14, E15, E22).
+- L1 plan (historical session plan, local-only) §8, §11 (E12, E13, E14, E15, E22).
 - Architect guidance §10.
 - ADR-0027 (W0 stub IdempotencyStore; this ADR supersedes its W1 deferral note).
 - ADR-0058 (PostureBootGuard).

@@ -1,6 +1,6 @@
 package com.huawei.ascend.engine.runtime;
 
-import com.huawei.ascend.engine.orchestration.spi.Orchestrator;
+import com.huawei.ascend.bus.spi.engine.Orchestrator;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;

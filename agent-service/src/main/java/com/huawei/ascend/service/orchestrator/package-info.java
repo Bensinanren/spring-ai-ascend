@@ -25,7 +25,7 @@
  *
  * <p>Yield + SuspendSignal coexistence:
  * <ul>
- *   <li>{@link com.huawei.ascend.engine.orchestration.spi.SuspendSignal}
+ *   <li>{@link com.huawei.ascend.bus.spi.engine.SuspendSignal}
  *       checked-exception flow → state-machine suspension.</li>
  *   <li>{@code HookPoint.ON_YIELD} hook → cooperative reschedule
  *       without state-machine transition.</li>

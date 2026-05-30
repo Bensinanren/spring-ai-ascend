@@ -1,0 +1,199 @@
+id: ADR-0158
+title: "Engine Boundary (EnginePort) — transport-agnostic Service↔Engine contract absorbed into agent-bus for the three deployment forms"
+status: accepted
+product_claim: "PC-004"
+date: 2026-05-29
+level: L1
+view: development
+affects_level: L1
+affects_view: [logical, development, physical]
+authors:
+  - chao
+extends:
+  - ADR-0101    # polymorphic deployment topology — the three deployment shapes this boundary must serve with one artifact set
+  - ADR-0140    # Engine Adapter Layer split — this ADR REVERSES its "reference adapters live in agent-service" placement
+  - ADR-0157    # EngineeringFrame ontology — adds EF-ENGINE-PORT; re-homes EF-ORCHESTRATION-SPI to agent-bus
+relates_to:
+  - ADR-0072    # Engine Envelope + strict matching — EngineRegistry stays engine-internal behind EnginePort
+  - ADR-0074    # S2C capability callback — the proven suspend-over-a-boundary protocol EnginePort generalizes
+  - ADR-0088    # agent-runtime-core dissolution — the current module dependency map this ADR re-points
+  - ADR-0112    # engine stateless executor value-based yield — informs the over-the-wire suspend realization
+  - ADR-0155    # agent-service L1 v1.2 — EDE Native / Third-party / Remote(A2A) executor forms
+  - ADR-0156    # Product Authority — PC-004 binding
+context: |
+  Two boundary problems were raised by the product owner as fatal to the
+  multi-framework substrate (PC-004) and the single-artifact-set deployment
+  promise (PC-002):
+
+    1. INSTANCE vs ADAPTER placement. `agent-execution-engine` should be a real
+       agent instance (its own repo eventually); the engine ADAPTER/driver layer
+       should live inside `agent-service`. Today it is inverted: the module named
+       `agent-execution-engine` is the engine CONTRACT + registry pinned in-process
+       (`module-metadata.yaml#deployment_plane: compute_control`), while the
+       reference EXECUTORS live inside `agent-service`.
+    2. DEPENDENCY direction + clean split. The engine must NOT depend on
+       `agent-service`; the Service should only register / discover / drive
+       engines. There is no Maven cycle today (the reactor forbids
+       engine -> service), but the contract is SEMANTICALLY welded to the Service:
+       `RunContext` carries `tenantId()` / `sessionId()` / `suspendForChild()`,
+       and `SuspendSignal` is an in-process Java exception caught by the
+       in-process `Orchestrator`. Neither survives a network boundary.
+
+  Verified against the live repo (facts, not prose):
+
+    * There are TWO rival `ExecutorAdapter` interfaces — the live
+      `com.huawei.ascend.engine.spi.ExecutorAdapter`
+      (`Object execute(RunContext, ExecutorDefinition, Object) throws SuspendSignal`,
+      pull + throw) and the `design_only`
+      `com.huawei.ascend.service.runtime.executor.spi.ExecutorAdapter`
+      (`Flow.Publisher<Object> execute(Object)`, reactive push). They model the
+      same surface two ways and have never been reconciled.
+    * The deployment topology is already polymorphic per ADR-0101, but the engine
+      boundary hard-codes ONE shape (in-process), so ADR-0101 Form 1 (Service and
+      Engine as separate microservices) is not expressible.
+    * The wire surface is largely drafted: `s2c-callback.v1` is runtime_enforced
+      (a working suspend-over-a-boundary protocol), and `execution-request`,
+      `agent-event`, `correlation-record`, `checkpoint-record`, `a2a-envelope`,
+      `federation-envelope` exist as design_only.
+
+  The three deployment forms (ADR-0101) the one contract must serve — Service is
+  ALWAYS the front door (Client↔Service is the external boundary in every form):
+
+    Form 1 (中台 / centralized):  Service and Engine as SEPARATE microservices
+                                  -> Service↔Engine over internal RPC; A2A for
+                                     external/federated agents. Engine may be 1..N.
+    Form 2 (能力复用 / business):  Service+Engine co-deployed as one microservice
+                                  -> Service↔Engine in-process.
+    Form 3 (SDK / embedded):      Service+Engine merged into one library embedded
+                                  in the business app -> all in-process.
+decision: |
+  Introduce `EnginePort` as the neutral, transport-agnostic SEMANTIC contract for
+  the Service↔Engine boundary, and make deployment form a packaging + adapter
+  choice rather than a code fork.
+
+    1. EnginePort surface (semantic, transport-agnostic): execute, stream events,
+       suspend, resume, describe/health. It carries NO tenant/session/run
+       semantics. This is the "generic abstract engine" the Service registers,
+       discovers, and drives.
+
+    2. Absorb the contract into `agent-bus` as `com.huawei.ascend.bus.spi.engine`
+       — a sibling of `bus.spi.ingress` (C2S), `bus.spi.s2c` (suspend-over-
+       boundary), and `bus.spi.federation` (A2A). `agent-bus` depends on nothing
+       and is already a dependency of BOTH `agent-service` and
+       `agent-execution-engine`; it stays in the main repo when the engine splits,
+       so the contract is neutral and owned by no single engine. NO new Maven
+       module is created — `repository_counts` stays at six domain modules.
+
+    3. Three transports, each a separate EnginePort implementation living INSIDE
+       `agent-service` (the "engine adapter layer"): an in-process adapter (direct
+       call, Forms 2/3), an internal-RPC adapter (gRPC/REST, Form 1 engines you
+       own), and an A2A adapter (via `bus.spi.federation.FederationGateway`, Form 1
+       external/federated agents).
+
+    4. Dependency direction in ALL three forms:
+       `agent-service -> agent-bus(bus.spi.engine) <- agent-execution-engine`.
+       The engine implements EnginePort and depends only on the neutral contract,
+       never on `agent-service`.
+
+    5. Neutralize the execution context: move tenant/session/run ownership to the
+       Service. The engine-facing context (`ExecutionContext`) carries only opaque
+       correlation (runId / traceId / spanId) + `Checkpointer` + the suspend
+       capability. `RunContext` becomes a Service-side subtype adding tenant/session.
+
+    6. Suspend/resume becomes a CAPABILITY with two realizations: in-process (the
+       existing `SuspendSignal` exception caught by the Orchestrator) and
+       over-the-wire (a checkpoint-token protocol generalizing `s2c-callback.v1`:
+       suspend is a returned terminal event carrying a checkpoint token; resume is
+       a fresh execute with `startCheckpointRef`). `ExecutorDefinition` becomes a
+       serializable named reference (resolved via a CapabilityRegistry) so dispatch
+       can cross a JVM.
+
+    7. Reconcile the two `ExecutorAdapter` interfaces under EnginePort, choosing
+       `Flow.Publisher<AgentEvent>` streaming with errors as terminal events; the
+       losing surface is retired.
+
+    8. REVERSE the ADR-0140 placement: the reference EXECUTORS
+       (`SequentialGraphExecutor`, `IterativeAgentLoopExecutor`) move from
+       `agent-service` into `agent-execution-engine` — they ARE the engine, not the
+       Service's driving adapters. `EngineRegistry`, `EngineEnvelope`,
+       `EngineHookSurface` stay engine-internal. `InMemoryCheckpointer` stays in
+       `agent-service` (Rule 12 posture guard).
+
+    9. EngineeringFrame ontology (ADR-0157): re-home `EF-ORCHESTRATION-SPI` to
+       `agent-bus` (its types move there) and add `EF-ENGINE-PORT` owned by
+       `agent-bus`; `EF-ENGINE-REGISTRY` stays owned by `agent-execution-engine`.
+
+    10. Staged rollout. Phases 0-4 are behavior-preserving for the in-process path
+        (Forms 2/3 stay green every wave); the networked transports (Form 1) and
+        repo extraction follow only after the contract is frozen and a cross-
+        transport conformance kit (TCK) proves semantic identity.
+consequences: |
+  Positive
+  --------
+    * PC-004 (multi-framework substrate) and PC-002 (single artifact set, three
+      deployment shapes) become structurally true: one engine codebase, three
+      packagings, one neutral contract.
+    * The engine becomes physically extractable to its own repo without any
+      reverse dependency, while the neutral contract stays in the main repo.
+    * The contract/instance/adapter conflation is resolved at the root.
+
+  Negative / cost
+  ---------------
+    * Multi-wave migration. Moving the orchestration SPI `agent-execution-engine ->
+      agent-bus` re-namespaces ~47 referencing sites (mechanical but wide); the
+      golden in-process suite is the regression guard.
+    * Suspend/resume over the wire is the highest-risk item: `SuspendSignal` as a
+      thrown exception and `suspendForChild` nested-run cannot cross a network
+      boundary unchanged; they must be re-expressed as a checkpoint-token protocol.
+      This is de-risked by an in-process spike BEFORE any networked adapter.
+    * Reverses the ADR-0140 reference-adapter placement; ADR-0140's 5a/5b split
+      otherwise stands.
+
+  LOCKSTEP FLAG for the implementation phase
+  ------------------------------------------
+    Touches authority surfaces. The design is not complete until, in lockstep:
+      * `agent-bus/module-metadata.yaml` declares the new `bus.spi.engine` SPI
+        package; generated `spi-catalog.dsl` + `modules.dsl` are re-emitted
+        byte-identically via AllFragmentsCli (Rule G-13 / R-L);
+      * `architecture/features/engineering-frames.dsl` re-homes EF-ORCHESTRATION-SPI
+        and adds EF-ENGINE-PORT; ProfileValidator + workspace gate stay green;
+      * `docs/governance/architecture-status.yaml` baseline_metrics
+        (workspace_elements / workspace_relationships, and at promotion any graph
+        node/edge deltas) move with their allowed_claim + README phrases;
+      * `docs/contracts/engine-port.v1.yaml` + contract-catalog row land before the
+        networked transports.
+
+  Forward-looking
+  ---------------
+    * v1.0 ships Forms 2/3 (in-process) on the frozen EnginePort with the in-process
+      conformance subclass green; Form 1 (internal RPC) and A2A federation ship in
+      v1.1+ per the PC-004 / PC-002 cadence.
+
+  Deployment-form packaging (one artifact set -> three forms)
+  ----------------------------------------------------------
+    The single reactor serves all three forms by packaging + EnginePort-adapter
+    selection, with no code fork:
+      * Form 2 (co-deployed / business microservice): the `agent-service` Spring
+        Boot application jar already bundles `agent-execution-engine` in-process; the
+        EnginePort realization is `InProcessEnginePort`. This is the default reactor
+        build and the v1.0 deployable.
+      * Form 3 (SDK / embedded): the `agent-bus` + `agent-execution-engine` +
+        `agent-service` library jars embedded in a business app; all in-process, same
+        `InProcessEnginePort`. The SDK is the library classifier of the same jars —
+        no separate source set.
+      * Form 1 (centralized / separate microservices): `agent-execution-engine`
+        packaged and run standalone; the Service drives it via `RpcEnginePort`
+        (engines you own) or `A2aEnginePort` (external / federated), both
+        mock-functional (serialize / round-trip / dispatch, selected by
+        `app.engine.transport`) until a live wire transport is provisioned.
+
+    Repo-split readiness (W7.3): `agent-execution-engine` builds and packages via
+    `mvn -pl agent-execution-engine -am` — against `agent-bus` (the neutral contract)
+    WITHOUT `agent-service` on the path — verifying the engine carries no reverse
+    dependency and is physically extractable. The neutral contract (`bus.spi.engine`)
+    stays in the main repo via `agent-bus` when the engine splits.
+
+    User-gated (W7.4): the literal new-repo creation + first push for
+    `agent-execution-engine` is an external action left to the maintainer; once the
+    engine consumes a PUBLISHED `agent-bus` artifact instead of a reactor-relative
+    path, the extraction is mechanical.

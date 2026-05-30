@@ -1,0 +1,157 @@
+id: ADR-0146
+title: "SuspendReason taxonomy canonical alignment to 2026-05-22 expansion-proposal-response mapping table: ratifies the 6-variant set {AwaitClientCallback, AwaitChildRun, AwaitToolResult, AwaitTimer, RequiresApproval, RateLimited} as the L1 authority; reconciles prior naming drift across ADR-0019 (AwaitChildren / AwaitExternal / AwaitApproval), ADR-0070 (AwaitChild), ADR-0074 (AwaitClientCallback canonical), and ADR-0112 Part B mapping table (ChildRun / AwaitTool / AwaitApproval); applies the audit's user-directive precedence rule (doc > ADR) to settle the drift"
+status: accepted
+product_claim: "PC-003"
+date: 2026-05-27
+level: L1
+view: logical
+affects_level: L1
+affects_view: logical, process, scenarios
+authors:
+  - chao
+relates_to:
+  - ADR-0019    # SuspendSignal + SuspendReason original taxonomy (6 variants, 2026-05-12)
+  - ADR-0044    # AwaitTool reference
+  - ADR-0070    # Cursor Flow + RateLimited variant
+  - ADR-0074    # S2C capability callback: AwaitClientCallback variant
+  - ADR-0100    # rc22 L1 decomposition
+  - ADR-0112    # Engine stateless executor value-based yield; Part B InterruptType ↔ SuspendReason mapping table
+  - ADR-0137    # SuspendSignal canonical / InterruptSignal glossary
+extends: ADR-0019
+extends_partial: ADR-0112
+authority_doc:
+  - docs/logs/reviews/2026-05-22-agent-service-l1-expansion-proposal-response.en.md
+  - 2026-05-22-...response.en.md:141  # the canonical InterruptType↔SuspendReason mapping table line
+context: |
+  The 2026-05-27 agent-service L1 architecture audit (wave 1+2) found
+  a 4-way naming drift in the `SuspendReason` sealed taxonomy across
+  the corpus:
+
+  - **ADR-0019** (2026-05-12, the original 6-variant spec) declared
+    permitted variants `ChildRun, AwaitChildren, AwaitTimer,
+    AwaitExternal, AwaitApproval, RateLimited` (single + fan-out
+    siblings, generic external-resource await, generic approval).
+  - **ADR-0070** (Cursor Flow + Skill Capacity, rc20) refers to
+    `AwaitChild` (singular, missing the `Children` suffix — drift
+    from ADR-0019's `ChildRun` / `AwaitChildren` distinction).
+  - **ADR-0074** (S2C Capability Callback, rc20) adds
+    `AwaitClientCallback` — canonical to date.
+  - **ADR-0112** (Engine stateless executor value-based yield, rc34)
+    declares the canonical Part B mapping table:
+    `ChildRun | SUB_TASK_AWAIT`,
+    `AwaitChildren(JoinPolicy) | SUB_TASK_AWAIT`,
+    `AwaitClientCallback | INPUT_REQUIRED`,
+    `AwaitTool | TOOL_EXECUTION`,
+    `AwaitApproval | INPUT_REQUIRED`,
+    `AwaitTimer | DELAY_AWAIT`,
+    `RateLimited | POLICY_APPROVAL` — 7 variants.
+  - **2026-05-22 expansion-proposal-response doc** (line 141) declares
+    the canonical mapping table from a different angle:
+    `INPUT_REQUIRED ↔ AwaitClientCallback`,
+    `SUB_TASK_AWAIT ↔ AwaitChildRun`,
+    `TOOL_EXECUTION ↔ AwaitToolResult`,
+    `DELAY_AWAIT ↔ AwaitTimer`,
+    `POLICY_APPROVAL ↔ RequiresApproval` — 5 variants.
+  - **Java code** at
+    `agent-service/src/main/java/com/huawei/ascend/service/runtime/resilience/spi/SuspendReason.java:41-46`
+    declares `{RateLimited, AwaitChild, AwaitTimer, AwaitExternal,
+    AwaitApproval, AwaitClientCallback}` — 6 variants.
+
+  The user has invoked an explicit precedence rule (2026-05-27): when
+  an ADR conflicts with the 2026-05-22 expansion-proposal-response
+  doc, the doc wins and the ADR is adjusted. This ADR codifies the
+  precedence settlement.
+
+  Findings closed: AUD-EVT-1 (3-name drift Java ↔ doc), SBL-NAME-1
+  (`SuspendReason.AwaitChildren` plural in process.md / scenarios.md
+  vs Java singular), SBL-NAME-2 (3 doc-only names not in Java —
+  `AwaitChildRun`, `AwaitToolResult`, `RequiresApproval`).
+decision: |
+  ## 1 — Canonical 6-variant `SuspendReason` taxonomy (post-2026-05-27)
+
+  The canonical set is:
+
+  | name | A2A InterruptType | semantics |
+  |---|---|---|
+  | `AwaitClientCallback` | INPUT_REQUIRED | Server awaits a client-driven capability callback (ADR-0074 origin). |
+  | `AwaitChildRun` | SUB_TASK_AWAIT | Parent Run awaits exactly one child Run terminal transition (ADR-0019 `ChildRun` renamed; singular). |
+  | `AwaitToolResult` | TOOL_EXECUTION | Run awaits an external tool / capability invocation result (ADR-0019 `AwaitExternal` renamed to descriptive form). |
+  | `AwaitTimer` | DELAY_AWAIT | Run awaits a wall-clock deadline (Tick Engine rhythm channel). |
+  | `RequiresApproval` | POLICY_APPROVAL | Run awaits a human-in-the-loop or policy-engine approval decision (ADR-0019 `AwaitApproval` renamed). |
+  | `RateLimited` | POLICY_APPROVAL | Run rejected at skill-capacity boundary (ADR-0070 origin; shares POLICY_APPROVAL wire-mapping with RequiresApproval at the A2A surface). |
+
+  All 6 variants are sealed records permitted by `SuspendReason`.
+  Each declares `Instant deadline()` (uniform across taxonomy).
+
+  ## 2 — Removed variants
+
+  - `ChildRun` (ADR-0019, ADR-0112) → renamed to `AwaitChildRun`.
+  - `AwaitChild` (ADR-0070 drift) → renamed to `AwaitChildRun`
+    (consolidates the singular-with-plural-suffix variation).
+  - `AwaitChildren(JoinPolicy)` (ADR-0019 fan-out variant) → deferred
+    as **design_only** under a follow-up ADR; not part of the
+    canonical 6-variant L1 set. When fan-out lands it will be a
+    distinct 7th variant.
+  - `AwaitExternal` (ADR-0019) → renamed to `AwaitToolResult`.
+  - `AwaitTool` (ADR-0112) → renamed to `AwaitToolResult` (matches
+    the doc's descriptive convention).
+  - `AwaitApproval` (ADR-0019) → renamed to `RequiresApproval`.
+
+  ## 3 — Per-variant resume payload contract (carried forward from ADR-0019)
+
+  - `AwaitClientCallback` → carries `(UUID callbackId, String capabilityRef, Instant deadline)` resume key; payload from `S2cCallbackResponse` per ADR-0074.
+  - `AwaitChildRun` → resume payload is the child Run's terminal `Run` aggregate (single child); structurally `Run` not `Map<UUID, Run>`.
+  - `AwaitToolResult` → resume payload is the tool-invocation result envelope (typed per the tool contract).
+  - `AwaitTimer` → resume payload is `Void` (the timer firing is the signal).
+  - `RequiresApproval` → resume payload is an approver-decision record `(approverPrincipal, decision, decidedAt, optionalNote)`.
+  - `RateLimited` → resume payload is `Void` (the registry slot opening is the signal; runtime checks via re-evaluation).
+
+  ## 4 — Java migration scope (impl-mode follow-up, NOT this ADR's wave)
+
+  The Java rename of the 6 records under
+  `agent-service/src/main/java/com/huawei/ascend/service/runtime/resilience/spi/SuspendReason.java`
+  is an impl-mode follow-up wave. The renames are:
+
+  - `AwaitChild` (line 76) → `AwaitChildRun`
+  - `AwaitExternal` (line 78) → `AwaitToolResult`
+  - `AwaitApproval` (line 79) → `RequiresApproval`
+
+  Call-site count (approximate): `AwaitChild` 0 constructor calls;
+  `AwaitExternal` 0 constructor calls; `AwaitApproval` 0 constructor
+  calls (per audit Wave 2 sibling sweep SBL-HBSM-2). The rename is
+  low-risk because the variants are currently unreached in production
+  (a sibling instance of `F-half-built-state-machine` registered in
+  the same audit).
+
+  ## 5 — Doc-side updates (Wave 4 of the same audit)
+
+  - `docs/L1/agent-service/process.md:171` `SuspendReason.AwaitChildren` → `SuspendReason.AwaitChildRun`.
+  - `docs/L1/agent-service/scenarios.md:83,85` same rename.
+  - `docs/L1/agent-service/logical.md §6` SuspendReason vocabulary table — update to the canonical 6-variant set.
+
+  ## 6 — Precedence settlement record
+
+  Under the audit's 2026-05-27 user directive, this ADR is the
+  canonical text. ADR-0019's original 6-variant block is hereby
+  superseded by ADR-0146 §1 (this section). ADR-0112 Part B mapping
+  table is hereby extended by ADR-0146 §1 (this table is the
+  authoritative wire-protocol ↔ internal mapping).
+consequences:
+  positive:
+    - Closes AUD-EVT-1, SBL-NAME-1, SBL-NAME-2; family `F-discriminator-naming-drift-doc-vs-code` has its largest single-source closure.
+    - 6-variant canonical set is closed under the user's precedence rule; future ADRs adding variants extend rather than rename.
+    - Java surface remains minimal (low-risk rename — variants are currently unreached per audit's SBL-HBSM-2).
+    - Wire ↔ internal mapping (A2A `InterruptType` ↔ `SuspendReason`) is single-sourced in this ADR.
+  negative:
+    - ADR-0019 and ADR-0112 carry stale variant names until amended (Wave 3 of the same audit edits both with `extends: ADR-0146` cross-links).
+    - Java rename is impl-mode follow-up; until it lands, code uses old names and doc uses new names — a transient drift window that the audit explicitly accepts because the variants are unreached.
+alternatives_considered:
+  - alternative: Adopt ADR-0112 Part B mapping verbatim (7 variants including `AwaitChildren` fan-out + `AwaitTool`).
+    rejected_because: |
+      The 2026-05-22 doc declares 5 variants (RateLimited is the legitimate ADR-0070 6th). Including fan-out `AwaitChildren` from the start expands the L1 surface beyond the doc's canonical mapping and re-creates the singular-plural-suffix drift this ADR closes. Fan-out is deferred to a follow-up ADR when it actually lands.
+  - alternative: Edit ADR-0019 in-place to use new names; do not create ADR-0146.
+    rejected_because: |
+      Multiple downstream ADRs (0070, 0074, 0112) carry old names; editing only ADR-0019 leaves the corpus in a 3-ADR conflict. A new ratification ADR cross-linked from each old ADR is structurally cleaner and matches the "precedence settlement" semantics the user invoked.
+  - alternative: Rename in code first, then adjust ADRs.
+    rejected_because: |
+      User directive 2026-05-27 explicitly says "doc wins and the ADR is adjusted". The ADR adjustment is the load-bearing step; code rename follows in impl-mode.
