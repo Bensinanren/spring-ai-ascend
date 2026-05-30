@@ -59,7 +59,7 @@ remains closed.
 | # | Family ID | Title | RC Occurrences | Cleanup |
 |---|---|---|---:|---|
 | 1 | F-numeric-drift | Numeric Drift Across Authority Surfaces | 17 (W11 L2-sink wave moved the graph node/edge baselines + the graph byte-budget ceiling in lockstep) | ⚠️ partial |
-| 2 | F-deleted-module-name-leakage | Deleted-Module-Name Leakage After Refactor | 6 | ✅ structurally addressed (rc17) |
+| 2 | F-deleted-module-name-leakage | Deleted-Module-Name Leakage After Refactor | 7 (W18: design_only Frame Cards leaked a deleted pre-Phase-C module name + the retired orchestration-SPI package per ADR-0158 — Rule 94 / G-24) | ✅ structurally addressed (rc17) |
 | 3 | F-authority-surface-path-drift | Authority-Surface Path Drift After Refactor | 11 (engineport-frame-authority-convergence — old engine.orchestration.spi re-homed to bus.spi.engine per ADR-0158; authority-surface lag) | ⚠️ partial |
 | 4 | F-kernel-vs-implementation-drift | Prevention Rule Kernel vs Implementation Drift | 6 (rc6, rc7, rc11, rc15, rc35-second-pass, rc36) | ⚠️ partial |
 | 5 | F-cross-authority-agreement | Cross-Authority Surface Disagreement | 17 (engineport-frame-authority-convergence — generated facts/contract/product/workspace surfaces divergent at the d66749b engine-boundary merge tip; reconciled by regenerating all derived surfaces from single edited sources) | ✅ structurally addressed (Rule 122/123/124 added for proposal documents; rc55 adds ADR-0140..0145 L1 canonical materialization closure) |
@@ -187,6 +187,7 @@ rule did not scan, because reviewer scope was narrower than defect scope.
 - `**/module-metadata.yaml`
 - `docs/telemetry/policy.md`
 - `spring-ai-ascend-dependencies/module-metadata.yaml`
+- `architecture/docs/L1/frames/*.md`
 
 **Prevention chronology.** Rule 93 (rc9) → Rule 94 (rc9) → Rule 98 (rc10
 broad-corpus widening) → Rule 103 (rc12 deploy entrypoints) → Rule 109
@@ -195,7 +196,15 @@ broad-corpus widening) → Rule 103 (rc12 deploy entrypoints) → Rule 109
 **Open residual.** Future refactors will still leak into new surfaces.
 Rule 110 META + Rule G-9 freshness gate are the backstops; surface
 discovery moves from reactive (reviewer finds it) to proactive
-(prevention rule frontmatter enumerates it).
+(prevention rule frontmatter enumerates it). W18 (2026-05-30) is the
+latest partition: the design_only EngineeringFrame Frame Cards leaked a
+deleted pre-Phase-C module name (Rule 94 / E129) and the retired
+orchestration-SPI package without a historical marker per ADR-0158 (Rule
+G-24 / E189). The Frame-Card consistency gate (Rule 146 / G-29) checks
+fact-citation + identity, not deleted-name leakage, so the names rode in
+under it; fixed truth-first (the ArchUnit tests forbid the
+`com.huawei.ascend.service.platform` package, never the deleted module)
+and the frames surface added to this family.
 
 ---
 
