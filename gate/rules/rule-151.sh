@@ -9,21 +9,24 @@
 # purity as a lane invariant) + §9 (the enforcement-posture ratchet). One
 # CHANGED-FILES-BLOCKING helper that extends the adjudicated layer-purity verdict
 # (the "L0/L1 carries L2/code detail" critique is TRUE) to the capability-status
-# ledger's allowed_claim field. Per the authority cascade (generated facts > DSL >
-# Card/prose) the ledger OUTRANKS the L0/L1 prose Rule G-27 guards, so the same
-# altitude verdict applies at least as strongly: an allowed_claim MUST NOT carry
-# an L1..L8 leaked category, it should NAME the capability identity + cite its
-# ADR/enforcer (D1/D2/D3) and POINT at the detail's home. The helper invents no id
-# and no relationship and never outranks a generated fact (cascade: generated
-# facts > DSL > Card/prose):
+# ledger's free-form narrative fields (allowed_claim + the sibling note). Per the
+# authority cascade (generated facts > DSL > Card/prose) the ledger OUTRANKS the
+# L0/L1 prose Rule G-27 guards, so the same altitude verdict applies at least as
+# strongly: a narrative field MUST NOT carry an L1..L8 leaked category, it should
+# NAME the capability identity + cite its ADR/enforcer (D1/D2/D3) and POINT at the
+# detail's home. The helper invents no id and no relationship and never outranks a
+# generated fact (cascade: generated facts > DSL > Card/prose):
 #   * gate/lib/check_status_claim_altitude.py (E201, slug status_claim_altitude) —
 #     loads the SHARED leaked-category vocabulary from
 #     docs/governance/layer-purity-policy.yaml and IMPORTS the canonical trigger
 #     library (TRIGGERS + the _is_d3_enforcer_citation carve-out) from
 #     gate/lib/check_layer_purity.py (one verdict, one probe set, three surfaces),
-#     walks every allowed_claim value (recording each claim's capability key +
-#     source line), and reports a leaked-category trigger not redeemed by a
-#     still-open, capability-matched row in the per-surface grandfather list
+#     co-scans every allowed_claim AND note value (both are un-altitude-guarded
+#     narrative on the same surface — scoping to allowed_claim alone left a
+#     by-file-type hole at field granularity; recording each value's capability
+#     key + leaking field + source line), and reports a leaked-category trigger
+#     not redeemed by a still-open, capability-matched row in the per-surface
+#     grandfather list
 #     docs/governance/layer-purity-status-ledger-grandfather.yaml. Each grandfather
 #     row is CAPABILITY-PRECISE (it pins the ledger capability key it freezes) so a
 #     row tolerates exactly one claim and retiring it re-arms the gate on that

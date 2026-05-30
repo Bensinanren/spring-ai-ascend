@@ -73,22 +73,29 @@ active_guidance:
 
 non_authoritative_legacy_content:
   - >
-    The concrete tie-break ALGORITHM — that same-@Order ties break on
-    Class.getName() in lexicographic-ascending order, the HookDispatcher.sort(...)
-    signature, and the literal comparator expression — is L2 FunctionPoint detail
-    and is NOT L1 authority; the live code-symbol facts, the L2 hook-dispatch frame,
-    and the hook contract own the comparator, not this view. L1 retains only the
-    invariant that the tie-break is deterministic and framework-independent.
+    The concrete tie-break ALGORITHM (the discriminator, its comparator
+    expression, and its lexicographic direction) is L2 FunctionPoint detail and is
+    NOT L1 authority; it is owned by the live code-symbol fact
+    code-symbol/com-huawei-ascend-middleware-hookdispatcher, the L2 hook-dispatch
+    frame architecture/docs/L2/fp-hook-dispatch/, and the hook contract, NOT
+    restated here. L1 retains only the invariant that the tie-break is
+    deterministic and framework-independent. (This view names the algorithm's home
+    rather than inlining it: the readable-interpretation layer carries no verbatim
+    L2 detail and invents no comparator signature.)
   - >
-    The concrete registration-order rule — lower @Order fires earlier, BEFORE_*
-    ascending, AFTER_* reverse (LIFO unwind) — is L2 FunctionPoint detail and is NOT
-    L1 authority; the per-position dispatch sequence is owned at L2 / the hook
-    contract. L1 retains only the invariant that ordering is deterministic and
-    registration-driven rather than framework-discovery-driven.
+    The concrete per-position registration-order rule (which @Order direction each
+    hook position fires in, and the unwind order) is L2 FunctionPoint detail and is
+    NOT L1 authority; the dispatch sequence is owned by the hook contract anchor
+    docs/contracts/engine-hooks.v1.yaml#ordering and the L2 hook-dispatch frame
+    architecture/docs/L2/fp-hook-dispatch/, NOT restated here. L1 retains only the
+    invariant that ordering is deterministic and registration-driven rather than
+    framework-discovery-driven.
   - >
-    The named test classes (HookOrderTieBreakDeterminismTest,
-    SafetyCriticalNotOnErrorHookTest) are a line-level test inventory; the live
-    test-fact inventory owns which tests assert these behaviors, not this ADR.
+    Which named test classes assert the tie-break determinism and the ON_ERROR
+    safety-critical carve-out is a test inventory owned by the live test facts
+    architecture/facts/generated/tests.json (resolved through the FunctionPoint
+    test_refs[]); this view delegates that inventory to the fact layer rather than
+    enumerating test-class names.
   - >
     The "Today vs Target" wording (Fail discarded today; Fail -> Run.FAILED at a W2
     Telemetry target) is a point-in-time roadmap snapshot, not a governing clause;
@@ -117,18 +124,29 @@ review_notes: >
   invariant on every hook chain (two-level failure semantics + the REQUIREMENT of a
   deterministic, registration-driven ordering with a framework-independent
   tie-break), classified here as L0 governance_invariant. The concrete ordering
-  ALGORITHM — the registration-order direction (BEFORE_* ascending / AFTER_* reverse)
-  and the Class.getName() lexicographic tie-break — is L2 FunctionPoint detail and is
-  recorded as non_authoritative_legacy_content rather than active_guidance, the same
-  L5-filter-ordering mechanism the L0 allow-list grandfathers as
-  LPV-l0-hook-chain-ordering (migrate_to the L2 hook-dispatch frame + the hook
-  contract). active_guidance now states only the deterministic-tie-break INVARIANT;
-  the HookDispatcher.sort comparator expression and the two named test classes are
-  likewise non-authoritative, with the live code/test facts and the canonical hook
-  contract owning that detail. AMBIGUITY FLAGGED FOR HUMAN REVIEW: the
-  decision is equally defensible as an L1 cross_frame_contract, since its canonical
-  authority is a contract surface (engine-hooks.v1.yaml#failure_propagation) spanning
-  the middleware frame and the invocation boundary. The view chose L0
+  ALGORITHM — the per-position registration-order direction and the lexicographic
+  tie-break discriminator — is L2 FunctionPoint detail (an L5-filter-ordering
+  mechanism) and is recorded as non_authoritative_legacy_content rather than
+  active_guidance; this view NAMES that algorithm's home (the L2 hook-dispatch frame
+  architecture/docs/L2/fp-hook-dispatch/ + the hook contract) rather than restating
+  the algorithm, so the readable-interpretation layer hosts no verbatim L2 detail
+  and invents no comparator signature or test-class name (the authority chain bars
+  this layer from minting IDs or relationships, so it also bars it from inlining a
+  verbatim L2 copy). active_guidance now states only the deterministic-tie-break
+  and deterministic-ordering INVARIANTS; the comparator algorithm is owned by the
+  live code-symbol fact code-symbol/com-huawei-ascend-middleware-hookdispatcher and
+  the fp-hook-dispatch frame, and which tests assert these behaviors is owned by the
+  live test facts (architecture/facts/generated/tests.json), not enumerated here.
+  Drain note (layer-purity-leakage family): the L0 allow-list previously
+  grandfathered the same L5 ordering mechanism as LPV-l0-hook-chain-ordering, but
+  that row was removed 2026-05-30 once the L0 §4 #16 body was drained to delegation
+  form; this view is the ADR-lane analogue of that drain — the legacy clauses are
+  reduced to the invariant + a fact-ID/contract/L2 pointer rather than frozen behind
+  a dated grandfather row, so there is no verbatim leak left to quarantine and no
+  sunset_date is owed. AMBIGUITY FLAGGED FOR HUMAN REVIEW: the decision is equally
+  defensible as an L1 cross_frame_contract, since its canonical authority is a
+  contract surface (engine-hooks.v1.yaml#failure_propagation) spanning the
+  middleware frame and the invocation boundary. The view chose L0
   governance_invariant because the raw ADR sites the two-level semantics in the L0
   kernel constraint as an invariant over every hook; the reconcile/ledger step may
   prefer the L1/contract reading. current_state is unambiguous (partial_guidance).

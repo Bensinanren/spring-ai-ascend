@@ -1,0 +1,133 @@
+# Normalized ADR view — ADR-0062 (Trace ↔ Run ↔ Session Identity, N:M with session_id).
+#
+# READABLE INTERPRETATION LAYER over the raw ADR source (raw_path below). The raw
+# ADR-0062 is a Markdown decision; it is NOT carried as its own node in the
+# YAML-only fact layer (architecture/facts/generated/adrs.json parses docs/adr/*.yaml
+# only — it appears there only as a relates_to reference from ADR-0061). This view
+# re-states the relationships the raw ADR declares and curates which clauses still
+# govern; it INVENTS NO ADR ids and NO graph edges, and it never outranks a
+# generated fact. Authority cascade is unchanged: generated facts > DSL > Card/prose.
+#
+# Why this view exists: the raw ADR-0062 Decision (§1/§3/§5) and Enforcers sections
+# carry L3-persistence + L7-method-signature detail (a named Flyway migration, a
+# column-nullability transition, a 32-char-hex literal, the RunContext accessor
+# signatures, the four-field MDC carrier shape, and a SQL backfill expression). The
+# 2026-05-29 engineering-governance systemic-remediation review adjudicated that
+# detail as layer-purity leakage at the cited surfaces. ADR-0062 is the normative
+# Authority for L0 §4 #54, whose grandfather row (LPV-l0-run-trace-id-notnull in
+# docs/governance/layer-purity-temporary-violations.yaml) tolerates a TIME-BOXED
+# COPY of exactly this detail. L0 §0.6's conflict-resolution clause routes a reader
+# to "the normalized-ADR views (docs/adr/normalized/ADR-*.yaml), which quarantine
+# exactly this detail under non_authoritative_legacy_content / l2_refs per ADR-0160":
+# this view is that quarantine. The demotion recorded here GOVERNS; the §4 #54 inline
+# form is the grandfathered time-boxed violation, not independent standing authority.
+#
+# Schema: docs/governance/adr-governance-policy.yaml (required fields + closed
+# five-value current_state set + per-state invariants) AND docs/governance/
+# adr-taxonomy.yaml (decision_level / decision_type altitude). Authority: ADR-0160.
+# Enforced by Rule G-28 via gate/lib/check_adr_taxonomy.py.
+#
+# UTC date for any date field (CI runs the gate in UTC; Rule G-9.a).
+
+adr: ADR-0062
+raw_path: docs/adr/0062-trace-run-session-identity.md
+
+current_state: partial_guidance
+decision_level: L1
+affected_levels:
+  - L1
+  - L2
+  - contract
+  - facts
+  - gate
+view: logical
+decision_type: cross_frame_contract
+
+clean_decision_summary: |
+  Trace, Run, and Session are three independent identities related N:M (the
+  Langfuse model), chosen over 1:1 (run_id == trace_id) when the Telemetry
+  Vertical scope was finalised. The standing cross-frame contract is the identity
+  RELATIONSHIP and the correlation SURFACE: every persisted Run is correlatable to
+  exactly one Trace and N:M to Sessions; the RunContext SPI is the single in-kernel
+  carrier that exposes the trace / span / session correlation identity to runtime
+  code; and a child Run spawned across a suspend boundary inherits its parent's
+  Session while federating to a new Trace whose root span records the parent linkage
+  as an attribute. The concrete persistence realisation of that relationship (the
+  named Flyway migration, the column-nullability progression, the 32-char-hex
+  rendering, the MDC carrier field set, and the reversal-path SQL) is L2 / contract /
+  generated-fact detail, NOT part of the standing L1 decision (see
+  non_authoritative_legacy_content).
+
+active_guidance:
+  - "N:M Trace ↔ Run ↔ Session identity: Trace, Run, and Session are independent identities; multiple Runs MAY share a Trace or a Session via a common session correlation. The 1:1 (run_id == trace_id) shape was considered and rejected; reversal to 1:1 is additive and bounded, so the more expressive N:M model is the standing choice (Rule D-1 strongest-interpretation default aligning with Langfuse's conversation/session concept)."
+  - "RunContext as the single correlation carrier: the RunContext SPI is the in-kernel boundary identity that exposes the Run's trace / span / session correlation to runtime code (companion to the TraceContext SPI of ADR-0061). Naming this public SPI as a boundary identity is the L1 commitment; the typed accessor SHAPES are owned by the runcontext SPI-shape fact (fact_refs), not restated as authority here."
+  - "Child-Run trace federation across suspend: a Run suspended via SuspendForChild spawns a child Run that inherits the parent's Session (mandatory) and, under the default policy, federates to a NEW Trace whose root span records the parent-trace linkage as an attribute rather than nesting inside a still-open parent trace (so long suspends do not break fixed-window exporters or inflate tail-sampling buffers). An opt-in alternate — continue the parent Trace as a nested sub-span for sub-second suspends — is reserved for a later wave. This is the structural federation choice; the discriminator field and span-attribute naming are L2 sequence detail."
+  - "Cross-suspend trace propagation lives on the persisted Run aggregate, not in volatile context: a child resumed long after its parent suspended locates the parent's Trace by reading the parent Run row, and the resume envelope carries the Session so a fresh process can re-establish correlation at resume time. This is consistent with the ADR-0024 suspension-write-atomicity invariant — the trace identity is part of the atomic suspend write."
+  - "Posture-gated nullability as a STRUCTURAL obligation (the realisation is demoted): trace correlation is mandatory and session correlation is mandatory under the research/prod posture from the W2 boundary, while both MAY be absent at the L1.x design horizon. The structural commitment 'every Run is trace-correlatable; session correlation becomes mandatory under hardened posture' stays at L1; the exact nullable→NOT-NULL column transition, its wave boundary phrasing, and the migration that effects it are persistence detail (see non_authoritative_legacy_content)."
+
+non_authoritative_legacy_content:
+  - "The named Flyway migration `V2__run_trace_id_notnull.sql` (raw §1, Enforcers) and the SQL backfill of legacy rows with a random hex value before the NOT-NULL ALTER are L3-persistence detail. They migrate to the Flyway migration sources + architecture/docs/L2/telemetry-vertical/. As of the DESIGN-phase horizon the named migration does not yet exist on disk (the live V2 migration is the idempotency-dedup one); the filename is a forward-looking design pointer, which is precisely why it is not standing L1 authority."
+  - "The exact column-nullability TRANSITION wording — `Run.traceId` nullable at L1.x and NOT NULL from W2, `Run.sessionId` nullable at L1.x and W2 dev but NOT NULL in posture=research/prod from W2 (raw §1) — is persistence-schema detail. The DEFENSIBLE structural residue (trace correlation mandatory; session correlation mandatory under hardened posture) is restated in active_guidance; the column-by-column nullability mechanics belong to architecture/docs/L2/telemetry-vertical/ and the persistence schema."
+  - "The `Run.traceId` value form `32-char lowercase hex` (the OTel-native 16-byte trace ID rendered; raw §1, §4, Enforcers) is a field-encoding L3 detail owned by the persistence schema + architecture/docs/L2/telemetry-vertical/, not an L1 identity invariant."
+  - "The RunContext accessor SIGNATURES `RunContext.traceId() : String`, `RunContext.spanId() : String`, `RunContext.sessionId() : String`, and `RunContext.traceContext()` (raw §2) are L7-method-signature detail. They are fact-owned on the runcontext SPI-shape fact (fact_refs: code-symbol/com-huawei-ascend-bus-spi-engine-runcontext public_methods[]); the L1 commitment is that RunContext EXPOSES the correlation identity, not the typed accessor list. The null-tolerance contract on the session accessor at the design horizon is likewise the SPI-shape fact's concern."
+  - "The four-field MDC carrier SHAPE and ORDER populated at the HTTP edge — tenant_id, then trace_id, then span_id, then run_id, with named Logback filters and the session_id exclusion (raw §5) — is L4/L2 runtime-wire detail owned by docs/telemetry/policy.md + architecture/docs/L2/telemetry-vertical/process.md + architecture/docs/L2/run-http-contract/development.md. The structural carrier commitment (RunContext is the single in-kernel correlation carrier) stays; the MDC field set / order / filter names are not L1 authority."
+  - "The reversal-cost recipe's SQL backfill expression `Run.traceId = REPLACE(Run.runId::text, '-', '')` and the DROP-COLUMN / accessor-removal steps (raw §6) are L3-persistence + L2-migration mechanics that demonstrate reversibility; the standing L1 statement is only that the N:M→1:1 reversal is additive and bounded. The concrete SQL belongs to the persistence schema + architecture/docs/L2/telemetry-vertical/."
+
+supersedes: []
+superseded_by: ""
+
+dsl_refs: []
+l0_constraint_refs:
+  - "§4 #54 (Trace ↔ Run ↔ Session identity, N:M) — ADR-0062 is the normative Authority for this L0 constraint; the §4 #54 inline persistence/signature detail is the grandfathered time-boxed copy (LPV-l0-run-trace-id-notnull), demoted here."
+l1_refs:
+  - "RunContext SPI (the in-kernel correlation carrier; bus.spi.engine)"
+  - "Run aggregate (the persisted carrier of trace / session correlation; ADR-0142 single-owner)"
+l2_refs:
+  - "architecture/docs/L2/telemetry-vertical/ (persistence realisation: trace_id rendering, the nullable→NOT-NULL column transition, the MDC carrier field set, child-Run trace-federation sequence)"
+  - "architecture/docs/L2/run-http-contract/development.md (HTTP-edge MDC population at the request boundary)"
+  - "docs/telemetry/policy.md (MDC slice + trace-context propagation policy)"
+contract_refs:
+  - "docs/contracts/engine-hooks.v1.yaml (the telemetry emission surface the correlation identity flows through)"
+  - "docs/contracts/run-event.v1.yaml (the Run event surface carrying run/trace/session correlation)"
+fact_refs:
+  - "code-symbol/com-huawei-ascend-bus-spi-engine-runcontext (the RunContext SPI-shape fact owning the traceId/spanId/sessionId/traceContext accessor signatures)"
+gate_refs:
+  - "RunContextIdentityAccessorsTest (ArchUnit — asserts RunContext exposes the correlation accessors; the typed assertion is fact-anchored, the rule is the mechanism)"
+  - "RunTraceSessionConsistencyIT (integration — asserts the N:M identity + child-Run federation behaviour)"
+  - "Rule G-28 (ADR Normalization — this view satisfies the taxonomy + state invariants)"
+  - "LPV-l0-run-trace-id-notnull (docs/governance/layer-purity-temporary-violations.yaml — the time-boxed grandfather row, sunset 2026-06-30, that the lane-purity gate tolerates for the §4 #54 inline copy this view demotes)"
+
+review_notes: |
+  Lane: L4-FRAME (ADR-0159) — a cross-frame correlation contract spanning the
+  RunContext SPI, the Run aggregate, and the Telemetry Vertical. decision_level L1
+  with decision_type cross_frame_contract is in-altitude for L1 (the allowed L1 set
+  includes cross_frame_contract; the same classification used for the sibling
+  cross-frame ADRs ADR-0074 / ADR-0145 / ADR-0146). The N:M identity RELATIONSHIP
+  and the RunContext correlation SURFACE are the standing L1 commitments; naming the
+  public SPI as a boundary identity and citing the two enforcers as the mechanism are
+  the DEFENSIBLE L1 forms.
+
+  current_state is partial_guidance (NOT active_guidance) deliberately. The
+  remediation ledger (docs/governance/adr-remediation-ledger.yaml) records ADR-0062
+  at the coarse "ledger-only" granularity as active_guidance — a read of the raw
+  decision before any view existed. This finer normalized classification splits that
+  single state: the N:M identity decision still GOVERNS (active_guidance clauses),
+  while the raw Decision/Enforcers sections additionally carry lower-level
+  persistence + method-signature content that this view demotes to
+  non_authoritative_legacy_content — which is exactly the partial_guidance meaning
+  ("some guidance still active; some content is lower-level"). This mirrors the
+  ADR-0068 precedent (ledger/raw self-label active vs. view partial_guidance because
+  a sub-clause is non-authoritative legacy). The ledger normalized_path backfill and
+  the docs/adr/normalized/index.yaml enumeration + counts are owned by the
+  index/ledger reconcile step, not by this view.
+
+  Demotion scope = exactly the loci the 2026-05-29 review verdict names and the
+  LPV-l0-run-trace-id-notnull grandfather row tolerates: the V2__run_trace_id_notnull.sql
+  Flyway reference, the column-nullability transition, the 32-char-lowercase-hex
+  literal, the RunContext.traceId()/spanId()/sessionId()/traceContext() accessor
+  signatures, the four-field MDC carrier shape, and the REPLACE(...) backfill SQL. The
+  l2_refs / contract_refs / fact_refs above are the migrate_to homes that row already
+  names (architecture/facts/generated/code-symbols.json + Flyway migrations +
+  architecture/docs/L2/telemetry-vertical/). No new ADR id or graph edge is minted;
+  this view re-states and curates only. Flagged for human review to confirm the
+  cross_frame_contract / L1 / logical altitude choice and the partial_guidance split.

@@ -259,9 +259,11 @@ beyond mocks (W2); per-tenant MCP tool registry (W3); ActionGuard chain
 
 - **Virtual-thread + JDBC pinning** — HikariCP wired alongside the
   durable idempotency store; watch pool metrics under load.
-- **Filter ordering under Spring Security 6 / Boot 4** — the edge filter
-  chain is order-pinned; the route contract integration test proves the
-  chain end-to-end (verification material).
+- **Edge filter-chain composition under Spring Security 6 / Boot 4** — the
+  edge filter chain is composition-sensitive; the route-contract integration
+  test proves it end-to-end (verification material). The concrete chain
+  ordering is owned by the L2 design (`../L2/run-http-contract/development.md`),
+  not this risk note.
 - **Idempotency claim→completion window** (W2 trigger) — an orchestrator
   crash between claim and completion leaves the row claimed until TTL;
   acceptable at L1, with a W2 completion hook per ADR-0057 §4.

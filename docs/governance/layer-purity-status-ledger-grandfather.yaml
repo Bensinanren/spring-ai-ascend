@@ -109,20 +109,34 @@
 #                     extracted (e.g. the structural capability identity, the
 #                     ADR/enforcer citation, the development-view file index).
 #
-# Coverage note. The E201 advisory scan over the 149 allowed_claim values found
-#   19 leaks; all 19 are frozen below so the changed-files-blocking rung is clean
-#   (a reconcile-step edit to the ledger does not trip the gate on pre-existing
-#   debt). Eight are verdict_named; eleven are siblings in the same families. One
-#   verdict-cited locus -- run_status_transition_validator
-#   ("RunStateMachine.validate(from, to)" + "Run.withStatus/withSuspension call
-#   validate") -- does NOT trip E201: the shared L7 / L1-call-chain probes
-#   require a typed-arg / arrow-syntax shape ("m(args) -> ReturnType",
-#   "a(...) -> b("), which the untyped-arg + prose-verb claim lacks, exactly as
-#   the same probes do not fire on that prose at L0/L1. A grandfather row that
-#   suppresses no live finding is dead weight under the closed-list discipline,
-#   so that locus is intentionally NOT given a row; the reconcile step should
-#   still drain its method-signature / call-chain prose when it cleans the
-#   neighbouring rows, and a future probe widening (if any) would surface it.
+# Coverage note. The E201 scan now co-scans BOTH narrative fields (allowed_claim
+#   + the sibling note) across the 155 narrative-field values, and the round-3
+#   detector widening (the L7 record-component-constructor probe + the tight-paren
+#   `via Type.method(` call-hop probe) catches method-shape leaks the prior
+#   JVM-typed-only / arrow-only probes could not see. 23 leaks are frozen below so
+#   the changed-files-blocking rung is clean (a reconcile-step edit to the ledger
+#   does not trip the gate on pre-existing debt): the original 19 (eight
+#   verdict_named, eleven siblings) PLUS four detector-recoupling siblings the
+#   round-3 widening newly surfaces -- LPV-SL-posture-gate-failure-ctor (882),
+#   LPV-SL-encoded-payload-ctor (946), LPV-SL-checkpoint-save-hop (988),
+#   LPV-SL-skill-resource-matrix-ctor (1096). One verdict-cited locus --
+#   run_status_transition_validator ("RunStateMachine.validate(from, to)" +
+#   "Run.withStatus/withSuspension call validate") -- still does NOT trip E201:
+#   the shared L7 / L1-call-chain probes require a typed-arg / arrow / abutting-
+#   paren shape ("m(args) -> ReturnType", "a(...) -> b(", "via Type.method("),
+#   which the untyped-arg + prose-verb claim lacks, exactly as the same probes do
+#   not fire on that prose at L0/L1. A grandfather row that suppresses no live
+#   finding is dead weight under the closed-list discipline, so that locus is
+#   intentionally NOT given a row; the reconcile step should still drain its
+#   method-signature / call-chain prose when it cleans the neighbouring rows.
+#   The four round-3 false positives the widening initially over-fired (the
+#   prose-paren `via TraceContext.sessionId (existing)` / `via StateDelta.new
+#   Messages (ADR-0112)` / `via SuspendReason.RateLimited (ADR-0019)` hops at
+#   898/906/1507, and the file-path-as-method-run `method names in module
+#   architecture/docs/L0/...` at 1184) are NOT grandfathered: an over-fire on a
+#   defensible carrier/path identity is a probe defect, fixed by tightening the
+#   probe (require the call paren to abut the name; require whitespace-flanked
+#   slashes with no path char in the run), not a leak to tolerate.
 
 schema_version: 1
 authority: ADR-0159
@@ -384,3 +398,65 @@ violations:
     sunset_date: 2026-08-31
     verdict_named: false
     defensible_part: "The capability identity (Run gains traceId + sessionId columns; backward-compatible; verified-by RunTraceSessionConsistencyIT as a D3 citation) stays; the JVM-typed field inventory and the 12-arg-constructor parameter shape are code-symbol material the claim should point at, not restate."
+
+  # ======================================================================
+  # Detector-recoupling siblings (convergence scan round 3).
+  # The round-3 detector widening (gate/lib/check_layer_purity.py: the
+  # L7 record-component-constructor probe + the tight-paren `via Type.method(`
+  # call-hop probe) newly surfaces four design-only capability claims whose
+  # method SHAPE was inlined in the allowed_claim narrative -- the same
+  # method-signature / call-hop family the verdict named, in a surface form the
+  # prior JVM-typed-only / arrow-only probes could not see. Each row freezes a
+  # leak the WIDENED gate detects TODAY (so each earns its place -- a row over
+  # zero live leak is the dead weight the closed-list discipline forbids). They
+  # are sibling leaks the 2026-05-29 verdict did not enumerate, so they share the
+  # 2026-08-31 sibling tier the other non-verdict-named rows use.
+  # ======================================================================
+
+  - id: LPV-SL-posture-gate-failure-ctor
+    layer: STATUS-LEDGER
+    file: docs/governance/architecture-status.yaml
+    capability: reference_adapter_posture_gate_diagnostic
+    locus: "reference_adapter_posture_gate_diagnostic allowed_claim : 882"
+    category: L7-method-signature
+    trigger: "PostureGateFailure(adapterName, posture, requiredPosture, reason) - the record-component constructor field-name argument list"
+    migrate_to: "docs/contracts/*.v1.yaml (SPI) + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The capability identity (posture-gated reference adapters fail with a structured diagnostic instead of a raw BeanCreationException; the delta.15 closure pointer; deferred to W0.5) stays; the PostureGateFailure record-component constructor parameter list is a code-symbol / contract signature the claim should point at, not restate. The round-3 record-component-constructor probe fires on the field-name argument list."
+
+  - id: LPV-SL-encoded-payload-ctor
+    layer: STATUS-LEDGER
+    file: docs/governance/architecture-status.yaml
+    capability: payload_codec_spi
+    locus: "payload_codec_spi allowed_claim : 946"
+    category: L7-method-signature
+    trigger: "EncodedPayload(bytes, codecId, typeRef) persistence contract - the record-component constructor field-name argument list (the PayloadCodec id()/type()/encode/decode method surface in the same claim is a bare method-name set, not a typed signature inventory the probe matches)"
+    migrate_to: "docs/contracts/*.v1.yaml (SPI) + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The capability identity (the PayloadCodec / Payload / RunEvent SPI boundary identities; the sealed-type taxonomy as a structural constraint; the Rule 22 gate as a D3 citation; ADR-0022) stays; the EncodedPayload record-component constructor parameter list migrates to the contract + code-symbols fact. The detail's home is also the by-ADR altitude demotion LPV-ADR-0022 (docs/governance/adr-remediation-ledger.yaml) which freezes the same signatures at ADR authority."
+
+  - id: LPV-SL-checkpoint-save-hop
+    layer: STATUS-LEDGER
+    file: docs/governance/architecture-status.yaml
+    capability: checkpoint_ownership_boundary
+    locus: "checkpoint_ownership_boundary allowed_claim : 988"
+    category: L1-method-call-chain
+    trigger: "executors persist ... via Checkpointer.save(); Orchestrator persists Run row via RunRepository.save() - the named persistence-write hops (the round-3 tight-paren `via Type.method(` probe fires on `via Checkpointer.save(`)"
+    migrate_to: "architecture/docs/L2/fp-run-state-transition/ (suspend-leg write sequence) + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The capability identity (the checkpoint/run-row ownership split at suspension; the single-call-stack sequential-atomicity invariant per ADR-0024; ADR-0025) stays; the named Checkpointer.save() / RunRepository.save() write hops are call-and-persistence detail owned by the fp-run-state-transition L2 sink + the code-symbols fact. Sibling of the L0 LPV-l0-suspension-write-atomicity row (same write hops at L0 authority) and the L1 LPV-l1-as-logical-cas-chain row."
+
+  - id: LPV-SL-skill-resource-matrix-ctor
+    layer: STATUS-LEDGER
+    file: docs/governance/architecture-status.yaml
+    capability: skill_resource_matrix
+    locus: "skill_resource_matrix allowed_claim : 1096"
+    category: L7-method-signature
+    trigger: "SkillResourceMatrix(tenantQuotaKey, globalCapacityKey, tokenBudget, wallClockMs, cpuMillis, maxMemoryBytes, concurrencyCap) - the seven-field record-component constructor argument list"
+    migrate_to: "docs/contracts/*.v1.yaml (SPI) + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The capability identity (the resource-admission envelope a skill declares; the two-axis quota + cost/concurrency model; ADR-0052) stays; the SkillResourceMatrix seven-field record-component constructor argument list migrates to the contract + code-symbols fact. This is the same admission tuple the L0 §4 #27 Skill-SPI drain points at via the `skill_resource_matrix` ledger key (the L0 prose already delegates the typed shape here), so the typed shape's home is this ledger key's eventual L2/contract migration, not the claim narrative."

@@ -417,18 +417,25 @@ repo-wide.
    or in-memory/reference implementations.
 
 8. **Per-operation resilience routing**: `ResilienceContract` maps `operationId`
-   (e.g. `"llm-call"`, `"vector-search"`) to a `ResiliencePolicy(cbName, retryName, tlName)`.
+   (e.g. `"llm-call"`, `"vector-search"`) to a `ResiliencePolicy` (a policy triple) — whose
+   record components and resolver descriptor are L2 detail owned by the resilience SPI contract
+   (`docs/contracts/contract-catalog.md §2`) and the code fact
+   `code-symbol/com-huawei-ascend-service-runtime-resilience-spi-resiliencepolicy`.
    Call sites use Resilience4j annotations with the resolved names. Spring
    `@ConfigurationProperties` wiring is deferred to W2 LLM gateway.
 
 9. **Dual-mode runtime + interrupt-driven nesting**: both `GraphExecutor` (deterministic
    state machine) and `AgentLoopExecutor` (ReAct-style) use one interrupt primitive
    (`SuspendSignal`) to delegate to a child run. Ownership at suspension is split:
-   executors persist executor-local **resume cursors** (keys `_graph_next_node`,
-   `_loop_resume_iter`, `_loop_resume_state`) via `Checkpointer.save()`; the
-   `Orchestrator` persists the **Run row** (status=SUSPENDED) via `RunRepository.save()`.
-   Both writes must be observable atomically (ADR-0024 — sequential at W0, transactional
-   at W2). `Run.mode` discriminates `GRAPH` vs `AGENT_LOOP`; `Run.parentRunId` +
+   executors own the executor-local **resume cursors** (keys `_graph_next_node`,
+   `_loop_resume_iter`, `_loop_resume_state`) written through the `Checkpointer` SPI,
+   while the `Orchestrator` owns the **Run row** reaching `status=SUSPENDED` through the
+   `RunRepository` SPI. The two writes must be observable atomically (#23, ADR-0024 —
+   sequential at W0, transactional at W2); the persistence-write hops and the call
+   ordering that realizes the atomicity are owned by the L2 sinks
+   [`../L2/fp-suspend-resume/`](../L2/fp-suspend-resume/) and
+   [`../L2/fp-run-state-transition/`](../L2/fp-run-state-transition/), not here. `Run.mode`
+   discriminates `GRAPH` vs `AGENT_LOOP`; `Run.parentRunId` +
    `Run.parentNodeKey` encode the nesting chain. Durability tiers: in-memory (dev/W0)
    → Postgres checkpoint (W2) → Temporal child workflow (W4). Layered SPI taxonomy:
    stable cross-tier core (Layer 1: `Run`, `RunStatus`, `RunRepository`, `RunContext`,
@@ -532,8 +539,10 @@ repo-wide.
     (`eval_harness_contract`).
 
 19. **Fan-out, suspend-reason taxonomy, and suspend-deadline contract.** `SuspendSignal` MUST
-    carry a sealed `SuspendReason` identifying why the run is suspended. Every reason MUST carry a
-    `deadline() : Instant` at which the suspended run transitions to `EXPIRED` if not resumed.
+    carry a sealed `SuspendReason` identifying why the run is suspended. Every reason MUST expose the
+    instant at which the suspended run transitions to `EXPIRED` if not resumed; the deadline
+    accessor's signature is owned by the SPI-shape fact
+    `code-symbol/com-huawei-ascend-service-runtime-resilience-spi-suspendreason`, not L0.
     Sealed variants: `ChildRun(UUID childRunId, ChildFailurePolicy, Instant deadline)` |
     `AwaitChildren(List<UUID> childRunIds, JoinPolicy, ChildFailurePolicy, Instant deadline)` |
     `AwaitTimer(Instant fireAt)` | `AwaitExternal(String callbackToken, Instant deadline)` |
@@ -648,17 +657,25 @@ repo-wide.
     SANDBOXED_CODE_INTERPRETER`) defining the dispatch path. See ADR-0029, `cognition_action_separation`.
 
 27. **Skill SPI: lifecycle, ResourceMatrix, posture-mandatory sandbox.** Every external capability
-    MUST be registered via the `Skill` SPI with: (a) lifecycle methods `init / execute / suspend /
-    teardown` — `teardown` is called unconditionally even when `execute` throws; (b)
-    `SkillResourceMatrix` declaring `(tenantQuotaKey, globalCapacityKey, tokenBudget, wallClockMs,
-    cpuMillis, maxMemoryBytes, concurrencyCap)` — the Orchestrator validates declared limits before
-    `init()` AND enforces the subset supported by the dispatch path (see ADR-0038 §4 tiers); (c)
-    `SkillTrustTier (VETTED | UNTRUSTED)` — in research/prod posture, `UNTRUSTED`
-    skills MUST route through a non-`NoOp` `SandboxExecutor` (ADR-0018); startup gate asserts
-    (Rule 27, deferred W3). Every `execute()` returns a `SkillCostReceipt` for Rule 13 (P1). When
-    a Run is SUSPENDED, `Skill.suspend()` releases heavy resources; `Skill.resume(token)` reconnects
-    before the next `execute()`. Implementation deferred to W2 (SPI) + W3 (mandatory sandbox).
-    See ADR-0030, `skill_spi_lifecycle`, `skill_resource_matrix`, `untrusted_skill_sandbox_mandatory`.
+    MUST be registered via the `Skill` SPI — that mandatory-registration boundary is the L0 identity.
+    L0 owns these capability *invariants*, not the SPI's method inventory or signatures: (a)
+    **managed lifecycle** — release runs unconditionally even when an invocation throws, so no skill
+    leaks resources on the failure path; (b) **resource admission** — every skill declares its
+    capacity envelope and the Orchestrator validates those limits before init AND enforces the subset
+    the dispatch path supports (ADR-0038 §4 tiers); (c) **posture-mandatory sandbox** keyed on
+    `SkillTrustTier (VETTED | UNTRUSTED)` — in research/prod an `UNTRUSTED` skill MUST route through a
+    non-`NoOp` `SandboxExecutor` (ADR-0018; startup gate Rule 27, deferred W3); (d) **cost
+    accounting** — every invocation emits a cost receipt consumed by the budget governor (§4 #13, P1);
+    and (e) **suspend/resume continuity** — a SUSPENDED Run's skill releases heavy resources and
+    reconnects before its next invocation, so suspension never strands a live handle. The concrete
+    *shape* below these invariants — the lifecycle method run (`init` / `execute` / `suspend` /
+    `teardown`), the per-method signatures, and the `SkillContext` / `SkillInvocation` /
+    `SkillResourceMatrix` carriers — is SPI-signature detail owned by the generated fact
+    `code-symbol/com-huawei-ascend-middleware-skill-spi-skill` `public_methods[]`, the contract
+    [`docs/contracts/skill-definition.v1.yaml`](../../../docs/contracts/skill-definition.v1.yaml),
+    and the capability-ledger key `skill_resource_matrix` (ADR-0052), not this constraint.
+    Implementation deferred to W2 (SPI) + W3 (mandatory sandbox). See ADR-0030, ADR-0127,
+    `skill_spi_lifecycle`, `skill_resource_matrix`, `untrusted_skill_sandbox_mandatory`.
 
 28. **Three-track channel isolation.** The L0 invariant is **physical three-track isolation of the
     W2 northbound streaming surface** (§4 #11): the surface is split into three independently

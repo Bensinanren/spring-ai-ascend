@@ -84,7 +84,8 @@ fact_refs:
 - Perform model/tool translation or intercept hooks — that is `EF-TRANSLATION-INTERCEPT`.
 - Define the wire-level shape of the state transition (DFA tables, terminal-state set,
   cancel-vs-complete race classification, persistence/RLS) — that runtime detail is L2,
-  not restated here (see §7 link-down).
+  not restated here; it lives in the frame's L2 sink `architecture/docs/L2/fp-run-state-transition/`
+  (linked under Cross-references).
 
 **Owned state** — the data/state this frame is the structural home for:
 
@@ -209,7 +210,8 @@ This frame anchors exactly one FunctionPoint:
 > with the move validated against the `RunStatus` alphabet. The participating boundary
 > types are named below as identities; the method-level compare-and-set signature, the
 > DFA transition table, and the cancel-vs-complete ordering are L2 implementation detail
-> — see the link-down in §7, not restated here.
+> — they live in the frame's L2 sink `architecture/docs/L2/fp-run-state-transition/`
+> (linked under Cross-references), not restated here.
 
 | Anchor (boundary identity) | Fact ID |
 |---|---|
@@ -260,4 +262,5 @@ enforcer that holds it — a mechanism citation, not a behaviour catalogue):
 - The test→FunctionPoint verification edge: [`../../../features/verification.dsl`](../../../features/verification.dsl) (`testRunStateMachineTest -> fpRunStateTransition`).
 - Generated facts cited above (authority over this prose): [`../../../facts/generated/`](../../../facts/generated/).
 - Collective structural map: [`../engineering-frames.md`](../engineering-frames.md).
-- Canonical runtime deep-dive for this frame's responsibility (Session & Task Manager, ADR-0138 Layer 2/3): [`../agent-service/features/session-task-manager.md`](../agent-service/features/session-task-manager.md) + [`../agent-service/logical.md`](../agent-service/logical.md) §3 (RunStatus state machine). This frame has no dedicated `architecture/docs/L2/<slug>/` sink yet; the runtime DFA/persistence detail it forbids at L1 lives in those agent-service deep-dives.
+- This frame's L2 detail sink (the anchored `FP-RUN-STATE-TRANSITION` runtime detail — the compare-and-set method contract, the DFA transition table, the terminal-state set, the cancel-vs-complete race classification, and the persistence realization): [`../../L2/fp-run-state-transition/`](../../L2/fp-run-state-transition/). This is the canonical altitude-L2 home for the runtime DFA/persistence detail this card forbids at L1; the migration target is that sink, not a sibling L1 document.
+- Additional background (grandfathered L1 per-view deep-dives, not the L2 home): the Session & Task Manager feature deep-dive [`../agent-service/features/session-task-manager.md`](../agent-service/features/session-task-manager.md) and the logical-view RunStatus state-machine annotation [`../agent-service/logical.md`](../agent-service/logical.md) §3. These remain L1 documents (still under the grandfathered layer-purity locus and slated to drain into the L2 sink above); they are context pointers, not the normative L2 sink.

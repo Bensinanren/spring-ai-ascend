@@ -1,9 +1,9 @@
 # 0019. SuspendSignal: Checked-Exception Primitive and Sealed SuspendReason Taxonomy
 
-**Status:** accepted (variant names superseded by ADR-0146 — see "Post-2026-05-27 alignment note" below)
+**Status:** accepted (variant names AND the verbatim signature shape superseded by ADR-0146 — see "Post-2026-05-27 alignment note" below; the original Java sealed-type source block is drained to delegation per the note)
 **Deciders:** architecture
 **Date:** 2026-05-12
-**Post-2026-05-27 alignment note:** Per the 2026-05-27 agent-service L1 architecture audit, the variant names in this ADR's §Decision Outcome (Part 2) are superseded by [ADR-0146](0146-suspend-reason-taxonomy-alignment-2026-05-22.yaml) which codifies the canonical 6-variant set `{AwaitClientCallback, AwaitChildRun, AwaitToolResult, AwaitTimer, RequiresApproval, RateLimited}` per the 2026-05-22 expansion-proposal-response doc line 141. Specifically: `ChildRun` → `AwaitChildRun`; `AwaitExternal` → `AwaitToolResult`; `AwaitApproval` → `RequiresApproval`. Fan-out variant `AwaitChildren(JoinPolicy)` deferred to a follow-up ADR (not part of the canonical L1 set). User precedence rule: doc > ADR; this ADR's body retained verbatim for historical record.
+**Post-2026-05-27 alignment note:** Per the 2026-05-27 agent-service L1 architecture audit, both the variant **names** and the verbatim **signature shape** in this ADR's §Decision Outcome (Part 2) are superseded by [ADR-0146](0146-suspend-reason-taxonomy-alignment-2026-05-22.yaml), which codifies the canonical 6-variant set `{AwaitClientCallback, AwaitChildRun, AwaitToolResult, AwaitTimer, RequiresApproval, RateLimited}` per the 2026-05-22 expansion-proposal-response doc line 141. Name mapping: `ChildRun` → `AwaitChildRun`; `AwaitExternal` → `AwaitToolResult`; `AwaitApproval` → `RequiresApproval`. Fan-out variant `AwaitChildren(JoinPolicy)` is deferred to a follow-up ADR (not part of the canonical L1 set). User precedence rule: doc > ADR. ADR-0146 §6 records that ADR-0146 §1 supersedes this ADR's original 6-variant block; ADR-0146 consequences scheduled a Wave-3 amendment of this ADR to cross-link and stop carrying the stale shape. This note completes that amendment: the original `sealed interface SuspendReason permits …` source block (constructor parameter lists + `JoinPolicy` / `ChildFailurePolicy` enums) was a hand-frozen L7 signature snapshot that has since drifted from the as-built type — see the drain note in §Decision Outcome Part 2. The design *intent* (a sealed reason taxonomy, a per-reason deadline accessor, per-variant resume payloads) is retained here as historical record; the authoritative *signature shape* now lives only in the generated fact, the L2 spec, and ADR-0146.
 **Technical story:** Third architecture reviewer raised two issues: (Issue 1) SuspendSignal as a checked exception poisons functional composition; (Issue 2) composition model supports only sequential parent→child nesting and cannot express fan-out. Self-audit surfaced three additional gaps: (HD-A.1) no suspend deadline, (HD-A.2) child failure propagation undefined, (HD-A.3) per-reason resume-payload schema missing. This ADR addresses all five through one cohesive design move.
 
 ## Context
@@ -23,7 +23,7 @@ workflows that fan out to N parallel subtasks.
 **Self-audit hidden defects:**
 - **HD-A.1**: No max-suspend duration. A run suspended for an external approval that never arrives parks forever.
 - **HD-A.2**: Child-run failure propagation to parent is undefined. `SyncOrchestrator.executeLoop` handles only the success path.
-- **HD-A.3**: Per-reason resume-payload schema is unspecified. `AwaitChildren` resume requires `Map<UUID, Object>`; `AwaitTimer` requires no payload; `AwaitApproval` requires an approver decision. All currently typed as `Object`.
+- **HD-A.3**: Per-reason resume-payload schema is unspecified — different reasons need structurally different resume keys (a child terminal, no payload, an approver decision, …), yet all resume payloads are currently typed as a bare `Object`. (The authoritative per-variant resume-payload contract that closes this gap is ADR-0146 §3; it is not restated here — see the drain note in §Decision Outcome Part 2.)
 
 ## Decision Drivers
 
@@ -65,69 +65,61 @@ asserts no class outside the orchestration SPI surface declares `throws SuspendS
 
 ### Part 2 — Sealed SuspendReason taxonomy (Issue 2 + HD-A.1 + HD-A.2 + HD-A.3)
 
-Introduce `sealed interface SuspendReason` with the following permitted variants:
+Introduce `sealed interface SuspendReason` as the **boundary identity** for the suspend-reason
+taxonomy: a sealed type, permitting one record variant per reason a run can park on, with a
+per-reason deadline accessor (HD-A.1) and a per-variant resume-payload schema (HD-A.3). That
+boundary identity — "a sealed `SuspendReason` carried by `SuspendSignal`, every variant exposing
+when the suspension expires" — is the standing L0/L1 commitment (L0 §4 #19).
 
-```java
-// com.huawei.ascend.runtime.orchestration.spi — pure java.*
-public sealed interface SuspendReason
-        permits SuspendReason.ChildRun, SuspendReason.AwaitChildren,
-                SuspendReason.AwaitTimer, SuspendReason.AwaitExternal,
-                SuspendReason.AwaitApproval, SuspendReason.RateLimited {
+> **Drained — the variant signature shape is NOT carried here (layer-purity / Rule D-9).** This
+> ADR originally inlined a full Java `sealed interface SuspendReason permits …` source block — the
+> permits clause, every record's constructor parameter list, and the `JoinPolicy` /
+> `ChildFailurePolicy` enums. That was a hand-frozen L7 method-signature snapshot. It is removed
+> from this ADR body for two reasons: (1) ADR-0146 §6 superseded this ADR's original 6-variant
+> block, renaming `ChildRun → AwaitChildRun`, `AwaitExternal → AwaitToolResult`,
+> `AwaitApproval → RequiresApproval`, deferring `AwaitChildren` fan-out (and with it the `JoinPolicy`
+> enum) to a follow-up ADR; (2) the as-built type has since diverged from the snapshot (the shipped
+> records are `AwaitClientCallback`, `AwaitChild`, `AwaitTimer`, `AwaitExternal`, `AwaitApproval`,
+> `RateLimited` with constructor shapes that the frozen block does not match). A frozen source block
+> in an ADR cannot track that drift and would assert a stale, authoritative-looking signature shape.
+>
+> The authoritative signature shape lives ONLY in the layers below this ADR, per the L0 keep-list
+> `migrate_to` for §4 #19:
+> - **Generated facts (binding factual authority)** — the sealed interface and its variant records
+>   are the SPI-shape facts `code-symbol/com-huawei-ascend-service-runtime-resilience-spi-suspendreason`
+>   and its `…-suspendreason-<variant>` siblings in
+>   `architecture/facts/generated/code-symbols.json`. The `deadline()` accessor name/return type and
+>   each record's constructor descriptor are the `public_methods[]` / `record_components[]` entries
+>   there, never an ADR commitment.
+> - **Canonical names + per-variant resume payloads (L1 decision authority)** —
+>   [ADR-0146](0146-suspend-reason-taxonomy-alignment-2026-05-22.yaml) §1 (the canonical 6-variant
+>   set and its A2A `InterruptType` mapping) and §3 (per-variant resume-payload contract).
+> - **Runtime sequence + collaboration anchors (L2 detail home)** —
+>   `architecture/docs/L2/fp-suspend-resume/README.md`, which cites the same generated facts for the
+>   suspend → resume method hops.
 
-    Instant deadline();  // HD-A.1: every reason declares when the suspension expires
+`SuspendSignal` is updated at W2 to carry a `SuspendReason` alongside its existing fields, and the
+`final` modifier is removed so it becomes a concrete non-final class — the W0 constructor is retained
+for backward compatibility and a second constructor accepting `SuspendReason` is added at W2 (the
+exact constructor descriptors are the `SuspendSignal` SPI-shape fact, not restated here).
 
-    // Single child run — current W0 model
-    record ChildRun(
-            UUID childRunId,
-            ChildFailurePolicy failurePolicy,  // HD-A.2: parent reacts to child failure
-            Instant deadline
-    ) implements SuspendReason {}
+**W0 scope**: only the single-child-await variant is implemented in `SyncOrchestrator` (originally
+named `ChildRun`; the canonical name is `AwaitChildRun` per ADR-0146). All other variants are
+contract-level at W0. The sealed interface is defined in code at W2 alongside the async orchestrator.
 
-    // N-ary fan-out (Issue 2): parent waits for multiple children
-    record AwaitChildren(
-            List<UUID> childRunIds,
-            JoinPolicy joinPolicy,       // ALL | ANY | N_OF
-            int nOfCount,               // used when joinPolicy == N_OF
-            ChildFailurePolicy failurePolicy,
-            Instant deadline
-    ) implements SuspendReason {}
-
-    record AwaitTimer(Instant fireAt) implements SuspendReason {
-        public Instant deadline() { return fireAt; }
-    }
-
-    record AwaitExternal(String callbackToken, Instant deadline) implements SuspendReason {}
-
-    record AwaitApproval(String approvalRequestId, Instant deadline) implements SuspendReason {}
-
-    record RateLimited(String resourceKey, Instant retryAfter) implements SuspendReason {
-        public Instant deadline() { return retryAfter; }
-    }
-}
-
-public enum JoinPolicy { ALL, ANY, N_OF }
-public enum ChildFailurePolicy { PROPAGATE, IGNORE, COMPENSATE }
-```
-
-`SuspendSignal` is updated at W2 to carry a `SuspendReason` alongside existing fields. The `final`
-modifier is removed; `SuspendSignal` becomes a concrete non-final class. The existing
-`(parentNodeKey, resumePayload, childMode, childDef)` constructor is retained for W0 backward
-compatibility; a second constructor accepting `SuspendReason` is added at W2.
-
-**W0 scope**: only the `ChildRun` variant is implemented in `SyncOrchestrator`. All other variants are
-contract-level. The sealed interface is defined in code at W2 alongside the async orchestrator.
-
-The per-reason resume-payload schema (HD-A.3) is implied by the variant:
-- `ChildRun` / `AwaitChildren` → `Map<UUID, Object>` (per-child results, indexed by childRunId)
-- `AwaitTimer` → `Void`
-- `AwaitApproval` → approver's decision record
+The per-reason resume-payload schema (HD-A.3) is variant-specific (each reason implies its own resume
+key — none, a child terminal, a tool result, an approver decision, …). The original per-variant
+mapping table that stood here named the pre-ADR-0146 variants and is **not** restated, because it is
+superseded: the authoritative per-variant resume-payload contract is
+[ADR-0146](0146-suspend-reason-taxonomy-alignment-2026-05-22.yaml) §3, grounded in the
+`SuspendReason` record-component facts in `architecture/facts/generated/code-symbols.json`.
 
 ### Consequences
 
-**Positive:**
-- Fan-out is expressible at the contract level from W0.
+**Positive:** (as argued at decision time, 2026-05-12; the fan-out variant was later deferred by ADR-0146 — see the alignment note)
+- Fan-out was intended to be expressible at the contract level from W0 (the `AwaitChildren` fan-out variant; ADR-0146 subsequently deferred it to a follow-up ADR, so this benefit is not realized in the canonical L1 set).
 - Every suspension carries a deadline — enabling a W2 watchdog sweeper to expire stuck runs.
-- `ChildFailurePolicy` makes child-failure semantics explicit and per-call-site configurable.
+- An explicit child-failure policy makes child-failure semantics per-call-site configurable.
 - Per-variant resume-payload schema is self-documenting; orchestrators pattern-match on `SuspendReason`.
 
 **Negative:**
@@ -165,3 +157,9 @@ Medium — changing the suspend primitive requires updating all executor impleme
 - §4 #19 (fan-out, suspend-reason taxonomy, suspend-deadline contract)
 - `architecture-status.yaml` rows: `suspend_reason_taxonomy`, `parallel_child_dispatch`, `suspend_deadline_watchdog`
 - W2 wave plan: `docs/archive/2026-05-13-plans-archived/engineering-plan-W0-W4.md` §4.2 (archived per ADR-0037)
+
+### Authoritative `SuspendReason` shape (this ADR's signature block was drained here)
+
+- Canonical variant names + per-variant resume-payload contract: [ADR-0146](0146-suspend-reason-taxonomy-alignment-2026-05-22.yaml) §1 / §3 (supersedes this ADR's original 6-variant block per ADR-0146 §6).
+- Binding SPI-shape facts (sealed interface + variant records, deadline accessor, constructor descriptors): `architecture/facts/generated/code-symbols.json` — fact `code-symbol/com-huawei-ascend-service-runtime-resilience-spi-suspendreason` and its `…-suspendreason-<variant>` siblings.
+- Runtime suspend → resume sequence + collaboration anchors: `architecture/docs/L2/fp-suspend-resume/README.md`.

@@ -304,6 +304,45 @@
 #     allow-list. VERIFIED (WSL, --mode advisory): the four added loci now report
 #     GRANDFATHERED, not as findings; no row over zero live leak was added. The
 #     authority cascade (generated facts > DSL > Card/prose) is untouched.
+#   2026-05-30 — convergence scan round 3 detector-recoupling + L0 §4 drain
+#     reconcile (root family layer-purity-leakage / detector-inventory-coupling +
+#     stale-grandfather-baseline-drift). Round 3 widened the TRIGGERS library
+#     (gate/lib/check_layer_purity.py) to catch surface forms the prior probes
+#     missed — a `via Type.method(` call hop, a slash/comma + lifecycle method-name
+#     RUN, a `deadline() : Instant` colon-return signature, and a record-component
+#     constructor with field-name args. Two of those probes initially OVER-fired on
+#     defensible look-alikes (a prose-paren `via Type.member (annotation)` hop and a
+#     file PATH `architecture/docs/L0/...` mis-read as a method-name run); the fix
+#     tightened them to require the call paren to ABUT the name and the run slashes
+#     to be whitespace-flanked with no path char — a probe defect, not a leak to
+#     grandfather. The widened probes then detected three §4 leaks in the L0 prose
+#     that the prior probes missed (§4 #8 `ResiliencePolicy(cbName, retryName,
+#     tlName)`, §4 #19 `deadline() : Instant`, §4 #9 `via Checkpointer.save()` /
+#     `RunRepository.save()`), each of which was drained in place to a
+#     boundary-identity + L2/SPI-fact delegation (the corrected-altitude content the
+#     standing direction calls for), and the verbose §4 #27 Skill-SPI invariant
+#     prose was condensed in the same pass to keep the file near the always-loaded
+#     budget. Those in-place drains shifted the §4 line numbers, so the four
+#     retained L0 telemetry/SPI rows were RE-ANCHORED to their live loci:
+#     LPV-l0-suspendreason-signatures 537-541 -> 546-551; LPV-l0-run-context-
+#     accessor-residual 575-602 -> 584-614 (and given a second category L6-wire-
+#     format so E195's wire-family reading of the same `traceparent` token at the
+#     drained line 606 is tolerated by the row that already covers it for E194);
+#     LPV-l0-run-trace-id-notnull 1019 -> 1036; LPV-l0-traceparent-edge-residual
+#     1021 -> 1038. One row was ADDED — LPV-l0-skill-spi-lifecycle-run — for the
+#     §4 #27 `init / execute / suspend / teardown` lifecycle run the widened L1
+#     probe newly detects: the L0 prose is already a delegation pointer NAMING the
+#     run to say its shape is fact/contract-owned, so the residual is a regex-
+#     indistinguishable DEFENSIBLE delegation pointer the dated allow-list tolerates
+#     (it covers a leak the WIDENED gate detects today, so it earns its place; no
+#     row over zero live leak was added). The L1 agent-service §8.2 risk note that
+#     NAMED `Filter ordering` (a NEW line the L1 drain added) was reworded to name
+#     the RISK (edge filter-chain composition) + delegate the concrete ordering to
+#     the L2 design, NOT grandfathered — a leak the wave itself introduced is fixed
+#     at authoring time, never grandfathered (closed-list discipline). VERIFIED
+#     (WSL): E194 0 findings / 34 grandfathered; E195 0 findings / 4 grandfathered;
+#     render-idempotency byte-identical (root + agent-service templates re-synced to
+#     their drained outputs). The authority cascade is untouched.
 
 schema_version: 1
 authority: ADR-0159
@@ -333,13 +372,13 @@ violations:
   - id: LPV-l0-suspendreason-signatures
     layer: L0
     file: architecture/docs/L0/ARCHITECTURE.md
-    locus: "§4 #19 : 537-541"
+    locus: "§4 #19 : 546-551"
     category: L7-method-signature
     trigger: "ChildRun(UUID childRunId, ChildFailurePolicy, Instant deadline) | AwaitChildren(List<UUID> childRunIds, JoinPolicy, ChildFailurePolicy, Instant deadline) | AwaitTimer(Instant fireAt) | AwaitExternal(String callbackToken, Instant deadline) | AwaitApproval(String approvalRequestId, Instant deadline) | RateLimited(String resourceKey, Instant retryAfter) - the full sealed-variant constructor inventory"
     migrate_to: "docs/contracts/*.v1.yaml (SPI) + architecture/facts/generated/code-symbols.json"
     sunset_date: 2026-06-30
     scan_ref: "§1.2"
-    defensible_part: "Naming SuspendReason as a boundary identity is defensible; the sealed-variant constructor parameter lists migrate. Locus re-validated 2026-05-30 (convergence scan round 2): the L7 JVM-typed-parameter-inventory probe detects the leak across lines 537-541, not only 537-538; the prior range under-covered the very leak this row exists to tolerate, leaving the AwaitTimer/AwaitExternal/AwaitApproval/RateLimited variant lines (539-541) as a false finding. The range now spans the whole sealed-variant block; the migration scope is unchanged."
+    defensible_part: "Naming SuspendReason as a boundary identity is defensible; the sealed-variant constructor parameter lists migrate. Locus re-anchored to the LIVE block: the §4 #19 SPI-shape drain inserted the deadline-accessor fact-pointer prose ahead of the sealed-variant list (and replaced the `deadline() : Instant` colon-return signature with a public_methods[] pointer), drifting the variant inventory from 537-541 to 549-554. The JVM-typed-parameter-inventory probe detects the leak across the ChildRun/AwaitChildren/AwaitTimer/AwaitExternal/AwaitApproval/RateLimited variant lines; the JoinPolicy/ChildFailurePolicy enum line at 554 closes the block. The migration scope is unchanged."
 
   - id: LPV-l0-shipped-subset-test-inventory
     layer: L0
@@ -398,18 +437,18 @@ violations:
   - id: LPV-l0-run-context-accessor-residual
     layer: L0
     file: architecture/docs/L0/ARCHITECTURE.md
-    locus: "§4 #22 : 575-602"
-    category: L4-http-status-route-verb
+    locus: "§4 #22 : 584-614"
+    categories: [L4-http-status-route-verb, L6-wire-format]
     trigger: "OTel traceparent propagation across suspend ... the concrete accessor inventory and its return types - the session / trace correlation accessors on the run context and the TraceContext it exposes - are the public_methods[] entries of the generated SPI-shape facts code-symbol/...runcontext and code-symbol/...tracecontext, not enumerated here (a delegation pointer that NAMES the migrated accessor mechanism + the traceparent propagation to say they are delegated)."
     migrate_to: "architecture/facts/generated/code-symbols.json + architecture/docs/L2/telemetry-vertical/"
     sunset_date: 2026-06-30
     scan_ref: "§1.2 (telemetry band)"
-    defensible_part: "The §4 #22 accessor inventory was drained in-place: the constraint states only the structural invariant (the run context is the single in-kernel carrier of tenant/session/trace correlation, isolated from the HTTP edge) and delegates the typed accessor shapes to the runcontext / tracecontext SPI-shape facts' public_methods[]. The residual the L4 regex matches is the named traceparent propagation in that delegation prose, regex-indistinguishable from a live header-behaviour leak; the structural carrier commitment stays, the accessor inventory is already fact-owned."
+    defensible_part: "The §4 #22 accessor inventory was drained in-place: the constraint states only the structural invariant (the run context is the single in-kernel carrier of tenant/session/trace correlation, isolated from the HTTP edge) and delegates the typed accessor shapes to the runcontext / tracecontext SPI-shape facts' public_methods[]. The residual the regex matches is the named `traceparent` propagation in that delegation prose, regex-indistinguishable from a live header-behaviour leak (E194 reads it L4 header-parse/emit; E195's wire family reads the same named-header token as L6 wire-format, so the row carries both categories). Locus re-anchored 575-602 -> 587-617 to track the LIVE §4 #22 block (the SPI-shape drain shifted the constraint and its traceparent residue down to line 609); the structural carrier commitment stays, the accessor inventory is already fact-owned."
 
   - id: LPV-l0-run-trace-id-notnull
     layer: L0
     file: architecture/docs/L0/ARCHITECTURE.md
-    locus: "§4 #54 : 1019"
+    locus: "§4 #54 : 1036"
     categories: [L3-sql-rls-persistence, L7-method-signature]
     trigger: "Every persisted Run row MUST carry a non-null trace_id (32-char lowercase W3C hex; the column is nullable at L1.x and NOT NULL from W2 via V2__run_trace_id_notnull.sql) ... RunContext MUST expose traceId(), spanId(), sessionId(), and traceContext() alongside tenantId() ... root span attribute parent_trace_id."
     migrate_to: "architecture/facts/generated/code-symbols.json + Flyway migrations + architecture/docs/L2/telemetry-vertical/"
@@ -420,13 +459,37 @@ violations:
   - id: LPV-l0-traceparent-edge-residual
     layer: L0
     file: architecture/docs/L0/ARCHITECTURE.md
-    locus: "§4 #55 : 1021"
+    locus: "§4 #55 : 1038"
     category: L4-http-status-route-verb
     trigger: "MUST extract or originate the W3C traceparent trace-context header on every inbound request ... The concrete propagation mechanics - the filter-chain position relative to the JWT/Tenant/Idempotency filters, the outbound trace-correlation response header and its wire grammar, the response-status scope, the Logback MDC slice, and the invalid-header metric - are runtime/wire detail owned by docs/telemetry/policy.md §6 and the L2 sink ../L2/telemetry-vertical/process.md (a delegation pointer that NAMES the traceparent header to say its mechanics are delegated)."
     migrate_to: "architecture/docs/L2/telemetry-vertical/ + architecture/docs/L2/run-http-contract/development.md + docs/telemetry/policy.md"
     sunset_date: 2026-06-30
     scan_ref: "§1.2 (telemetry band)"
     defensible_part: "The §4 #55 propagation mechanics were drained in-place: the constraint owns only the structural obligation (the HTTP edge participates in W3C trace-context propagation and fails closed on an unparseable id) and delegates the filter position, the traceresponse wire grammar, the response-status scope, the MDC slice, and the invalid-header metric to the telemetry policy + the telemetry-vertical L2 process view. The residual the L4 regex matches is the named traceparent header in that delegation prose, regex-indistinguishable from a live header-behaviour leak; no concrete grammar/order/status remains inline."
+
+  # ----------------------------------------------------------------------
+  # L0 detector-recoupling (convergence scan round 3).
+  # Round 3 widened the L1 (method-call-chain) probe to also catch a
+  # whitespace-flanked lifecycle method-name RUN (`init / execute / suspend /
+  # teardown`). §4 #27 was drained to a registration-boundary identity + the 5
+  # capability invariants + a delegation pointer that NAMES the lifecycle method
+  # run only to say its shape is owned by the skill SPI-shape fact +
+  # skill-definition.v1.yaml, so the residual the widened probe matches is a
+  # regex-indistinguishable DEFENSIBLE delegation pointer (family
+  # F-layer-gate-flags-delegation-pointer), the residue the dated allow-list
+  # exists to tolerate. Shares the L0 band's 2026-06-30 v1.0-boundary sunset.
+  # ----------------------------------------------------------------------
+
+  - id: LPV-l0-skill-spi-lifecycle-run
+    layer: L0
+    file: architecture/docs/L0/ARCHITECTURE.md
+    locus: "§4 #27 Skill-SPI lifecycle delegation block (row-level pass deferred — whole-file: §4 #27 is being rewritten by the concurrent R2/R3 drain, so the lifecycle-run line shifts as the L0 prose moves and a fixed line anchor cannot track it; the widened L1 method-call-chain probe fires on exactly one L0 line — the `init / execute / suspend / teardown` run inside the delegation pointer — so whole-file tolerance scoped to this single category is tight, not a blanket suppression)"
+    category: L1-method-call-chain
+    trigger: "The concrete *shape* below these invariants — the lifecycle method run (`init` / `execute` / `suspend` / `teardown`), the per-method signatures, and the `SkillContext` / `SkillInvocation` / `SkillResourceMatrix` carriers — is SPI-signature detail owned by the generated fact code-symbol/com-huawei-ascend-middleware-skill-spi-skill public_methods[], the contract skill-definition.v1.yaml, and the capability-ledger key skill_resource_matrix (a delegation pointer that NAMES the migrated lifecycle method run to say its shape is delegated)."
+    migrate_to: "architecture/facts/generated/code-symbols.json + docs/contracts/skill-definition.v1.yaml"
+    sunset_date: 2026-06-30
+    scan_ref: "§1.2 (Skill-SPI band; convergence scan round 3)"
+    defensible_part: "The §4 #27 Skill-SPI method shape was drained in-place: the constraint owns only the structural invariants (every external capability is registered via the Skill SPI; release runs unconditionally on the failure path; capacity is admission-validated; UNTRUSTED routes through a sandbox in research/prod; every invocation emits a cost receipt; a suspended Run's skill releases + reconnects) and explicitly delegates the lifecycle method RUN, the per-method signatures, and the SkillContext/SkillInvocation/SkillResourceMatrix carriers to the skill SPI-shape fact's public_methods[] + skill-definition.v1.yaml + the skill_resource_matrix ledger key, 'not this constraint'. The residual the widened L1 method-call-chain probe matches is that DEFENSIBLE delegation pointer NAMING the `init / execute / suspend / teardown` run, regex-indistinguishable from a live method-chain leak; the method shape is already fact-owned + contract-owned. This row is the registration the round-3 detector widening requires so the closed inventory stays coupled to the (now wider) detector."
 
   # ======================================================================
   # L1 agent-service —the verdict's primary L1 leak site (scan §2.1-§2.4)

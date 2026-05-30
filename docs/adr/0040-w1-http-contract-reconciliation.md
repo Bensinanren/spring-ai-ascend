@@ -3,6 +3,11 @@
 **Status:** accepted
 **Deciders:** architecture
 **Date:** 2026-05-13
+**Normalized view:** [`docs/adr/normalized/ADR-0040.yaml`](normalized/ADR-0040.yaml) — the
+readable-interpretation layer that records the current authority state
+(`active_guidance`) and quarantines the wire-level route × verb × status matrix
+into `non_authoritative_legacy_content`, delegating it to `contract-op/createrun`,
+`contract-op/getrun`, `contract-op/cancelrun`.
 **Technical story:** Post-seventh L0 readiness follow-up (P1.2) surfaced three contradictions
 across five active documents (`agent-service/ARCHITECTURE.md`, `ARCHITECTURE.md`,
 `docs/contracts/contract-catalog.md`, `docs/contracts/http-api-contracts.md`,
@@ -56,6 +61,29 @@ Three contradictory signals existed before this ADR:
 **Chosen option:** Option 1 — header + JWT cross-check (additive W1 hardening).
 
 ### Canonical W1 HTTP Contract (§4 #37)
+
+> **Altitude quarantine (layer-purity).** What this ADR DECIDES is a single
+> cross-document *invariant*: tenant identity is cross-checked (a JWT claim is
+> added alongside the caller-asserted tenant, never substituted for it); a run
+> begins in its DFA-initial status; cancellation is a state transition on a
+> surviving run record, not resource deletion. That invariant is the standing
+> authority and is owned at L0 (`ARCHITECTURE.md` §4 #37 — "L0 owns the
+> invariant, not the wire detail").
+>
+> The concrete verbs, routes, status codes, header names, and the literal initial
+> `RunStatus` value reproduced in the fenced blocks below are *runtime-contract
+> detail* at the `L4-http-status-route-verb` altitude. They are NOT current
+> authority through this ADR; their authority is the OpenAPI surface — facts
+> `contract-op/createrun`, `contract-op/getrun`, `contract-op/cancelrun` (sourced
+> from `docs/contracts/openapi-v1.yaml`) — whose readable expansion is the L2 sink
+> [`architecture/docs/L2/run-http-contract/`](../../architecture/docs/L2/run-http-contract/).
+> The L0 §4 #37 prose and the L1 `agent-service` runs-API matrix were already
+> drained to that delegation (the L1 copy is grandfathered as
+> `LPV-l1-as-runs-api-matrix`, sunset 2026-07-31); this banner restores the same
+> discipline at the normative origin so the matrix below reads as quarantined
+> historical reference, not as live wire authority. The normalized view
+> ([`normalized/ADR-0040.yaml`](normalized/ADR-0040.yaml)) carries the same
+> quarantine in machine-readable form.
 
 **Tenant model:**
 ```

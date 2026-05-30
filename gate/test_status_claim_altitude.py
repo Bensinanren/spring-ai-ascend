@@ -14,6 +14,11 @@ ledger + the per-surface grandfather list) in a temp directory and assert the
 verdict for each case. Mirrors the standalone harness pattern of
 gate/test_layer_purity.py and the sibling map/readiness checks.
 
+It also locks the CO-SCAN of the sibling ``note:`` field: both ``allowed_claim``
+and ``note`` are un-altitude-guarded narrative on the same surface, so a leak in
+a ``note`` is detected and grandfatherable exactly as one in an ``allowed_claim``
+(the matcher is field-agnostic, keyed on capability + category).
+
 Run:  python3 gate/test_status_claim_altitude.py
 Exit: 0 when every case passes; 1 on the first failure.
 """
@@ -85,17 +90,34 @@ capabilities:
     allowed_claim: "Design only -- a tenant-scoped dedup capability exists; the SPI identity is the boundary."
 """
 
+# A second synthetic ledger where the leak lives in a ``note:`` field rather than
+# ``allowed_claim:`` — the by-file-type hole the co-scan closes. ``cap_note`` has
+# a clean allowed_claim but a note that restates an ON CONFLICT clause (L3); a
+# bare ``note`` under a non-capability top-level key is also clean prose.
+_LEDGER_NOTE_YAML = """\
+version: 1
+generated_at: 2026-05-30
+repository_counts:
+  note: "Canonical counts derived from the modules list; 8 reactor modules, no leaked detail."
+capabilities:
+  cap_note:
+    status: design_accepted
+    shipped: false
+    note: "Status note -- dedup uses INSERT ... ON CONFLICT (tenant_id, key) DO NOTHING in the W2 migration."
+    allowed_claim: "Design only -- a tenant-scoped dedup capability exists; the SPI identity is the boundary."
+"""
+
 # A sunset comfortably in the future so rows are open regardless of run date, and
 # one comfortably in the past for the expiry case.
 _FUTURE = "2099-12-31"
 _PAST = "2000-01-01"
 
 
-def _stage(root: Path, *, grandfather_yaml: str) -> None:
+def _stage(root: Path, *, grandfather_yaml: str, ledger_yaml: str = _LEDGER_YAML) -> None:
     gov = root / "docs/governance"
     gov.mkdir(parents=True, exist_ok=True)
     (gov / "layer-purity-policy.yaml").write_text(_POLICY_YAML, encoding="utf-8")
-    (gov / "architecture-status.yaml").write_text(_LEDGER_YAML, encoding="utf-8")
+    (gov / "architecture-status.yaml").write_text(ledger_yaml, encoding="utf-8")
     (gov / "layer-purity-status-ledger-grandfather.yaml").write_text(
         grandfather_yaml, encoding="utf-8"
     )
@@ -275,6 +297,48 @@ def test_unknown_category_is_config_error() -> None:
         )
 
 
+# ---------------------------------------------------------------------------
+# Co-scan of the sibling ``note:`` field. The leak lives in a note, not an
+# allowed_claim; the scan must SEE it (the by-file-type hole the widening closes)
+# and full-blocking must fire when it is ungrandfathered.
+# ---------------------------------------------------------------------------
+def test_note_field_leak_is_detected() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _stage(
+            root,
+            ledger_yaml=_LEDGER_NOTE_YAML,
+            grandfather_yaml="schema_version: 1\nauthority: ADR-0159\nlast_updated: 2026-05-30\nstatus: advisory\nlist_closed: true\nviolations: []\n",
+        )
+        rc = _run(root, "full-blocking")
+        _check(
+            "note_field_l3_leak_fires_full_blocking",
+            rc == 1,
+            f"rc={rc} (expected 1; the cap_note ON CONFLICT leak lives in a note: field, which is now co-scanned)",
+        )
+
+
+# ---------------------------------------------------------------------------
+# A capability-matched, open grandfather row tolerates a ``note:`` leak exactly
+# as it does an ``allowed_claim`` leak — the matcher is field-agnostic, keyed on
+# capability + category.
+# ---------------------------------------------------------------------------
+def test_note_field_leak_is_grandfatherable() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _stage(
+            root,
+            ledger_yaml=_LEDGER_NOTE_YAML,
+            grandfather_yaml=_grandfather(_row("cap_note", "L3-sql-rls-persistence")),
+        )
+        rc = _run(root, "full-blocking")
+        _check(
+            "note_field_leak_tolerated_by_capability_row",
+            rc == 0,
+            f"rc={rc} (expected 0; an open cap_note/L3 row freezes the note: leak)",
+        )
+
+
 def main() -> int:
     tests = [
         test_capability_of_dotted_path,
@@ -285,6 +349,8 @@ def main() -> int:
         test_expired_row_does_not_suppress,
         test_capability_less_row_is_config_error,
         test_unknown_category_is_config_error,
+        test_note_field_leak_is_detected,
+        test_note_field_leak_is_grandfatherable,
     ]
     for t in tests:
         t()

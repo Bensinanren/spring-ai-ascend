@@ -270,28 +270,57 @@ WIRE_POINTER_RE = re.compile(
 #
 # The layer-purity VERDICT KEEPS, at L0/L1, the DEFENSIBLE act of "citing an
 # ArchUnit / enforcer as the mechanism" (policy D3). The companion E194 helper
-# spares such a citation from its L8 probe via _is_d3_enforcer_citation; once
-# E195 grows the same bullet/table inventory probes (so the two helpers cover
-# the same leak surface), it MUST spare the SAME citation, or the convergence
-# would over-fire in the other direction — flagging a single `*ArchTest`
-# bullet that E194 (and the verdict) treat as a defensible enforcer identity.
-# These mirror the E194 carve-out one-for-one:
+# spares such a citation from its L8 probe via _is_d3_enforcer_citation; E195
+# spares the SAME citations so the two gates that encode one verdict do not
+# disagree on a defensible enforcer identity.
 #
-#   * an ArchUnit architecture-test name (suffix ArchTest / ArchUnitTest /
-#     PurityTest) IS an enforcer, never a behaviour catalogue;
-#   * a line carrying a mechanism clause ("enforced by ...", "ArchUnit `...`",
-#     "(enforcer E<n>)") that enumerates NO behaviour test is a pure
-#     enforcer-id citation; and
-#   * a constraint that cites its enforcing test(s) via an explicit
-#     enforcement / FQN-lock clause (Rule R-C.a), is NOT an inventory STRUCTURE
-#     (table row / test-leading bullet), and names at most
-#     _D3_CITATION_MAX_TESTS behaviour tests, is a mechanism citation.
+# These shapes are VERDICT-EQUIVALENT to the E194 carve-out, not byte-for-byte
+# identical, by necessity: E195 carries one extra positive probe E194 lacks — an
+# inline COMMA-RUN of 2+ `*Test`/`*IT`/`*Spec` tokens on a single line (the
+# `test_inventory` family's first pattern). E194's L8 probe only fires on an
+# inventory STRUCTURE (a markdown table row, a test-leading bullet, or a
+# named-test-plus-behaviour-verb clause), so E194 never even matches a bare
+# comma-run of enforcer class names — e.g. the L0 §2 module-dependency line
+# "... (enforced by ApiCompatibilityTest, RuntimeMustNotDependOnPlatformTest,
+# OrchestrationSpiArchTest, ... ArchUnit rules)". E195's comma-run probe DOES
+# match that line, so to reach E194's verdict (no finding) E195 needs one more
+# spared shape than E194: an explicit ArchUnit-mechanism citation regardless of
+# how many enforcer class names it lists. Without it, E195 over-fires a
+# D3-defensible ArchUnit citation that E194 (and the verdict) treat as in-layer.
+#
+# Spared shapes:
+#   1. every enumerated test token is an ArchUnit architecture-test (suffix
+#      ArchTest / ArchUnitTest / PurityTest) — these ARE enforcers, never a
+#      behaviour catalogue;
+#   2. the line is an explicit ArchUnit-mechanism citation — it carries the
+#      literal "ArchUnit" signal AND is NOT an inventory STRUCTURE (table row /
+#      test-leading bullet) — so a "(enforced by X, Y, Z ArchUnit rules)" clause
+#      that NAMES its enforcing ArchUnit rules is a mechanism citation regardless
+#      of token count (this is the shape E194 never matches but E195's comma-run
+#      probe does; it is the line-252 false positive this fix closes);
+#   3. a line carrying a mechanism clause ("enforced by ...", "ArchUnit `...`",
+#      "(enforcer E<n>)") that enumerates NO behaviour test is a pure
+#      enforcer-id citation; and
+#   4. a prose constraint that cites its enforcing test(s) via an explicit
+#      enforcement / FQN-lock clause (Rule R-C.a), is NOT an inventory STRUCTURE,
+#      and names at most _D3_CITATION_MAX_TESTS behaviour tests, is a mechanism
+#      citation.
 #
 # A genuine integration-test INVENTORY — a table of tests, a bullet list of
-# tests, or three-plus behaviour tests on one line — stays a leak even beside
-# an "enforced by" clause.
+# tests, or three-plus *IT/*Test BEHAVIOUR tests in one line that does NOT carry
+# an ArchUnit-mechanism signal — stays a leak even beside an "enforced by"
+# clause. Shape 2 is gated on the literal "ArchUnit" signal precisely so it
+# spares only ArchUnit-mechanism citations, never an *IT behaviour catalogue.
 _D3_ARCHUNIT_TOKEN_RE = re.compile(r"\b[A-Z]\w*(?:ArchTest|ArchUnitTest|PurityTest)\b")
 _D3_MECHANISM_CLAUSE_RE = re.compile(r"enforced by|ArchUnit|\(enforcer\s+E\d+\)", re.IGNORECASE)
+# The specifically-ArchUnit mechanism signal (Shape 2). Narrower than
+# _D3_MECHANISM_CLAUSE_RE: it requires the literal word "ArchUnit", so an
+# "enforced by <some *IT>" clause that names NO ArchUnit rule does NOT trip
+# Shape 2 (it is handled by the count-bounded Shape 4 instead). An ArchUnit rule
+# whose class name omits the `*ArchTest` suffix (e.g. ApiCompatibilityTest,
+# RuntimeMustNotDependOnPlatformTest) is still recognised as a mechanism citation
+# when it sits inside such an "... ArchUnit rules" clause.
+_D3_ARCHUNIT_MECHANISM_RE = re.compile(r"\bArchUnit\b", re.IGNORECASE)
 _D3_ENFORCEMENT_CLAUSE_RE = re.compile(
     r"enforced by|verified by|asserted by|locked here per rule|per rule\s+r-c\.a|class fqn locked",
     re.IGNORECASE,
@@ -309,16 +338,21 @@ _D3_CITATION_MAX_TESTS = 2
 def _is_d3_enforcer_citation(line: str) -> bool:
     """True when a test_inventory match on ``line`` is a D3-defensible citation.
 
-    Kept byte-for-byte in step with the E194 helper's _is_d3_enforcer_citation so
-    the two layer-purity gates spare the SAME enforcer-mechanism citations. Three
-    D3 shapes are spared (see the module comment above):
+    Verdict-equivalent to the E194 helper's _is_d3_enforcer_citation (it spares
+    one extra shape, #2, to cover E195's additional inline comma-run probe — see
+    the module comment above). Four D3 shapes are spared:
       1. every enumerated test token is an ArchUnit architecture-test;
-      2. the line carries a mechanism clause and enumerates NO behaviour test
+      2. the line is an explicit ArchUnit-mechanism citation (carries the literal
+         "ArchUnit" signal AND is NOT an inventory STRUCTURE) — a
+         "(enforced by X, Y, Z ArchUnit rules)" clause that NAMES its enforcing
+         rules, regardless of token count;
+      3. the line carries a mechanism clause and enumerates NO behaviour test
          (pure ArchUnit / enforcer-id citation); or
-      3. a prose constraint cites its enforcing test(s) via an explicit
+      4. a prose constraint cites its enforcing test(s) via an explicit
          enforcement / FQN-lock clause, the line is NOT an inventory STRUCTURE,
          and it names at most ``_D3_CITATION_MAX_TESTS`` behaviour tests.
     """
+    is_inventory_structure = bool(_TEST_INVENTORY_STRUCTURE_RE.search(line))
     tokens = _NON_ARCHUNIT_TEST_TOKEN_RE.findall(line)
     if not tokens:
         # No behaviour-test token at all (e.g. only an ArchTest, handled below) —
@@ -328,12 +362,20 @@ def _is_d3_enforcer_citation(line: str) -> bool:
     archunit_tokens = set(_D3_ARCHUNIT_TOKEN_RE.findall(line))
     if archunit_tokens and all(t in archunit_tokens for t in tokens):
         return True
-    # Shape 3: a constraint's enforcing-test citation (Rule R-C.a). Spared only
+    # Shape 2: an explicit ArchUnit-mechanism citation. The line cites ArchUnit as
+    # the enforcing mechanism (literal "ArchUnit") and is NOT an inventory
+    # structure, so the enforcer class names it lists are a mechanism citation
+    # regardless of count — this is the shape E194's L8 probe never matches but
+    # E195's comma-run probe does (the L0 §2 module-dependency line). Gated on the
+    # ArchUnit signal so it never spares an *IT behaviour catalogue.
+    if _D3_ARCHUNIT_MECHANISM_RE.search(line) and not is_inventory_structure:
+        return True
+    # Shape 4: a constraint's enforcing-test citation (Rule R-C.a). Spared only
     # when it is NOT an inventory structure AND names few tests AND carries an
     # explicit enforcement / FQN-lock clause.
     if (
         _D3_ENFORCEMENT_CLAUSE_RE.search(line)
-        and not _TEST_INVENTORY_STRUCTURE_RE.search(line)
+        and not is_inventory_structure
         and len(tokens) <= _D3_CITATION_MAX_TESTS
     ):
         return True
@@ -360,6 +402,80 @@ FAMILY_TO_LP_CATEGORIES: dict[str, frozenset[str]] = {
     "filter_ordering": frozenset({"L5-filter-ordering"}),
     "test_inventory": frozenset({"L8-test-class-inventory"}),
 }
+
+# --------------------------------------------------------------------------
+# Locus parsing (mirrors the E194 check_layer_purity helper one-for-one).
+#
+# A grandfather row carries a `locus` cell — the smallest in-file anchor as a
+# section label plus a line range. E194 (check_layer_purity.py) tolerates a leak
+# ONLY when the leak's line falls inside one of the row's enumerated ranges (an
+# anchored row), or the row is a deliberately whole-file `row-level pass
+# deferred` entry whose locus carries no line number (an anchorless row, which
+# falls back to file + category matching). E195 previously matched a row on file
+# + category ALONE — the same blunt scope E194 has since shed — so a same-file,
+# same-category leak ANYWHERE in a file collapsed under whichever row first
+# declared that category for the file, granting tolerance the dated list never
+# adjudicated. The verdict is by-authority-surface and MUST be uniform across the
+# two gates that implement it, so E195 here parses the SAME `locus` grammar with
+# the SAME strict, all-or-nothing rule and anchors its tolerance identically.
+#
+# A single comma-segment of a clean line spec is a bare line ("360") or a closed
+# range ("520-535"). The ^...$ anchors are deliberate — a segment is a line spec
+# ONLY when the WHOLE segment is numeric, so a textual fragment such as "3-track"
+# (a stray digit inside prose) is NOT mistaken for a range.
+_LOCUS_RANGE_SEG_RE = re.compile(r"^(\d+)\s*-\s*(\d+)$")
+_LOCUS_SINGLE_SEG_RE = re.compile(r"^(\d+)$")
+# A parenthetical note ("(P6)", "(row-level pass deferred)") is never a line
+# spec; strip it before deciding whether the remainder is a clean spec.
+_LOCUS_NOTE_RE = re.compile(r"\([^)]*\)")
+
+
+def _parse_locus(value: object) -> list[tuple[int, int]]:
+    """Parse a ``locus`` cell into a list of (start, end) line ranges.
+
+    Returns an empty list when the locus is NOT a clean line spec — a
+    deliberately whole-file ``row-level pass deferred`` entry or a malformed
+    cell. Such a row is anchorless and falls back to file + category matching.
+    Kept in step with the E194 helper's ``_parse_locus`` so both gates anchor an
+    open row to the SAME lines:
+
+      1. drop any ``(...)`` note (it holds human text, never a line number — so
+         the ``6`` in ``(P6)`` and the ``1``/``6`` in ``(P1-P6)`` never leak in);
+      2. take only the segment AFTER the LAST ``:`` when a label separator is
+         present (so the digits in a section label, ``§4 #20`` -> ``4``/``20``,
+         never leak in);
+      3. split the remainder on commas; EVERY segment must be a bare integer or a
+         closed ``int-int`` range. If any segment is non-numeric (a textual
+         deferred locus such as ``matched RLS / 3-track / sandbox``), the locus
+         is NOT a line spec and the result is empty (anchorless), rather than
+         letting a stray in-prose digit anchor the row to a wrong line.
+    """
+    raw = "" if value is None else str(value)
+    spec = _LOCUS_NOTE_RE.sub(" ", raw)
+    if ":" in spec:
+        spec = spec.rsplit(":", 1)[1]
+    segments = [s.strip() for s in spec.split(",") if s.strip()]
+    if not segments:
+        return []
+    ranges: list[tuple[int, int]] = []
+    for seg in segments:
+        rng = _LOCUS_RANGE_SEG_RE.match(seg)
+        if rng:
+            start, end = int(rng.group(1)), int(rng.group(2))
+            if start > end:
+                start, end = end, start
+            ranges.append((start, end))
+            continue
+        single = _LOCUS_SINGLE_SEG_RE.match(seg)
+        if single:
+            n = int(single.group(1))
+            ranges.append((n, n))
+            continue
+        # A non-numeric segment -> this locus is not a clean line spec; treat the
+        # whole row as anchorless (whole-file deferred) rather than half-parsing.
+        return []
+    ranges.sort()
+    return ranges
 
 
 @dataclass(frozen=True)
@@ -426,10 +542,38 @@ def _is_delegation_pointer(lines: list[str], idx: int) -> bool:
 
 @dataclass(frozen=True)
 class _GrandfatherRow:
-    """One open temporary-violation row, projected for E195 suppression."""
+    """One open temporary-violation row, projected for E195 suppression.
+
+    Carries the row's ``locus`` line ranges so E195 anchors its tolerance the
+    same way E194 does (a leak is tolerated only inside the row's enumerated
+    ranges; an anchorless ``row-level pass deferred`` row covers the whole file).
+    """
 
     file: str               # repo-relative POSIX path
     categories: frozenset[str]  # E194 leaked-category ids the row cites
+    locus_ranges: tuple[tuple[int, int], ...] = ()  # enumerated (start, end) line ranges
+
+    @property
+    def locus_anchored(self) -> bool:
+        """True when this row enumerates at least one parseable line range.
+
+        An anchored row tolerates a leak only inside its ranges; an anchorless
+        row (a whole-file ``row-level pass deferred`` entry whose ``locus``
+        carries no line number) falls back to file + category matching.
+        """
+        return bool(self.locus_ranges)
+
+    def covers_line(self, line_no: int) -> bool:
+        """Whether ``line_no`` falls inside one of this row's enumerated ranges.
+
+        An anchorless row covers every line by construction (it deliberately
+        defers a whole-file pass); an anchored row covers only its ranges, so a
+        same-file same-category leak OUTSIDE every range is a different leak the
+        row never enumerated and is NOT tolerated.
+        """
+        if not self.locus_ranges:
+            return True
+        return any(start <= line_no <= end for start, end in self.locus_ranges)
 
 
 def load_open_grandfather_rows(root: Path) -> list[_GrandfatherRow]:
@@ -482,21 +626,56 @@ def load_open_grandfather_rows(root: Path) -> list[_GrandfatherRow]:
             continue
         if sunset < today:
             continue
-        rows.append(_GrandfatherRow(file=vfile, categories=frozenset(cats)))
+        locus_ranges = tuple(_parse_locus(raw.get("locus")))
+        rows.append(
+            _GrandfatherRow(
+                file=vfile,
+                categories=frozenset(cats),
+                locus_ranges=locus_ranges,
+            )
+        )
     return rows
 
 
 def _grandfathered(finding: "Finding", rows: list[_GrandfatherRow]) -> bool:
-    """True when an open grandfather row tolerates ``finding`` (same file + category)."""
+    """True when an open grandfather row tolerates ``finding``.
+
+    A row tolerates the finding when ALL of: the row's ``file`` equals the
+    finding's document, the row cites the finding's leaked category, AND the
+    row's ``locus`` COVERS the finding's line number — for an ANCHORED row the
+    line MUST fall inside one of its enumerated ranges; an ANCHORLESS
+    ``row-level pass deferred`` row covers every line by construction.
+
+    This is the locus anchoring E194's ``suppressing_row`` already enforces: it
+    stops a row from tolerating an unrelated same-category leak elsewhere in the
+    same file (e.g. a removed §4 row no longer masks an incidental same-category
+    token in §1/§2). Without it, every same-category leak in a file collapses
+    under whichever row first declares that category for the file — the blunt
+    file + category scope this fix sheds so the two gates reach one verdict.
+
+    Match preference mirrors E194: an anchored row whose range covers the line is
+    preferred; only when no anchored row covers it does an anchorless fallback
+    grant tolerance.
+    """
     lp_cats = FAMILY_TO_LP_CATEGORIES.get(finding.family, frozenset())
     if not lp_cats:
         return False
+    anchorless_fallback = False
     for row in rows:
         if row.file != finding.path:
             continue
-        if row.categories & lp_cats:
+        if not (row.categories & lp_cats):
+            continue
+        if not row.covers_line(finding.line_no):
+            # Anchored row whose ranges do not reach this line: not its
+            # adjudicated leak, so it grants no tolerance here.
+            continue
+        if row.locus_anchored:
             return True
-    return False
+        # Remember an open anchorless row but keep scanning for a more specific
+        # anchored row that actually enumerates this line.
+        anchorless_fallback = True
+    return anchorless_fallback
 
 
 def _excerpt(line: str, limit: int = 160) -> str:

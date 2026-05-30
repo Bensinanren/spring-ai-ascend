@@ -1,0 +1,210 @@
+# Layer-Purity DSL-Description Grandfather list -- known L2/code detail in the
+# authored Structurizr fragments' element `description` strings, not yet migrated.
+#
+# Authority: ADR-0159 (Progressive Learning Curve and Authority Lanes) section 7
+#   + section 9. Companion policy: docs/governance/layer-purity-policy.yaml (the
+#   owns/forbids category vocabulary every row here cites; the SAME vocabulary the
+#   L0/L1 helpers and the status-ledger helper consume). The governed-surface row
+#   `dsl-element-description` in that policy registers this surface; this is the
+#   per-surface dated allow-list it names.
+#
+# Why this file exists, and why it is SEPARATE from the L0/L1 and status-ledger
+#   allow-lists. The two L0/L1 layer-purity helpers scan only the L0/L1 markdown
+#   documents:
+#     * gate/lib/check_layer_purity.py   (E194) -> architecture/docs/L0|L1/**.md
+#     * gate/lib/check_l2_detail_sink.py (E195) -> the same two roots
+#   and gate/lib/check_status_claim_altitude.py (E201) scans only the capability
+#   ledger's allowed_claim narrative. But under the authority cascade
+#   (generated facts > DSL > Card/prose) the DSL tier -- the element `description`
+#   strings of the authored fragments under architecture/features/*.dsl -- sits
+#   STRICTLY ABOVE the L0/L1 prose AND above the Card/prose-tier ledger, directly
+#   under the generated facts. The DSL `description` is a free-form narrative field
+#   with no altitude guard, exactly like an allowed_claim, and it has organically
+#   accreted the same leaked categories the adjudicated verdict named -- here, a
+#   route x verb and a method-call-and-dispatch arrow chain in the function-point
+#   synopses. The status-ledger remediation correctly generalized the
+#   by-authority-surface principle to the ledger but stopped short of this
+#   strictly-higher tier; registering this surface + this dated allow-list closes
+#   that under-scope.
+#
+# What this file IS. The closed, dated grandfather list of L2/code detail that
+#   currently sits in an element `description` string of an authored DSL fragment
+#   in violation of the layer-purity policy, but has not yet been migrated to its
+#   authoritative home (architecture/docs/L2/ + docs/contracts/ + the generated
+#   facts). Each entry freezes one known leak AND declares a per-entry sunset_date
+#   by which the migration MUST complete and the row MUST be removed (a
+#   closed-but-dateless grandfather list is an anti-pattern). This list is closed:
+#   once the eventual DSL-altitude ratchet (RESERVED enforcer E202 / gate Rule 152
+#   / Rule G-35, authored by a follow-up wave per ADR-0159 section 9) is
+#   full-blocking, no new entry may be added -- a new description-altitude leak
+#   must be fixed (or the description re-altituded) at authoring time, never
+#   grandfathered.
+#
+# What this file is NOT. A migration plan, a rule card, an enforcer row, or the
+#   gate. The DSL fragments themselves (architecture/features/*.dsl) are AUTHORED
+#   authority surfaces owned by their own waves / the reconcile step; this file
+#   does NOT edit them -- it records which of their description leaks are tolerated,
+#   with a deadline. It invents no id and no relationship and never outranks a
+#   generated fact. NO executable gate reads this file yet: the policy registers
+#   the surface `declared-gate-pending`, and the consuming enforcer is the
+#   follow-up wave's artefact. Authoring the allow-list now (ahead of the gate)
+#   means the gate, on landing, starts changed-files-blocking against a dated
+#   baseline rather than hard-blocking the whole fragment corpus (avoids the
+#   ratchet-promotion-without-baseline defect family).
+#
+# Live-leak discipline (mirrors the L0/L1 list's closed-list rule). Every row
+#   below freezes a description that leaks on the CURRENT disk state under the
+#   canonical probes (the imported gate/lib/check_layer_purity.py TRIGGERS the
+#   eventual E202 will reuse -- one verdict, one probe set, four surfaces). A row
+#   that tolerates NO live leak is dead weight that over-claims a violation, so it
+#   is not kept. The verdict's by-fact-id DSL scope is broader than these four
+#   loci, but several descriptions it would have named (the engineering-frames type
+#   rosters efOrchestrationSpi / efEnginePort / efHookSurface / efEngineRegistry;
+#   the verification named-test runtime-behaviour phrases; the fpIdempotencyClaim
+#   IdempotencyHeaderFilter -> IdempotencyStore call chain; the fpSuspendResume
+#   throw/-> state sequence; the fpRunStateTransition updateIfNotTerminal method)
+#   were drained to a claim-agnostic structural synopsis by the concurrent
+#   DSL-altitude drain, so the canonical probes no longer fire on them and they are
+#   NOT grandfathered here (frozen rows would be the dead weight the closed-list
+#   discipline forbids). If a future probe tightens to catch a bare method name or
+#   a state-name arrow sequence, the migration of any then-surfaced description --
+#   not a new grandfather row -- is the fix.
+#
+# Schema (mirrors layer-purity-status-ledger-grandfather.yaml so the per-surface
+# allow-lists read identically):
+#   schema_version  - integer, bumped when fields are added.
+#   authority       - the ratifying ADR id.
+#   last_updated    - ISO yyyy-mm-dd (UTC). The freshness/sunset convention is UTC:
+#                     a local +08 date can be UTC-future and trip a freshness gate,
+#                     and a sunset comparison runs in UTC.
+#   status          - advisory | blocking. The LIST's posture, not a contract-status
+#                     enum (Rule 62 does not apply -- this is not a
+#                     docs/contracts/*.v1.yaml). Advisory until the eventual
+#                     DSL-altitude ratchet (E202) promotes to full-blocking per
+#                     ADR-0159 section 9; the gate that consumes it is not yet
+#                     authored, so the list is purely advisory today.
+#   list_closed     - true.
+#   violations[]    - one row per known DSL-description leak. Each row:
+#       id          - stable kebab id, prefix LPV-DSL- (Layer-Purity Violation, DSL).
+#       layer       - DSL-DESCRIPTION (the surface label; distinct from L0/L1 and
+#                     STATUS-LEDGER so a row here is unambiguously not an L0/L1 or
+#                     ledger row).
+#       file        - the offending authored fragment (repo-relative, forward slash).
+#       element     - REQUIRED. The DSL element handle whose `description` leaks
+#                     (e.g. fpCreateRun) -- the durable, human-stable anchor the
+#                     future enforcer matches a finding to (the DSL analogue of the
+#                     ledger row's `capability`). Because many descriptions share
+#                     one file, a row with no element would suppress unrelated
+#                     same-category descriptions in the same fragment; an
+#                     element-precise row freezes EXACTLY ONE description, so
+#                     retiring it re-arms the gate on that element if it still leaks.
+#       saa_id      - cross-reference convenience: the element's `saa.id` property
+#                     (the profile-stable id), for the reconcile step to locate the
+#                     element when the DSL variable name is refactored.
+#       locus       - element handle + the 1-based source line of its `element`
+#                     declaration as observed at authoring time; for cross-reference,
+#                     NOT a code fact (line numbers drift as the fragment is edited;
+#                     the element handle / saa.id is the durable anchor).
+#       category    - the leaked-category id from layer-purity-policy.yaml (one of
+#                     L1..L8) the canonical probe library reports for this
+#                     description. A description may leak more than one, recorded in
+#                     categories[] when several apply so the migration is scoped to
+#                     all of them.
+#       categories  - OPTIONAL list when a single description leaks more than one
+#                     category (used instead of `category`).
+#       trigger     - the smallest verbatim phrase from the `description` that makes
+#                     it a leak. Quoted as EVIDENCE, never as a live claim.
+#       migrate_to  - the authoritative home the detail must move to. The DSL element
+#                     already carries the structural pointer to that home in its
+#                     properties (saa.code_entrypoint_refs / saa.test_refs /
+#                     saa.contract_op_refs / saa.primaryPackage); the migration
+#                     reduces the `description` to a CLAIM-AGNOSTIC structural
+#                     synopsis and lets those property pointers + the generated facts
+#                     carry the behaviour.
+#       sunset_date - REQUIRED ISO yyyy-mm-dd by which migration MUST complete and
+#                     this row MUST be removed. All four live leaks are in the
+#                     W1/W2-shipped run-lifecycle vertical -- the same vertical whose
+#                     L0/L1/ledger leaks the convergence-scan verdict named -- so
+#                     they share the v1.0-boundary 2026-06-30 sunset that vertical
+#                     uses at the lower surfaces.
+#       defensible_part - OPTIONAL note on the structural identity portion of the
+#                     description that MAY stay after the leaked detail is extracted
+#                     (the element name + its role as a boundary/anchor identity --
+#                     D1/D2 -- and the ADR/Rule citation -- D3).
+#
+# Coverage note. The element `description` strings of the four registered fragments
+#   were scanned on the current disk state with the imported canonical probes; the
+#   scan found four live leaks, all in function-points.dsl, all frozen below. The
+#   other registered fragments (engineering-frames.dsl, verification.dsl,
+#   capabilities.dsl) carry no description leak under those probes today (their
+#   descriptions are structural synopses + ADR/Rule citations, or the
+#   capabilities.dsl "L1 capability mounted from ..." boilerplate), so they have no
+#   rows -- the surface is registered for completeness so a future hand-authored
+#   leak in any of them is held to the same altitude the day it is written. A
+#   fragment edit that ADDS a new description leak should fix it at authoring time;
+#   the closed list will not accept a new row once the gate is blocking.
+
+schema_version: 1
+authority: ADR-0159
+last_updated: 2026-05-30
+status: advisory
+list_closed: true
+
+violations:
+
+  # ======================================================================
+  # function-points.dsl -- the run-lifecycle vertical descriptions.
+  # Highest priority; sunset 2026-06-30 (v1.0 boundary). The DSL tier
+  # outranks the L0/L1 prose AND the ledger per the authority cascade, and
+  # these are the same run-lifecycle loci the convergence-scan verdict named
+  # at the lower surfaces, so they share the L0 highest-priority sunset.
+  # ======================================================================
+
+  - id: LPV-DSL-fp-create-run-route-verb
+    layer: DSL-DESCRIPTION
+    file: architecture/features/function-points.dsl
+    element: fpCreateRun
+    saa_id: FP-CREATE-RUN
+    locus: "fpCreateRun element declaration : 21"
+    category: L4-http-status-route-verb
+    trigger: "POST /v1/runs"
+    migrate_to: "docs/contracts/openapi-v1.yaml (contract-op/createrun route x verb) + architecture/facts/generated/contract-surfaces.json"
+    sunset_date: 2026-06-30
+    defensible_part: "The FunctionPoint identity (Create Run: admit a new Run with tenant + idempotency + posture guard; the ADR-0020 / REQ-001 citation; the saa.contract_op_refs=contract-op/createrun pointer that already names the contract home) stays; the literal route x verb migrates to the contract surface the property already points at."
+
+  - id: LPV-DSL-fp-cancel-run-route-verb-dfa
+    layer: DSL-DESCRIPTION
+    file: architecture/features/function-points.dsl
+    element: fpCancelRun
+    saa_id: FP-CANCEL-RUN
+    locus: "fpCancelRun element declaration : 40"
+    category: L4-http-status-route-verb
+    categories: [L4-http-status-route-verb, L2-runtime-sequence]
+    trigger: "POST /v1/runs/(runId)/cancel -- re-validate tenant + DFA transition to CANCEL_REQUESTED"
+    migrate_to: "docs/contracts/openapi-v1.yaml (contract-op/cancelrun route x verb) + architecture/docs/L2/fp-run-state-transition/ (DFA transition)"
+    sunset_date: 2026-06-30
+    defensible_part: "The FunctionPoint identity (Cancel Run; the ADR-0108 / REQ-001 citation; the saa.contract_op_refs=contract-op/cancelrun pointer) stays; the route x verb and the named DFA target state (CANCEL_REQUESTED) migrate to the contract + the L2 run-state design. The L4 probe fires on the route x verb; the DFA-transition clause is the same-block runtime-sequence residue scoped for the migration."
+
+  - id: LPV-DSL-fp-get-run-status-route-verb
+    layer: DSL-DESCRIPTION
+    file: architecture/features/function-points.dsl
+    element: fpGetRunStatus
+    saa_id: FP-GET-RUN-STATUS
+    locus: "fpGetRunStatus element declaration : 59"
+    category: L4-http-status-route-verb
+    trigger: "GET /v1/runs/(runId) -- tenant-scoped polling endpoint for Run state + last error"
+    migrate_to: "docs/contracts/openapi-v1.yaml (contract-op/getrun route x verb) + architecture/facts/generated/contract-surfaces.json"
+    sunset_date: 2026-06-30
+    defensible_part: "The FunctionPoint identity (Get Run Status: tenant-scoped polling for Run state) stays; the literal route x verb migrates to the contract the saa.contract_op_refs property already names."
+
+  - id: LPV-DSL-fp-engine-dispatch-call-chain
+    layer: DSL-DESCRIPTION
+    file: architecture/features/function-points.dsl
+    element: fpEngineDispatch
+    saa_id: FP-ENGINE-DISPATCH
+    locus: "fpEngineDispatch element declaration : 228"
+    category: L1-method-call-chain
+    trigger: "EngineRegistry.resolve(envelope) -> typed ExecutorAdapter dispatch"
+    migrate_to: "architecture/facts/generated/code-symbols.json (EngineRegistry.resolve shape) + docs/contracts/engine-envelope.v1.yaml + architecture/docs/L2/fp-engine-dispatch/"
+    sunset_date: 2026-06-30
+    defensible_part: "The FunctionPoint identity (Engine Dispatch via engine-envelope.v1.yaml; the Rule R-M.a citation -- the contract surface is already named as the home) stays; the EngineRegistry.resolve(envelope) -> ExecutorAdapter call-and-dispatch chain is code-symbol / contract behaviour the generated facts + the contract own. The description should POINT at engine-envelope.v1.yaml (it already does) rather than restate the dispatch arrow."

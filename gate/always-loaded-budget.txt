@@ -146,7 +146,20 @@ docs/onboarding/compliance-reviewer.md=0
 # gate landing) grew the file to 108688 bytes, over the 106000 ceiling. Ceiling
 # raised 106000 -> 110000 (~1.3K headroom). Same standing direction: shrink L0 as
 # detail finishes migrating to L2.
-architecture/docs/L0/ARCHITECTURE.md=110000
+# 2026-05-30 progressive-learning-curve-remediation R3: the convergence-scan
+# round-3 detector widening (the L7 record-component-constructor + colon-return
+# probes, the tight-paren `via Type.method(` call-hop probe) newly detects three
+# §4 leaks the prior probes missed -- §4 #8 `ResiliencePolicy(cbName, retryName,
+# tlName)` (L7 record-ctor), §4 #19 `deadline() : Instant` (L7 colon-return), and
+# the §4 #9 `via Checkpointer.save()` / `RunRepository.save()` call hops -- so each
+# was drained in place to a boundary-identity + L2/SPI-fact delegation (the
+# corrected-altitude content the standing direction calls for, removing a leak the
+# gate now catches, not bloat). The verbose §4 #27 Skill-SPI invariant prose was
+# condensed in the same pass (26 -> 14 lines) so the net growth is ~1.5K, leaving
+# the file at ~110.1K over the 110000 ceiling. Ceiling raised 110000 -> 111000
+# (~0.85K headroom). Same standing direction: shrink L0 as detail finishes
+# migrating to L2.
+architecture/docs/L0/ARCHITECTURE.md=111000
 # Fact-Layer W6 (ADR-0154 / Rule G-15): AGENTS.md grew ~310 bytes with the
 # 6-point AI consumption contract + the fact-layer-first reading-path entry
 # (Step 1) + the LLM-no-author wording. Ceiling raised 8500 -> 9000 with

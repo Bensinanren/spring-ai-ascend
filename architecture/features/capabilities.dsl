@@ -543,6 +543,15 @@ cap_hybrid_rag_bm25 = element "hybrid_rag_bm25" "Capability" "L1 capability moun
     }
 }
 
+// LAYER-PURITY (Rule G-27 / G-34): the saa.id token `409-BODY-SHAPE` re-publishes
+// an L4-http-status + L6-wire-format leak at DSL authority. The detail's home is
+// docs/contracts/*.v1.yaml (OpenAPI 409 ErrorEnvelope body) + architecture/docs/L2/
+// <idempotency-frame>/. Tolerated by-reference, not re-minted: the ledger source key
+// `idempotency_409_body_shape` is frozen by grandfather row
+// LPV-SL-idempotency-409-body-shape in docs/governance/layer-purity-status-ledger-
+// grandfather.yaml (sunset 2026-06-30). saa.id stays in lockstep with that ledger key
+// (no invented id per the authority cascade generated-facts > DSL > Card/prose) and is
+// re-altituded here when the reconcile step re-altitudes the key at sunset.
 cap_idempotency_409_body_shape = element "idempotency_409_body_shape" "Capability" "L1 capability mounted from architecture-status.yaml" "SAA Capability" {
     properties {
         "saa.id" "CAP-IDEMPOTENCY-409-BODY-SHAPE"

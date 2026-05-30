@@ -161,7 +161,7 @@ fpChildRunSpawn = element "Child Run Spawn" "FunctionPoint" "SuspendSignal child
     }
 }
 
-fpIdempotencyClaim = element "Idempotency Claim" "FunctionPoint" "IdempotencyHeaderFilter -> IdempotencyStore PG-backed claim + replay (W0 schema; Rule 56 + ADR-0027)" "SAA FunctionPoint" {
+fpIdempotencyClaim = element "Idempotency Claim" "FunctionPoint" "Idempotency-key claim + replay at the IdempotencyStore boundary (Rule 56 + ADR-0027)" "SAA FunctionPoint" {
     properties {
         "saa.id" "FP-IDEMPOTENCY-CLAIM"
         "saa.kind" "function_point"
@@ -265,21 +265,21 @@ fpHookDispatch = element "Hook Dispatch" "FunctionPoint" "RuntimeMiddleware list
 // Wave 2 wires the implements relationships here. Verification edges live
 // in verification.dsl as they touch the test inventory.
 
-agentService -> fpCreateRun "implements POST /v1/runs handler" "SAA Relationship" {
+agentService -> fpCreateRun "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentService -> fpCancelRun "implements POST /v1/runs/(runId)/cancel handler" "SAA Relationship" {
+agentService -> fpCancelRun "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentService -> fpGetRunStatus "implements GET /v1/runs/(runId) handler" "SAA Relationship" {
+agentService -> fpGetRunStatus "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
@@ -288,77 +288,77 @@ agentService -> fpGetRunStatus "implements GET /v1/runs/(runId) handler" "SAA Re
 }
 // agentService -> fpListRuns relationship removed alongside the
 // FP-LIST-RUNS element (Round-2 Wave A, 2026-05-28 correction P0-1).
-agentBus -> fpIngressEnvelope "implements IngressGateway routing" "SAA Relationship" {
+agentBus -> fpIngressEnvelope "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentBus -> fpS2cCallback "implements S2cCallbackTransport SPI binding" "SAA Relationship" {
+agentBus -> fpS2cCallback "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentService -> fpRunStateTransition "implements RunRepository.updateIfNotTerminal" "SAA Relationship" {
+agentService -> fpRunStateTransition "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentService -> fpSuspendResume "implements SuspendSignal + ResumeDispatcher" "SAA Relationship" {
+agentService -> fpSuspendResume "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentService -> fpChildRunSpawn "implements child-Run spawn path" "SAA Relationship" {
+agentService -> fpChildRunSpawn "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentService -> fpIdempotencyClaim "implements IdempotencyHeaderFilter + IdempotencyStore" "SAA Relationship" {
+agentService -> fpIdempotencyClaim "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentService -> fpTenantCrossCheck "implements tenant cross-check filter" "SAA Relationship" {
+agentService -> fpTenantCrossCheck "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentService -> fpPostureBootGuard "implements PostureBootGuard" "SAA Relationship" {
+agentService -> fpPostureBootGuard "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-graphMemoryStarter -> fpGraphMemoryStore "auto-wires GraphMemoryRepository implementations" "SAA Relationship" {
+graphMemoryStarter -> fpGraphMemoryStore "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentExecutionEngine -> fpEngineDispatch "implements EngineRegistry.resolve" "SAA Relationship" {
+agentExecutionEngine -> fpEngineDispatch "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"
 
     }
 }
-agentMiddleware -> fpHookDispatch "implements RuntimeMiddleware hook dispatch" "SAA Relationship" {
+agentMiddleware -> fpHookDispatch "owning module implements function point" "SAA Relationship" {
     properties {
 
         "saa.rel" "implements"

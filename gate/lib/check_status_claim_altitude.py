@@ -44,14 +44,26 @@ three surfaces. If the import fails (the sibling helper is absent), this is a
 config error (exit 2): the gate fails closed rather than scan with a private,
 drifting copy of the probes.
 
-Scope of the scan. ONLY the ``allowed_claim:`` values of
-docs/governance/architecture-status.yaml. The structural ledger keys
-(``status``, ``shipped``, ``implementation`` / ``tests`` file lists, the
-``l0_decision`` pointer, enforcer-row citations) are NOT scanned: a path to a
-``*.sql`` migration under ``implementation:`` or a test FQN under ``tests:`` is
-the ledger's development-view evidence index (D2 package decomposition), not a
-behavioural claim. Only the prose ``allowed_claim`` narrative — the field that
-has no altitude guard and organically leaks — is in scope.
+Scope of the scan. Every FREE-FORM NARRATIVE field of
+docs/governance/architecture-status.yaml — the ``allowed_claim:`` values AND the
+sibling ``note:`` values. Both are un-altitude-guarded prose on the SAME
+authority surface: an ``allowed_claim`` is a capability's behavioural claim, a
+``note`` is its decision/status narrative (module materialization history, ADR
+pointers, "SQL artifact present; @Disabled tests" status), and either can
+restate an L1..L8 leaked category. Scoping to ``allowed_claim`` alone left a
+by-file-type hole at field granularity: a future ``note`` that inlined SQL /
+route / method detail would have been invisible to this gate while an identical
+``allowed_claim`` leak blocked. Both fields are now co-scanned by the SAME
+imported trigger library at no extra cost, so the by-authority-surface closure
+is complete at the field level.
+
+The structural ledger keys (``status``, ``shipped``, ``implementation`` /
+``tests`` file lists, the ``l0_decision`` pointer, enforcer-row citations) are
+NOT scanned: a path to a ``*.sql`` migration under ``implementation:`` or a test
+FQN under ``tests:`` is the ledger's development-view evidence index (D2 package
+decomposition), not a behavioural claim. Only the prose narrative fields
+(``allowed_claim`` + ``note``) — the fields that have no altitude guard and
+organically leak — are in scope.
 
 Grandfather rows for this surface. They live in a DEDICATED, per-surface dated
 allow-list, docs/governance/layer-purity-status-ledger-grandfather.yaml, with the
@@ -128,6 +140,15 @@ VIOLATIONS_REL = "docs/governance/layer-purity-status-ledger-grandfather.yaml"
 # The grandfather-row layer label this surface uses. Distinct from L0/L1 so a
 # status-ledger row never matches an E194/E195 L0/L1-document leak.
 STATUS_LEDGER_LAYER = "STATUS-LEDGER"
+
+# The ledger's free-form NARRATIVE fields — the only keys scanned for leaked
+# categories. ``allowed_claim`` is a capability's behavioural claim; ``note`` is
+# its decision/status narrative. Both are un-altitude-guarded prose on the same
+# surface, so both are co-scanned by the same trigger library (scoping to
+# ``allowed_claim`` alone left a by-file-type hole: a ``note`` that inlined L2
+# detail would be invisible). Every OTHER key is the structural D2 evidence index
+# (file lists, l0_decision, enforcer rows) and is never scanned.
+NARRATIVE_FIELDS = ("allowed_claim", "note")
 
 
 def repo_root() -> Path:
@@ -356,31 +377,42 @@ def load_violations(root: Path, known_categories: set[str]) -> tuple[list[Violat
 # ===========================================================================
 # Claim extraction.
 #
-# We walk the parsed ledger structurally and collect every ``allowed_claim``
-# string value, no matter how deep it nests, recording its dotted key path for
-# the report. We deliberately do NOT scan any other key — the structural keys are
-# the ledger's evidence index (D2), not a behavioural claim.
+# We walk the parsed ledger structurally and collect every NARRATIVE-field string
+# value (``allowed_claim`` + ``note``, per NARRATIVE_FIELDS), no matter how deep
+# it nests, recording its dotted key path + which field it came from for the
+# report. We deliberately do NOT scan any other key — the structural keys are the
+# ledger's evidence index (D2), not a behavioural claim.
 #
 # Line numbers: the parsed mapping loses source positions, so we recover the
 # 1-based source line of each claim by a second pass over the raw text, matching
-# the ``allowed_claim:`` key occurrences in document order. This keeps the report
-# line-anchored (the grandfather list and the verdict both cite line ranges)
-# without a positional YAML loader.
+# the narrative-field key occurrences in document order. Both the collector and
+# the line-anchor walk in document order (PyYAML preserves mapping key order, and
+# the raw scan is top-to-bottom), so the two lists align positionally even when a
+# capability carries BOTH an ``allowed_claim`` and a ``note``. This keeps the
+# report line-anchored (the grandfather list and the verdict both cite line
+# ranges) without a positional YAML loader.
 # ===========================================================================
 @dataclass
 class Claim:
-    key_path: str   # dotted path to the allowed_claim, e.g. capabilities.idempotency_store
-    line_no: int    # 1-based source line of the `allowed_claim:` key (0 if unknown)
-    text: str       # the claim string value
+    key_path: str   # dotted path to the field's parent, e.g. capabilities.idempotency_store
+    line_no: int    # 1-based source line of the narrative-field key (0 if unknown)
+    text: str       # the field string value
+    field: str = "allowed_claim"  # which narrative field this came from (allowed_claim | note)
 
 
-def _collect_claim_values(node: object, path: str, out: list[tuple[str, str]]) -> None:
-    """Depth-first collect (key_path, value) for every ``allowed_claim`` string."""
+def _collect_claim_values(node: object, path: str, out: list[tuple[str, str, str]]) -> None:
+    """Depth-first collect (key_path, field, value) for every narrative-field string.
+
+    A narrative field is any key in NARRATIVE_FIELDS (``allowed_claim`` or
+    ``note``) whose value is a string. Both are co-scanned because both are
+    un-altitude-guarded prose on this surface; every other key is the structural
+    D2 evidence index and is skipped.
+    """
     if isinstance(node, dict):
         for key, value in node.items():
             child_path = f"{path}.{key}" if path else str(key)
-            if key == "allowed_claim" and isinstance(value, str):
-                out.append((path or "<root>", value))
+            if key in NARRATIVE_FIELDS and isinstance(value, str):
+                out.append((path or "<root>", str(key), value))
             else:
                 _collect_claim_values(value, child_path, out)
     elif isinstance(node, list):
@@ -389,27 +421,33 @@ def _collect_claim_values(node: object, path: str, out: list[tuple[str, str]]) -
 
 
 def _claim_source_lines(text: str) -> list[int]:
-    """Return, in document order, the 1-based line of each ``allowed_claim:`` key."""
+    """Return, in document order, the 1-based line of each narrative-field key.
+
+    Matches a YAML key line for any field in NARRATIVE_FIELDS (``allowed_claim:``
+    or ``note:``) at any indent, in the same top-to-bottom order the structural
+    collector visits them, so the two lists pair positionally.
+    """
+    prefixes = tuple(f"{name}:" for name in NARRATIVE_FIELDS)
     lines: list[int] = []
     for line_no, raw in enumerate(text.splitlines(), start=1):
-        # Match a YAML key line `   allowed_claim:` (any indent), not a substring
-        # inside another value.
+        # Match a YAML key line `   allowed_claim:` / `   note:` (any indent), not
+        # a substring inside another value.
         stripped = raw.lstrip()
-        if stripped.startswith("allowed_claim:"):
+        if stripped.startswith(prefixes):
             lines.append(line_no)
     return lines
 
 
 def load_claims(root: Path) -> tuple[list[Claim] | None, list[str]]:
-    """Load every ``allowed_claim`` value from the status ledger, line-anchored."""
+    """Load every narrative-field value (``allowed_claim`` + ``note``), line-anchored."""
     path = root / STATUS_LEDGER_REL
     doc, lerr = _load_yaml(path)
     if lerr:
         return None, [f"status-ledger: {lerr}"]
     if not isinstance(doc, dict):
         return None, [f"status-ledger: top-level of {STATUS_LEDGER_REL} must be a mapping"]
-    pairs: list[tuple[str, str]] = []
-    _collect_claim_values(doc, "", pairs)
+    triples: list[tuple[str, str, str]] = []
+    _collect_claim_values(doc, "", triples)
     try:
         raw_text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -418,11 +456,11 @@ def load_claims(root: Path) -> tuple[list[Claim] | None, list[str]]:
     # Pair parsed claims with source lines positionally (both are in document
     # order). If the counts disagree (an unusual multi-doc or anchor case), fall
     # back to line 0 rather than mis-anchor.
-    aligned = len(source_lines) == len(pairs)
+    aligned = len(source_lines) == len(triples)
     claims: list[Claim] = []
-    for i, (key_path, value) in enumerate(pairs):
+    for i, (key_path, field, value) in enumerate(triples):
         line_no = source_lines[i] if aligned and i < len(source_lines) else 0
-        claims.append(Claim(key_path=key_path, line_no=line_no, text=value))
+        claims.append(Claim(key_path=key_path, line_no=line_no, text=value, field=field))
     return claims, []
 
 
@@ -431,7 +469,7 @@ def load_claims(root: Path) -> tuple[list[Claim] | None, list[str]]:
 # ===========================================================================
 @dataclass
 class Leak:
-    """One detected leaked-category hit in an ``allowed_claim`` value."""
+    """One detected leaked-category hit in a narrative-field value."""
 
     key_path: str
     capability: str  # the ledger capability key (last dotted segment of key_path)
@@ -439,6 +477,7 @@ class Leak:
     category_id: str
     label: str
     excerpt: str
+    field: str = "allowed_claim"  # the narrative field that leaked (allowed_claim | note)
 
 
 def _capability_of(key_path: str) -> str:
@@ -490,6 +529,7 @@ def scan_claim(
             category_id=category_id,
             label=matched_label,
             excerpt=excerpt,
+            field=claim.field,
         )
     return None
 
@@ -580,8 +620,8 @@ def status_ledger_changed(root: Path, base: str) -> tuple[bool | None, str]:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="status-claim altitude — detect L2/code detail leaked into the "
-        "architecture-status.yaml allowed_claim ledger, honouring the shared dated "
-        "grandfather allow-list (ADR-0159, Rule G-34).",
+        "architecture-status.yaml narrative fields (allowed_claim + note), honouring "
+        "the shared dated grandfather allow-list (ADR-0159, Rule G-34).",
     )
     parser.add_argument(
         "--mode",
@@ -653,12 +693,14 @@ def main(argv: list[str]) -> int:
             print(f"status-claim-altitude config error: {err}", file=sys.stderr)
         return 2
     # Non-vacuity guard: this rule auto-discovers its inputs by walking the ledger
-    # for allowed_claim values. Zero claims means a path/format/schema drift
-    # emptied the scan set — fail closed rather than pass vacuously.
+    # for narrative-field (allowed_claim + note) values. Zero values means a
+    # path/format/schema drift emptied the scan set — fail closed rather than pass
+    # vacuously.
     if not claims:
         print(
-            "status-claim-altitude config error: discovered zero allowed_claim "
-            f"values in {STATUS_LEDGER_REL} (schema/path drift? scan would be vacuous)",
+            "status-claim-altitude config error: discovered zero narrative-field "
+            f"(allowed_claim/note) values in {STATUS_LEDGER_REL} (schema/path "
+            "drift? scan would be vacuous)",
             file=sys.stderr,
         )
         return 2
@@ -677,13 +719,16 @@ def main(argv: list[str]) -> int:
             findings.append(leak)
 
     # --- report ------------------------------------------------------------
+    # The finding line names the leaking field (allowed_claim | note) inside the
+    # key-path bracket so a note leak is unambiguous; the capability-prefixed path
+    # stays first so the gate's hit-sampler grep still matches.
     for leak in findings:
         cat = leaked.get(leak.category_id)
         home = f" -> migrate to {cat.home}" if cat and cat.home else ""
         title = cat.title if cat else leak.category_id
         print(
             f"status-claim-altitude {STATUS_LEDGER_REL}:{leak.line_no} "
-            f"[{leak.key_path}] {leak.category_id} ({title}): {leak.label}{home}\n"
+            f"[{leak.key_path} {leak.field}] {leak.category_id} ({title}): {leak.label}{home}\n"
             f"    > {leak.excerpt}",
             file=sys.stderr,
         )
@@ -691,7 +736,7 @@ def main(argv: list[str]) -> int:
     for leak, row in grandfathered:
         print(
             f"status-claim-altitude GRANDFATHERED {STATUS_LEDGER_REL}:{leak.line_no} "
-            f"[{leak.key_path}] {leak.category_id}: tolerated by {row.id} "
+            f"[{leak.key_path} {leak.field}] {leak.category_id}: tolerated by {row.id} "
             f"(sunset {row.raw_sunset})",
             file=sys.stderr,
         )
@@ -715,9 +760,9 @@ def main(argv: list[str]) -> int:
         )
 
     summary = (
-        f"status-claim-altitude [{args.mode}]: scanned {len(claims)} allowed_claim "
-        f"value(s) in {STATUS_LEDGER_REL}; {len(findings)} finding(s), "
-        f"{len(grandfathered)} grandfathered"
+        f"status-claim-altitude [{args.mode}]: scanned {len(claims)} narrative-field "
+        f"(allowed_claim/note) value(s) in {STATUS_LEDGER_REL}; {len(findings)} "
+        f"finding(s), {len(grandfathered)} grandfathered"
     )
     print(summary, file=sys.stderr)
 

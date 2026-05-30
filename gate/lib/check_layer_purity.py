@@ -449,12 +449,33 @@ def load_policy(root: Path) -> tuple[Policy | None, list[str]]:
 TRIGGERS: dict[str, list[tuple[re.Pattern[str], str]]] = {
     # L1 — Method call chains: inter-method dispatch sequences "a -> b", named
     # method-to-method chains, "invoked via", "atomic CAS via <method>(...)".
+    # Widened (convergence scan round 3) so a call hop whose surface form evades
+    # the arrow/parenthesis shapes — a "via Type.method()" hop, or a slash/comma
+    # method-name RUN ("init / execute / suspend / teardown") — is also a leak:
+    # the LEAKED rubric is semantic (a named method-to-method chain at L0/L1 is
+    # forbidden regardless of the separator), so the probe must not key only on
+    # the "->" arrow it was first written for. Two of these widened probes are
+    # anchored TIGHTLY so they match a method CALL and not its prose look-alike:
+    #   * the "via Type.method(" hop requires the paren to ABUT the name — a real
+    #     call is `Checkpointer.save()`, never `sessionId (existing)` /
+    #     `newMessages (ADR-0112)` where the parenthesis is a prose annotation a
+    #     space away from a bare field/identity reference;
+    #   * the lifecycle method-name RUN requires whitespace-flanked slashes
+    #     (`init / execute`) and forbids a path char in the lead-in gap, so a file
+    #     PATH (`architecture/docs/L0/...`) whose segments happen to start
+    #     lowercase is not mis-read as a method run.
+    # Both keep their genuine matches (the corpus's only real hits, `Checkpointer
+    # .save(` and the §4 #27 "init / execute / suspend / teardown" run) while
+    # shedding the prose-paren / path false positives.
     "L1-method-call-chain": [
         (re.compile(r"\b[A-Za-z_]\w*\([^)]*\)\s*->\s*[A-Za-z_]\w*\s*\("), "method-call arrow chain a(...) -> b("),
         (re.compile(r"\bupdateIfNotTerminal\s*\("), "named CAS dispatch updateIfNotTerminal(...)"),
         (re.compile(r"\bwithStatus\s*\([^)]*\)\s*MUST\s+invoke\b", re.IGNORECASE), "withStatus(...) MUST invoke ... call chain"),
         (re.compile(r"\b(?:invoked|invoke[ds]?)\s+via\b.*\b[A-Za-z_]\w*\s*\(", re.IGNORECASE), "'invoked via <method>(...)' dispatch"),
         (re.compile(r"\b[A-Za-z_]\w*\.[A-Za-z_]\w*\s*\([^)]*\)\s*(?:->|=>)\s*[A-Za-z_]"), "Type.method(...) -> ... dispatch"),
+        (re.compile(r"\bvia\s+[A-Z][A-Za-z0-9_]*\.[A-Za-z_]\w*\(", re.IGNORECASE), "'via Type.method(...)' call hop"),
+        (re.compile(r"\b[a-z][A-Za-z0-9_]*\s*\(\s*\)\s*(?:/|,)\s*[a-z][A-Za-z0-9_]*\s*\(\s*\)\s*(?:/|,)\s*[a-z][A-Za-z0-9_]*\s*\(\s*\)"), "slash/comma method-name run a()/b()/c()"),
+        (re.compile(r"\b(?:lifecycle\s+methods?|methods?)\b[^./\n]{0,20}?`?[a-z][A-Za-z0-9_]*`?(?:\s+/\s+`?[a-z][A-Za-z0-9_]*`?){2,}", re.IGNORECASE), "lifecycle method-name run (init / execute / suspend / teardown)"),
     ],
     # L2 — Runtime sequences: sequence diagrams, race winner/loser narratives,
     # CAS-ordering ("CAS WINS"/"LOSES", "post-CAS re-read", "no-op").
@@ -519,8 +540,16 @@ TRIGGERS: dict[str, list[tuple[re.Pattern[str], str]]] = {
     # enforcer citation; only a forbidden METHOD NAME — `name()` ... forbidden —
     # is the L7 leak, so the probe requires the method-call token, not bare
     # "is forbidden".)
+    # Widened (convergence scan round 3): the L7 leak is a method/return SHAPE,
+    # which survives equally in a colon-return form (`deadline() : Instant`, the
+    # Pascal-style signature notation) and in a record-component constructor whose
+    # args are FIELD names rather than JVM types (`ResiliencePolicy(cbName,
+    # retryName, tlName)`). The first probe keyed only on the `->` arrow and the
+    # JVM-typed-args inventory keyed only on capitalised Type tokens, so both
+    # surface forms evaded the regex while the semantic verdict forbids them.
     "L7-method-signature": [
         (re.compile(r"\b[A-Za-z_]\w*\([^)]*\)\s*->\s*[A-Z]\w+"), "method signature args -> ReturnType"),
+        (re.compile(r"\b[A-Za-z_]\w*\(\s*\)\s*:\s*[A-Z]\w+"), "colon-return signature name() : ReturnType"),
         (re.compile(r"\bclassified\s+as\s+(?:an?\s+)?[`'\"]?(?:interface|record)\b", re.IGNORECASE), "interface-vs-record classification"),
         (re.compile(r"\b[A-Za-z_]\w*\(\)\s+(?:is|are)\s+forbidden\b", re.IGNORECASE), "forbidden method-name rule (name() is forbidden)"),
         (re.compile(r"\bcanonical\s+field\s+name\b", re.IGNORECASE), "canonical field-name detail"),
@@ -529,6 +558,12 @@ TRIGGERS: dict[str, list[tuple[re.Pattern[str], str]]] = {
         # JVM-typed arg paired with a return arrow — a parameter/return inventory,
         # not a one-line identity.
         (re.compile(r"\(\s*(?:UUID|Instant|String|List<[^>]+>|Map<[^>]+>|StateDelta|TaskMetadata|InjectedContext|ChildFailurePolicy|SessionContext)\b[^)]*,[^)]*\)"), "JVM-typed parameter inventory (multi-arg)"),
+        # A record-component constructor whose args are >=3 lowercase camelCase
+        # FIELD names (no JVM Type token) — a record-shape inventory the JVM-typed
+        # probe above cannot see (`Policy(cbName, retryName, tlName)`). Anchored on
+        # a PascalCase type name immediately followed by the paren so a prose list
+        # in plain `(a, b, c)` parentheses is not swept in.
+        (re.compile(r"\b[A-Z][A-Za-z0-9_]*\(\s*[a-z][A-Za-z0-9_]*\s*,\s*[a-z][A-Za-z0-9_]*\s*,\s*[a-z][A-Za-z0-9_]*[^)]*\)"), "record-component constructor (field-name args)"),
     ],
     # L8 — Test-class inventories: named test classes carrying their ASSERTED
     # runtime behaviour, embedded in layer prose — a test catalogue. NOT an

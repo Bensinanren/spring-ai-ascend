@@ -1,0 +1,98 @@
+# Normalized ADR view — readable-interpretation layer over the raw ADR.
+#
+# Authority: ADR-0160 (ADR Governance Model). This view re-states and curates;
+# it invents no ADR ids and no relationships and never outranks a generated
+# fact. Authority cascade: generated facts > DSL > Card/prose. Schema pinned by
+# docs/governance/adr-governance-policy.yaml + docs/governance/adr-taxonomy.yaml,
+# enforced by Rule G-28. UTC date for any date field (Rule G-9.a).
+
+adr: ADR-0040
+raw_path: docs/adr/0040-w1-http-contract-reconciliation.md
+current_state: active_guidance
+decision_level: L0
+affected_levels:
+  - L0
+  - L1
+  - contract
+  - gate
+view: development
+decision_type: cross_module_policy
+
+clean_decision_summary: |
+  One invariant binds every active HTTP-contract document to a single W1
+  tenant-and-cancel story: tenant identity is CROSS-CHECKED, never replaced (a JWT
+  tenant claim is added alongside the caller-asserted X-Tenant-Id, not substituted
+  for it); a run begins in its DFA-initial status; and cancellation is a state
+  transition on a surviving run record, not resource deletion. L0 owns the
+  invariant; the concrete verbs, routes, status codes, header names, and the
+  literal initial RunStatus value are runtime-contract detail below L0 whose
+  authority is the OpenAPI surface (facts contract-op/createrun, contract-op/getrun,
+  contract-op/cancelrun) and its L2 readable expansion.
+
+active_guidance:
+  - "Tenant identity is cross-checked at W1, never replaced: a JWT tenant claim is added ALONGSIDE the caller-asserted X-Tenant-Id (which stays required); the two are compared and a mismatch is rejected. This is additive W1 hardening with no breaking change for W0 callers."
+  - "A newly created run begins in its DFA-initial status (RunStatus.PENDING per the ADR-0020 RunLifecycle DFA); there is no CREATED status, and any document asserting CREATED as the initial status is wrong."
+  - "Cancellation is a state transition on a surviving run record (the run moves to the terminal CANCELLED state per the Rule R-C.d RunStateMachine DFA), NOT resource deletion; the run record is never physically removed."
+  - "L0 owns the cross-check / DFA-initial / cancel-is-a-transition INVARIANT (ARCHITECTURE.md section 4 #37); it does NOT own the wire detail. The verbs, routes, status codes, header names, and the literal initial RunStatus value are runtime-contract facts below L0, whose authority is the OpenAPI surface and its L2 sink."
+  - "This ADR remains the documented home of the Gate Rule 16 / 16a forbidden-phrasing list that keeps active documents from re-introducing replacement-implying X-Tenant-Id wording, CREATED as an initial status, or DELETE as the cancel mechanism."
+
+non_authoritative_legacy_content:
+  - "The verbatim HTTP route x verb x status matrix inlined in the raw Decision Outcome — POST /v1/runs -> 201, the mismatch -> 403 / missing-JWT -> 401 tenant outcomes, POST /v1/runs/{runId}/cancel -> 200 / 409 Conflict, and the DELETE-is-not-cancel statement — is L4-http-status-route-verb detail, NOT current authority through this ADR. Its authority is the OpenAPI facts contract-op/createrun, contract-op/getrun, contract-op/cancelrun (docs/contracts/openapi-v1.yaml) and the L2 sink architecture/docs/L2/run-http-contract/. The raw block is quarantined as historical reference; the raw ADR carries the same altitude-quarantine banner."
+  - "The 'Affected documents (all patched in this cycle)' table and its before/after line-anchored citations (agent-service/ARCHITECTURE.md:34-35, ARCHITECTURE.md:149-153, http-api-contracts.md:92, openapi x-w1-note, contract-catalog.md:10) are a point-in-time remediation snapshot of the 2026-05-13 reconciliation, not standing authority; the live contract surface is the OpenAPI facts + L2 sink."
+
+supersedes: []
+superseded_by: ""
+
+dsl_refs: []
+l0_constraint_refs:
+  - "ARCHITECTURE.md section 4 #37 (W1 HTTP contract reconciliation — the cross-check / DFA-initial / cancel-is-a-transition invariant; L0 owns the invariant, not the wire detail)"
+  - "ARCHITECTURE.md section 4 #3 + #22 (tenant cross-check, not replace, at the security and HTTP-edge surface)"
+l1_refs:
+  - "agent-service runs-API HTTP surface (the L1 runs-API matrix copy was drained to the contract-op delegation; grandfathered as LPV-l1-as-runs-api-matrix, sunset 2026-07-31)"
+l2_refs:
+  - "architecture/docs/L2/run-http-contract/ (the readable wire expansion: route x verb x status for createRun / getRun / cancelRun — the home of the detail quarantined out of this ADR)"
+contract_refs:
+  - docs/contracts/openapi-v1.yaml
+  - docs/contracts/http-api-contracts.md
+fact_refs:
+  - contract-op/createrun
+  - contract-op/getrun
+  - contract-op/cancelrun
+gate_refs:
+  - "Rule 16 (http_contract_w1_tenant_and_cancel_consistency — enforces the cross-check-not-replace invariant, PENDING initial status, and POST-not-DELETE cancel)"
+  - "Rule 16a (case-sensitive replacement-implying verb forms on the tenant filter)"
+  - "Rule G-28 (ADR Normalization — this view's schema + altitude validator)"
+
+review_notes: |
+  current_state active_guidance: the W1 HTTP-contract invariant (cross-check, not
+  replace; DFA-initial status; cancel-is-a-transition) is current governing
+  authority and nothing supersedes ADR-0040. active_guidance ALLOWS a non-empty
+  non_authoritative_legacy_content, which is used here to QUARANTINE the wire-level
+  route x verb x status matrix the raw Decision Outcome inlines — the residual
+  flagged by the convergence scan (root family layer-purity-leakage): the L0 section
+  4 #37 prose and the L1 agent-service runs-API copy were both drained to
+  contract-op/createrun | getrun | cancelrun, but the ADR source — the normative
+  origin those delegations rest on — still asserted the verbatim matrix as
+  un-quarantined active guidance, and no normalized view existed.
+
+  decision_level L0 / decision_type cross_module_policy: the decision is a
+  cross-document runtime invariant binding EVERY active HTTP-contract surface
+  (agent-service/ARCHITECTURE.md, ARCHITECTURE.md, the contract catalog, the
+  http-api-contracts narrative, and the OpenAPI spec) to one tenant-and-cancel
+  story — an L0 cross-module policy, not an L1 module contract. The forbidden L0
+  decision_types (implementation_class / source_file_move / method_signature /
+  test_class_inventory / private_call_chain) are not used; the concrete
+  status/route/verb wire detail is L4-http-status-route-verb material and was pushed
+  to non_authoritative_legacy_content + the contract-op facts + the L2 sink rather
+  than carried up as authority.
+
+  fact_refs note: ADR-0040 is a Markdown ADR and is NOT present in the apex raw-ADR
+  fact projection (architecture/facts/generated/adrs.json), so no adr/0040-* fact id
+  exists to cite (inventing one would breach the readable-interpretation discipline).
+  The fact_refs therefore name the genuinely existing OpenAPI operation facts
+  (contract-op/createrun | getrun | cancelrun, present in
+  architecture/facts/generated/contract-surfaces.json) that the quarantined wire
+  matrix delegates to. This view is NOT enumerated in docs/adr/normalized/index.yaml
+  (which is regenerated from the on-disk views and counts only the YAML corpus); the
+  reconcile step owns re-emitting that index and any census reconciliation for the
+  Markdown-ADR corpus.

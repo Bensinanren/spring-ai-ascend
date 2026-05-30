@@ -10,8 +10,22 @@
 // New tests land here as part of the same PR that adds the function point.
 // W6 will not deprecate this file — it remains hand-authored after the YAML
 // sunset.
+//
+// LAYER-PURITY DISCIPLINE (ADR-0159 §7). This is the structural TEST-CATALOGUE,
+// and it sits ABOVE the L0/L1 prose in the authority cascade
+// (generated facts > DSL > Card/prose). An element description here is a
+// structural IDENTITY only: it names the test class, its harness flavour, and
+// the function point it verifies (the `verifies` edge below carries the same
+// structural intent). It MUST NOT carry asserted runtime behaviour — no route x
+// verb (L4), no method-call chain (L1), no persistence mechanism (L3), no
+// enumerated DFA transition outcome (L2/L8). The asserted behaviour of each
+// test is owned by `architecture/facts/generated/tests.json` and surfaced
+// through the verified FunctionPoint's `saa.test_refs[]` in
+// `function-points.dsl`. Frame cards delegate the test inventory to those two
+// fact surfaces for exactly this reason; this catalogue, being higher
+// authority, holds itself to the same line.
 
-testRunControllerCreateIT = element "RunControllerCreateIT" "IntegrationTest" "POST /v1/runs end-to-end happy path + idempotency replay" "SAA Test" {
+testRunControllerCreateIT = element "RunControllerCreateIT" "IntegrationTest" "Integration test verifying FP-CREATE-RUN; asserted behaviour in tests.json + FP test_refs" "SAA Test" {
     properties {
         "saa.id" "TEST-RUNCONTROLLER-CREATE-IT"
         "saa.kind" "integration_test"
@@ -23,7 +37,7 @@ testRunControllerCreateIT = element "RunControllerCreateIT" "IntegrationTest" "P
     }
 }
 
-testRunControllerCancelIT = element "RunControllerCancelIT" "IntegrationTest" "POST /v1/runs/(runId)/cancel — tenant re-auth + DFA transition" "SAA Test" {
+testRunControllerCancelIT = element "RunControllerCancelIT" "IntegrationTest" "Integration test verifying FP-CANCEL-RUN; asserted behaviour in tests.json + FP test_refs" "SAA Test" {
     properties {
         "saa.id" "TEST-RUNCONTROLLER-CANCEL-IT"
         "saa.kind" "integration_test"
@@ -35,7 +49,7 @@ testRunControllerCancelIT = element "RunControllerCancelIT" "IntegrationTest" "P
     }
 }
 
-testRunStateMachineTest = element "RunStateMachineTest" "UnitTest" "RunStatus DFA — every legal/illegal transition asserted" "SAA Test" {
+testRunStateMachineTest = element "RunStateMachineTest" "UnitTest" "Unit test verifying FP-RUN-STATE-TRANSITION; asserted behaviour in tests.json + FP test_refs" "SAA Test" {
     properties {
         "saa.id" "TEST-RUNSTATEMACHINE"
         "saa.kind" "unit_test"
@@ -47,7 +61,7 @@ testRunStateMachineTest = element "RunStateMachineTest" "UnitTest" "RunStatus DF
     }
 }
 
-testIdempotencyStoreIT = element "IdempotencyStoreIT" "IntegrationTest" "Idempotency claim + replay against PostgreSQL via Testcontainers" "SAA Test" {
+testIdempotencyStoreIT = element "IdempotencyStoreIT" "IntegrationTest" "Integration test verifying FP-IDEMPOTENCY-CLAIM; asserted behaviour in tests.json + FP test_refs" "SAA Test" {
     properties {
         "saa.id" "TEST-IDEMPOTENCYSTORE-IT"
         "saa.kind" "integration_test"
@@ -59,7 +73,7 @@ testIdempotencyStoreIT = element "IdempotencyStoreIT" "IntegrationTest" "Idempot
     }
 }
 
-testTenantContextFilterIT = element "TenantContextFilterIT" "IntegrationTest" "JWT tenant claim cross-check vs IngressEnvelope tenantId" "SAA Test" {
+testTenantContextFilterIT = element "TenantContextFilterIT" "IntegrationTest" "Integration test verifying FP-TENANT-CROSS-CHECK; asserted behaviour in tests.json + FP test_refs" "SAA Test" {
     properties {
         "saa.id" "TEST-TENANTCONTEXTFILTER-IT"
         "saa.kind" "integration_test"
@@ -71,7 +85,7 @@ testTenantContextFilterIT = element "TenantContextFilterIT" "IntegrationTest" "J
     }
 }
 
-testEngineRegistryTest = element "EngineRegistryTest" "UnitTest" "EngineRegistry.resolve(envelope) — typed dispatch + EngineMatchingException on mismatch" "SAA Test" {
+testEngineRegistryTest = element "EngineRegistryTest" "UnitTest" "Unit test verifying FP-ENGINE-DISPATCH; asserted behaviour in tests.json + FP test_refs" "SAA Test" {
     properties {
         "saa.id" "TEST-ENGINEREGISTRY"
         "saa.kind" "unit_test"
@@ -83,7 +97,7 @@ testEngineRegistryTest = element "EngineRegistryTest" "UnitTest" "EngineRegistry
     }
 }
 
-testPostureBootGuardTest = element "PostureBootGuardTest" "UnitTest" "PostureBootGuard fail-closed under research/prod on missing @RequiredConfig" "SAA Test" {
+testPostureBootGuardTest = element "PostureBootGuardTest" "UnitTest" "Unit test verifying FP-POSTURE-BOOT-GUARD; asserted behaviour in tests.json + FP test_refs" "SAA Test" {
     properties {
         "saa.id" "TEST-POSTUREBOOTGUARD"
         "saa.kind" "unit_test"

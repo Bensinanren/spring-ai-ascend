@@ -86,12 +86,17 @@ requirements:
       lifecycle-control capability.
     acceptance_criteria:
       - >
-        POST /v1/runs admits a Run with tenant + idempotency + posture guards
-        and GET /v1/runs/{id} returns it tenant-scoped, per
+        A Run is admitted under tenant + idempotency + posture guards and is
+        then retrievable tenant-scoped (FunctionPoints FP-CREATE-RUN,
+        FP-GET-RUN-STATUS; the route x verb and wire shape are the contract
+        surface's, surfaced via each FunctionPoint's saa.contract_op_refs into
+        docs/contracts/openapi-v1.yaml), per
         com.huawei.ascend.service.platform.web.runs.RunHttpContractIT.
       - >
-        Concurrent transitions are atomic with no lost update via the CAS-based
-        RunRepository.updateIfNotTerminal path, per
+        Concurrent transitions are atomic with no lost update — each transition
+        goes through the single sanctioned atomic update-if-not-terminal
+        operation (FunctionPoint FP-RUN-STATE-TRANSITION; the method-level CAS
+        realization is L2 detail at architecture/docs/L2/run-http-contract/), per
         com.huawei.ascend.service.runtime.runs.RunStateMachineTest.
 
   - id: REQ-002

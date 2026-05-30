@@ -17,7 +17,7 @@ scope_surfaces:
   - gate/lib/check_status_claim_altitude.py
   - gate/lib/check_layer_purity.py
 kernel: |
-  The `allowed_claim` field of the capability-status ledger `docs/governance/architecture-status.yaml` is an altitude-governed surface, NOT a free-form narrative. Per the authority cascade (generated facts > DSL > Card/prose) the capability ledger OUTRANKS the L0/L1 architecture prose, so the same layer-purity verdict Rule G-27 enforces on L0/L1 documents applies at least as strongly here: an `allowed_claim` MUST NOT carry L2 runtime implementation detail — method call chains, runtime sequences, SQL / RLS / GUC / persistence DDL or semantics, HTTP status / route-verb / header behaviour, filter ordering, wire formats, method signatures, or test-class inventories. That detail belongs at `architecture/docs/L2/<slug>/`, the contract surfaces (`docs/contracts/`), and the generated facts (`architecture/facts/generated/`); an `allowed_claim` should NAME the capability identity + cite its ADR / enforcer (D1/D2/D3, never reported) and POINT at the detail's home, not restate it. The single gate Rule 151 invokes `gate/lib/check_status_claim_altitude.py` (E201), which scans every `allowed_claim` value, reuses the SAME closed leaked-category vocabulary as Rule G-27 (`docs/governance/layer-purity-policy.yaml`, leaked `L1`..`L8`) by IMPORTING the canonical trigger library from `gate/lib/check_layer_purity.py` (one verdict, one probe set, three surfaces), and reports a leak that is not redeemed by a still-open dated row in the per-surface grandfather list `docs/governance/layer-purity-status-ledger-grandfather.yaml`. Each grandfather row is CAPABILITY-PRECISE (it pins the ledger capability key it freezes) so a row tolerates exactly one claim and retiring it re-arms the gate on that claim — a row that omits its capability is a config error (every leak on this single surface shares one file, so file+category alone is too coarse). E201 invents no id and no relationship and never outranks a generated fact: it reads the policy as the vocabulary and the ledger as the data. It does NOT edit the ledger (owned by the status-ledger reconcile step) and does NOT scan the ledger's structural keys (`implementation` / `tests` file lists, `l0_decision`, enforcer rows) — those are the development-view evidence index (D2), not a behavioural claim. Runs CHANGED-FILES-BLOCKING: a PR that edits the ledger may not ADD or worsen a claim-altitude leak; pre-existing (grandfathered) leaks in an untouched ledger stay advisory. Ratchet: advisory → changed-files-blocking → full-blocking, the terminal rung gated by the same clean-workspace + fact-byte-identity condition as Rule G-27 per ADR-0159 §9.
+  The free-form NARRATIVE fields of the capability-status ledger `docs/governance/architecture-status.yaml` — the `allowed_claim` values AND the sibling `note` values — are an altitude-governed surface, NOT un-governed prose. Per the authority cascade (generated facts > DSL > Card/prose) the capability ledger OUTRANKS the L0/L1 architecture prose, so the same layer-purity verdict Rule G-27 enforces on L0/L1 documents applies at least as strongly here: a narrative field MUST NOT carry L2 runtime implementation detail — method call chains, runtime sequences, SQL / RLS / GUC / persistence DDL or semantics, HTTP status / route-verb / header behaviour, filter ordering, wire formats, method signatures, or test-class inventories. That detail belongs at `architecture/docs/L2/<slug>/`, the contract surfaces (`docs/contracts/`), and the generated facts (`architecture/facts/generated/`); a narrative field should NAME the capability identity + cite its ADR / enforcer (D1/D2/D3, never reported) and POINT at the detail's home, not restate it. The single gate Rule 151 invokes `gate/lib/check_status_claim_altitude.py` (E201), which co-scans every `allowed_claim` AND `note` value (both are un-altitude-guarded narrative on the same surface, so scoping to `allowed_claim` alone left a by-file-type hole at field granularity), reuses the SAME closed leaked-category vocabulary as Rule G-27 (`docs/governance/layer-purity-policy.yaml`, leaked `L1`..`L8`) by IMPORTING the canonical trigger library from `gate/lib/check_layer_purity.py` (one verdict, one probe set, three surfaces), and reports a leak that is not redeemed by a still-open dated row in the per-surface grandfather list `docs/governance/layer-purity-status-ledger-grandfather.yaml`. Each grandfather row is CAPABILITY-PRECISE (it pins the ledger capability key it freezes) so a row tolerates exactly one claim and retiring it re-arms the gate on that claim — a row that omits its capability is a config error (every leak on this single surface shares one file, so file+category alone is too coarse). E201 invents no id and no relationship and never outranks a generated fact: it reads the policy as the vocabulary and the ledger as the data. It does NOT edit the ledger (owned by the status-ledger reconcile step) and does NOT scan the ledger's structural keys (`implementation` / `tests` file lists, `l0_decision`, enforcer rows) — those are the development-view evidence index (D2), not a behavioural claim. Runs CHANGED-FILES-BLOCKING: a PR that edits the ledger may not ADD or worsen a claim-altitude leak; pre-existing (grandfathered) leaks in an untouched ledger stay advisory. Ratchet: advisory → changed-files-blocking → full-blocking, the terminal rung gated by the same clean-workspace + fact-byte-identity condition as Rule G-27 per ADR-0159 §9.
 ---
 
 # Rule G-34 — Status-Ledger Claim Altitude
@@ -26,14 +26,19 @@ kernel: |
 
 Extends the adjudicated layer-purity verdict (the "L0/L1 carries L2/code detail"
 critique is TRUE) to the capability-status ledger
-`docs/governance/architecture-status.yaml`. The ledger's `allowed_claim` field is
-a free-form narrative string with no altitude guard, and per the authority
-cascade `generated facts > DSL > Card/prose` it OUTRANKS the L0/L1 architecture
-prose — so a runtime-detail leak in an `allowed_claim` is at least as significant
-as the L0/L1 prose leaks Rule G-27 already gates. Rule G-34 makes that field
-altitude-governed: it MUST carry only the capability identity (a structural
-noun + its ADR / enforcer citation) and POINT at the detail's authoritative home,
-never restate the L2 mechanism.
+`docs/governance/architecture-status.yaml`. The ledger's free-form NARRATIVE
+fields — `allowed_claim` (a capability's behavioural claim) and the sibling
+`note` (its decision/status narrative) — are strings with no altitude guard, and
+per the authority cascade `generated facts > DSL > Card/prose` the ledger
+OUTRANKS the L0/L1 architecture prose — so a runtime-detail leak in either field
+is at least as significant as the L0/L1 prose leaks Rule G-27 already gates.
+Rule G-34 makes those fields altitude-governed: each MUST carry only the
+capability identity (a structural noun + its ADR / enforcer citation) and POINT
+at the detail's authoritative home, never restate the L2 mechanism. E201
+co-scans both fields with one trigger library — scoping to `allowed_claim` alone
+left a by-file-type hole at field granularity (a future `note` that inlined SQL /
+route / method detail would be invisible while an identical `allowed_claim` leak
+blocked).
 
 The leaked categories are exactly the closed `L1`..`L8` set Rule G-27 fixes
 (`docs/governance/layer-purity-policy.yaml`); the defensible-and-never-reported
@@ -77,7 +82,9 @@ third surface. The policy surface and the helper cite `Authority: ADR-0159`.
 ## Governed artifacts
 
 - `docs/governance/architecture-status.yaml` — the capability ledger; the scan
-  target. Owned by the status-ledger reconcile step; E201 never edits it.
+  target. Its `allowed_claim` AND `note` narrative fields are co-scanned; its
+  structural keys are not. Owned by the status-ledger reconcile step; E201 never
+  edits it.
 - `docs/governance/layer-purity-policy.yaml` — the SHARED owns/forbids category
   vocabulary (leaked `L1`..`L8`, defensible `D1`..`D3`). Single-source with
   Rule G-27; E201 imports its executable trigger library from
@@ -94,21 +101,23 @@ third surface. The policy surface and the helper cite `Authority: ADR-0159`.
 
 ## Required behavior
 
-- Every `allowed_claim` value names the capability identity (D1/D2) and, where it
-  cites a mechanism, the enforcing ArchUnit test / gate rule (D3) — and POINTS at
-  the detail's home (`docs/contracts/`, `architecture/docs/L2/`,
-  `architecture/facts/generated/`) rather than restating it.
+- Every narrative-field value (`allowed_claim` + `note`) names the capability
+  identity (D1/D2) and, where it cites a mechanism, the enforcing ArchUnit test /
+  gate rule (D3) — and POINTS at the detail's home (`docs/contracts/`,
+  `architecture/docs/L2/`, `architecture/facts/generated/`) rather than restating
+  it.
 - Each grandfather row pins the ledger `capability` key it freezes, cites the
   leaked category E201 reports for that claim, and declares a `sunset_date`.
 - E201 judges the ledger by the SAME leaked-category vocabulary and trigger
-  library Rule G-27 applies to the L0/L1 prose.
+  library Rule G-27 applies to the L0/L1 prose, across BOTH narrative fields.
 
 ## Forbidden behavior
 
-- An `allowed_claim` that restates an `L1`..`L8` leaked category (a call chain, a
-  runtime sequence, SQL / RLS / GUC / persistence DDL, an HTTP status / route-verb
-  / header behaviour, a filter order, a wire format, a method signature, or a
-  test-class inventory) with no still-open grandfather row.
+- A narrative field (`allowed_claim` or `note`) that restates an `L1`..`L8`
+  leaked category (a call chain, a runtime sequence, SQL / RLS / GUC / persistence
+  DDL, an HTTP status / route-verb / header behaviour, a filter order, a wire
+  format, a method signature, or a test-class inventory) with no still-open
+  grandfather row.
 - A grandfather row that targets the ledger but omits its `capability` key — too
   coarse to attribute, so E201 rejects it (config error).
 - Hand-widening the leaked-category vocabulary in E201 by copying a private
@@ -125,17 +134,17 @@ The single gate Rule 151 invokes one helper at the changed-files-blocking rung:
 - `gate/lib/check_status_claim_altitude.py` (E201) — loads the leaked-category
   vocabulary from `layer-purity-policy.yaml`, IMPORTS the canonical trigger
   library (`TRIGGERS` + `_is_d3_enforcer_citation`) from
-  `gate/lib/check_layer_purity.py`, walks the parsed ledger for every
-  `allowed_claim` string (recording each claim's capability key + source line),
-  and reports a leaked-category trigger not redeemed by a still-open
-  capability-matched row in the per-surface grandfather list. The L8 D3
-  enforcer-citation carve-out is the imported one, so an `allowed_claim` that
-  cites its enforcing `*ArchTest` / `*IT` as a mechanism (not a catalogue) is
-  spared identically to the L0/L1 prose. PyYAML is required (the gate already
-  hard-requires it); an un-importable trigger library, a zero-claim scan, an
-  unknown cited category, or a capability-less ledger row is a config error
-  (exit 2) — the gate fails closed rather than scan vacuously or with a drifting
-  private probe copy.
+  `gate/lib/check_layer_purity.py`, walks the parsed ledger for every narrative
+  string in `NARRATIVE_FIELDS` (`allowed_claim` + `note`), recording each value's
+  capability key + leaking field + source line, and reports a leaked-category
+  trigger not redeemed by a still-open capability-matched row in the per-surface
+  grandfather list. The L8 D3 enforcer-citation carve-out is the imported one, so
+  a narrative field that cites its enforcing `*ArchTest` / `*IT` as a mechanism
+  (not a catalogue) is spared identically to the L0/L1 prose. PyYAML is required
+  (the gate already hard-requires it); an un-importable trigger library, a
+  zero-value scan, an unknown cited category, or a capability-less ledger row is a
+  config error (exit 2) — the gate fails closed rather than scan vacuously or with
+  a drifting private probe copy.
 
 The helper neither edits an authority surface, mints an id, nor replaces a
 generated fact — it classifies the ledger's claim prose against the shared policy
@@ -175,7 +184,7 @@ bash gate/check_architecture_sync.sh
 
 | Symptom (helper output) | Root cause | Remediation |
 |---|---|---|
-| `status-claim-altitude <ledger>:<line> [<capability>] L<n> (...): <label>` (blocks when the ledger changed) | An `allowed_claim` restates a leaked `L1`..`L8` category | Move the detail to its home (`docs/contracts/` / `architecture/docs/L2/` / `architecture/facts/generated/`) and reduce the claim to the capability identity + a pointer; or, if not yet migrated, add a dated capability-precise row to `layer-purity-status-ledger-grandfather.yaml` |
+| `status-claim-altitude <ledger>:<line> [<capability> <field>] L<n> (...): <label>` (blocks when the ledger changed) | A narrative field (`allowed_claim` or `note`) restates a leaked `L1`..`L8` category | Move the detail to its home (`docs/contracts/` / `architecture/docs/L2/` / `architecture/facts/generated/`) and reduce the field to the capability identity + a pointer; or, if not yet migrated, add a dated capability-precise row to `layer-purity-status-ledger-grandfather.yaml` |
 | `... row '<id>' targets <ledger> but declares no 'capability' key` (exit 2) | A grandfather row omits its capability key | Add `capability: <ledger key>` so the row freezes exactly one claim |
 | `... cannot import the shared trigger library ... from gate/lib/check_layer_purity.py` (exit 2) | The canonical probe source is missing/renamed | Restore `gate/lib/check_layer_purity.py`; E201 refuses to scan with a private probe copy that could drift |
 | `... discovered zero allowed_claim values ...` (exit 2) | A schema/path drift emptied the scan set | Restore the ledger schema (capability rows with `allowed_claim`); a vacuous scan is never a pass |
@@ -187,6 +196,10 @@ bash gate/check_architecture_sync.sh
   - VALID  : advisory mode reports the ledger leaks but ALWAYS exits 0 (soak).
   - INVALID: full-blocking with the grandfather list emptied fails closed — the
              scan is non-vacuous (it sees the live leaks).
+  - INVALID: a leak that lives in a `note` field (not `allowed_claim`) is detected
+             and fails full-blocking — both narrative fields are co-scanned.
+  - VALID  : a capability-matched open row freezes a `note`-field leak exactly as
+             it freezes an `allowed_claim` leak (the matcher is field-agnostic).
   - VALID  : full-blocking with every live leak frozen by a still-open,
              capability-matched row passes (0 findings, all grandfathered).
   - INVALID: a grandfather row targeting the ledger with no `capability` key is a

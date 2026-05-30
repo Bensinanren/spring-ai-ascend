@@ -10217,8 +10217,10 @@ test_rule_150_adr_id_uniqueness_duplicate_neg() {
 # canonical gate invokes the helper changed-files-blocking, never advisory.
 # ---------------------------------------------------------------------------
 _g34_status_claim_scratch() {
-  # $1 = scratch root; $2 = grandfather 'violations:' body (raw YAML block).
-  local sroot="$1"; local gf_body="$2"
+  # $1 = scratch root; $2 = grandfather 'violations:' body (raw YAML block);
+  # $3 (optional) = "note" to stage the note-field leak ledger instead of the
+  # default allowed_claim leak ledger (co-scan of the sibling note: field).
+  local sroot="$1"; local gf_body="$2"; local ledger_kind="${3:-allowed_claim}"
   mkdir -p "$sroot/gate/lib" "$sroot/docs/governance"
   cp "$PWD/gate/lib/check_status_claim_altitude.py" "$sroot/gate/lib/check_status_claim_altitude.py"
   cp "$PWD/gate/lib/check_layer_purity.py" "$sroot/gate/lib/check_layer_purity.py"
@@ -10241,9 +10243,23 @@ categories:
     forbidden_at: [L0, L1]
     home: "docs/contracts/*.v1.yaml"
 POLICY
-  # A ledger with one leaked claim (cap_alpha -> a bare 409 = L4) and one clean
-  # claim (cap_clean -> capability identity + pointer only).
-  cat > "$sroot/docs/governance/architecture-status.yaml" <<'LEDGER'
+  if [[ "$ledger_kind" == "note" ]]; then
+    # The leak lives in a note: field, not allowed_claim — the by-file-type hole
+    # the co-scan closes. cap_note's note restates an ON CONFLICT clause (L3).
+    cat > "$sroot/docs/governance/architecture-status.yaml" <<'LEDGER'
+version: 1
+generated_at: 2026-05-30
+capabilities:
+  cap_note:
+    status: design_accepted
+    shipped: false
+    note: "Status note -- dedup uses INSERT ... ON CONFLICT (tenant_id, key) DO NOTHING in the W2 migration."
+    allowed_claim: "Design only -- a tenant-scoped dedup capability exists; the SPI identity is the boundary; detail in docs/contracts/."
+LEDGER
+  else
+    # A ledger with one leaked claim (cap_alpha -> a bare 409 = L4) and one clean
+    # claim (cap_clean -> capability identity + pointer only).
+    cat > "$sroot/docs/governance/architecture-status.yaml" <<'LEDGER'
 version: 1
 generated_at: 2026-05-30
 capabilities:
@@ -10256,6 +10272,7 @@ capabilities:
     shipped: false
     allowed_claim: "Design only -- a tenant-scoped dedup capability exists; the SPI identity is the boundary; detail in docs/contracts/."
 LEDGER
+  fi
   cat > "$sroot/docs/governance/layer-purity-status-ledger-grandfather.yaml" <<GRAND
 schema_version: 1
 authority: ADR-0159
@@ -10357,6 +10374,33 @@ test_rule_151_status_claim_altitude_grandfathered_pos() {
     ok "rule_151_status_claim_altitude_grandfathered_pos" "Rule G-34 / Rule 151: a capability-matched open row tolerates its leak under full-blocking (1 grandfathered)"
   else
     fail "rule_151_status_claim_altitude_grandfathered_pos" "Rule G-34 / Rule 151 grandfathered case unexpected: rc=$rc out=$(echo "$out" | grep -E 'finding|grandfathered' | head -1)"
+  fi
+}
+
+test_rule_151_status_claim_altitude_note_field_coscan_neg() {
+  # NEGATIVE: the leak lives in a note: field (not allowed_claim) — the
+  # by-file-type hole the co-scan closes. With no grandfather row, full-blocking
+  # must SEE the note: leak and exit 1. Locks that E201 co-scans both narrative
+  # fields, not just allowed_claim, so a future note: that inlines L2 detail is
+  # not invisible to the gate.
+  local helper="$PWD/gate/lib/check_status_claim_altitude.py"
+  if [[ ! -f "$helper" ]]; then
+    fail "rule_151_status_claim_altitude_note_field_coscan_neg" "Rule G-34 / Rule 151: $helper missing"
+    return
+  fi
+  local py; py=$(_g28_python_bin)
+  if [[ -z "$py" ]]; then
+    ok "rule_151_status_claim_altitude_note_field_coscan_neg" "Rule G-34 / Rule 151: no python on host — skipped (WSL is canonical per Rule G-7)"
+    return
+  fi
+  local sroot="$scratch/r151_note"
+  _g34_status_claim_scratch "$sroot" " []" "note"
+  local out rc
+  out=$("$py" "$sroot/gate/lib/check_status_claim_altitude.py" --repo "$sroot" --mode full-blocking 2>&1); rc=$?
+  if [[ $rc -eq 1 ]] && echo "$out" | grep -qE 'L3-sql-rls-persistence' && echo "$out" | grep -qE '\bnote\] '; then
+    ok "rule_151_status_claim_altitude_note_field_coscan_neg" "Rule G-34 / Rule 151: an ungrandfathered leak in a note: field (not allowed_claim) fails full-blocking — the sibling field is co-scanned"
+  else
+    fail "rule_151_status_claim_altitude_note_field_coscan_neg" "Rule G-34 / Rule 151 note co-scan case did not fail as expected: rc=$rc out=$(echo "$out" | grep -E 'finding|L3|note\]' | head -2)"
   fi
 }
 

@@ -40,7 +40,7 @@ efIngressGateway -> fpIngressEnvelope "frame anchors function point" "SAA Relati
     }
 }
 
-efS2cTransport = element "S2C Transport Frame" "EngineeringFrame" "Server-to-client callback transport — S2cCallbackTransport, S2cCallbackEnvelope, capability invocation bound to suspend/resume" "SAA EngineeringFrame" {
+efS2cTransport = element "S2C Transport Frame" "EngineeringFrame" "Server-to-client callback transport boundary — the neutral back-channel SPI a suspended run uses to invoke a client-published capability (bus.spi.s2c)" "SAA EngineeringFrame" {
     properties {
         "saa.id" "EF-S2C-TRANSPORT"
         "saa.kind" "engineering_frame"
@@ -84,7 +84,7 @@ genModule_agent_bus -> efChannelIsolation "module contains engineering frame" "S
     }
 }
 
-efEnginePort = element "Engine Port Frame" "EngineeringFrame" "Neutral transport-agnostic Service<->Engine boundary — EnginePort, ExecutionContext, ExecuteRequest, AgentEvent stream, DefinitionRef, EngineDescriptor; in-process / internal-RPC / A2A realizations selected by deployment form" "SAA EngineeringFrame" {
+efEnginePort = element "Engine Port Frame" "EngineeringFrame" "Neutral transport-agnostic Service<->Engine boundary — one semantic port contract a Service drives and an engine implements, with no reverse dependency on either driver or realization (bus.spi.engine)" "SAA EngineeringFrame" {
     properties {
         "saa.id" "EF-ENGINE-PORT"
         "saa.kind" "engineering_frame"
@@ -105,7 +105,7 @@ genModule_agent_bus -> efEnginePort "module contains engineering frame" "SAA Rel
 
 // EF-ORCHESTRATION-SPI re-homed from agent-execution-engine to agent-bus per ADR-0158
 // (the neutral execution contract lives in bus.spi.engine, owned by no single engine).
-efOrchestrationSpi = element "Orchestration SPI Frame" "EngineeringFrame" "Neutral execution model — Orchestrator, ExecutionContext, RunContext, SuspendSignal, Checkpointer, ExecutorDefinition, RunMode (bus.spi.engine)" "SAA EngineeringFrame" {
+efOrchestrationSpi = element "Orchestration SPI Frame" "EngineeringFrame" "Neutral execution-model SPI owned by no single engine — the run/suspend/checkpoint orchestration contract shared by the Service and its engines (bus.spi.engine)" "SAA EngineeringFrame" {
     properties {
         "saa.id" "EF-ORCHESTRATION-SPI"
         "saa.kind" "engineering_frame"
@@ -126,7 +126,7 @@ genModule_agent_bus -> efOrchestrationSpi "module contains engineering frame" "S
 
 // ---- agent-execution-engine (compute_control plane) ----
 
-efEngineRegistry = element "Engine Registry Frame" "EngineeringFrame" "Engine contract surface — EngineRegistry strict matching, EngineEnvelope, ExecutorAdapter lifecycle, EngineHookSurface" "SAA EngineeringFrame" {
+efEngineRegistry = element "Engine Registry Frame" "EngineeringFrame" "Engine-side contract surface — strict registration and selection of executor adapters that realize the neutral engine port in-process (engine.runtime)" "SAA EngineeringFrame" {
     properties {
         "saa.id" "EF-ENGINE-REGISTRY"
         "saa.kind" "engineering_frame"
@@ -153,7 +153,7 @@ efEngineRegistry -> fpEngineDispatch "frame anchors function point" "SAA Relatio
 
 // ---- agent-middleware (compute_control plane) ----
 
-efHookSurface = element "Hook Surface Frame" "EngineeringFrame" "Runtime middleware hook dispatch — HookPoint, RuntimeMiddleware, HookDispatcher, HookContext, HookOutcome" "SAA EngineeringFrame" {
+efHookSurface = element "Hook Surface Frame" "EngineeringFrame" "Runtime middleware hook-dispatch surface — the SPI by which cross-cutting middleware observes and shapes execution at defined hook points (middleware)" "SAA EngineeringFrame" {
     properties {
         "saa.id" "EF-HOOK-SURFACE"
         "saa.kind" "engineering_frame"

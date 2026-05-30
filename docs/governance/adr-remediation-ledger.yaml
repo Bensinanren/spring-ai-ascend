@@ -34,9 +34,68 @@
 # ADR-0151 -> ADR-0153 / ADR-0156 ratchet). The reconcile / governance wave owns
 # the rule card, enforcer row, gate wiring, and the architecture-status.yaml
 # baseline; this file declares only the ledger data those consume.
+#
+# BY-ADR ALTITUDE DEMOTION (layer-purity, ADR-0159 section 7 + ADR-0160). A
+# subset of the accepted Markdown/locked ADRs enumerated below AUTHOR a leaked
+# L0 section-4 constraint (SQL / SET LOCAL / Flyway filenames; HTTP status +
+# route-verb; OTLP/HTTP wire + gen_ai.* / langfuse.* namespaces + sampling %;
+# sealed-interface and method/field signatures; named *IT inventories). Because
+# their normalized_path is "" and current_state is active_guidance, that leaked
+# detail is read by architecture review as CURRENT AUTHORITY with no demotion,
+# AND the altitude gate is structurally blind to it (Rule G-28
+# check_adr_taxonomy.py validates decision_type only on docs/adr/normalized/
+# ADR-NNNN.yaml VIEWS; check_historical_adr_governance.py only demands a view for
+# an adrs.json-status `accepted` ADR, and the Markdown/locked ADRs are absent
+# from that YAML-only fact layer -- so no view is even demanded for them). The
+# L0/L1 prose COPIES of these constraints were drained by the layer-purity
+# migration (layer-purity-scan.md sections 1.2 / 1.5), but the by-adr surface was
+# never swept. Until the W6 normalization wave authors each ADR's normalized view
+# (whose non_authoritative_legacy_content / l2_refs quarantine the detail) OR
+# widens AdrFactExtractor to the Markdown/locked sources, the demotion is carried
+# as a per-surface dated grandfather list, mirroring the status-ledger grandfather
+# (docs/governance/layer-purity-status-ledger-grandfather.yaml). The per-entry
+# `remediation_action` / `required_follow_up` for each such ADR names the leaked
+# altitude + its grandfather row; the list itself is `by_adr_altitude_grandfather`
+# below. Family: F-architecture-authority-fragmentation (ALTITUDE variant).
+
+# By-adr altitude-demotion pointer. The per-ADR demotion of each leaked-L0-
+# section-4-constraint Markdown/locked ADR (above) is carried as a per-surface,
+# dated, closed grandfather list -- a READABLE INTERPRETATION layer that freezes
+# each leak, demotes it to non-authoritative (quoted as evidence, never a live
+# claim), and pins a sunset_date. It is policy DATA the reconcile / governance
+# wave consumes (a free G-band rule + E-band enforcer per ADR-0159 section 9
+# applies the shared layer-purity-policy.yaml category vocabulary to this
+# surface); this ledger declares only the pointer + the per-entry annotations.
+by_adr_altitude_grandfather:
+  list: docs/adr/normalized/adr-altitude-grandfather.yaml
+  category_vocabulary: docs/governance/layer-purity-policy.yaml  # shared D1..D3 / L1..L8 rubric
+  sibling_lists:
+    - docs/governance/layer-purity-temporary-violations.yaml          # L0/L1 prose (Rule G-27 / E194-E195)
+    - docs/governance/layer-purity-status-ledger-grandfather.yaml      # allowed_claim (Rule G-34 / E201)
+  family: F-architecture-authority-fragmentation  # ALTITUDE-fragmentation variant
+  rows: 16            # 10 verdict_named (sunset 2026-06-30) + 6 sibling (sunset 2026-08-31)
+  verdict_named_adrs:
+    - ADR-0005
+    - ADR-0019
+    - ADR-0020
+    - ADR-0021
+    - ADR-0022
+    - ADR-0024
+    - ADR-0040
+    - ADR-0044
+    - ADR-0061
+    - ADR-0062
+  sibling_adrs:
+    - ADR-0023
+    - ADR-0025
+    - ADR-0028
+    - ADR-0030
+    - ADR-0031
+    - ADR-0063
+  permanent_close: "author each listed ADR's normalized view (W6 normalization wave) OR widen AdrFactExtractor to the Markdown/locked sources so Rule G-28 view coverage becomes demandable; on demotion the matching grandfather row is removed"
 
 schema_version: 1
-last_updated: 2026-05-29  # UTC date; the local +08 date is UTC-future and would fail Rule G-9.a.
+last_updated: 2026-05-30  # UTC date; the local +08 date is UTC-future and would fail Rule G-9.a.
 
 # Closed five-value set for current_state (ADR-0160). The ledger entry's
 # current_state MUST be one of these; the per-ADR normalized view (when it
@@ -186,6 +245,7 @@ entries:
     title: "Row-level security with SET LOCAL transaction-scoped GUC, not per-connection reset"
     raw_path: docs/adr/locked/0005-tenant-isolation-guc-set-local.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0005-set-local-rls-trigger (L3-sql-rls-persistence). Authors leaked L0 section-4 #3 detail (SET LOCAL GUC + fail-closed assertion trigger). DEMOTED non-authoritative pending normalized view; the tenant-isolation INVARIANT stays, the persistence mechanism migrates to docs/security/rls-policy.sql + architecture/docs/L2/fp-tenant-cross-check/. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -340,6 +400,7 @@ entries:
     title: "SuspendSignal: Checked-Exception Primitive and Sealed SuspendReason Taxonomy"
     raw_path: docs/adr/0019-suspend-signal-and-suspend-reason-taxonomy.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0019-suspendreason-sealed-signatures (L7-method-signature, L2-runtime-sequence). Authors leaked L0 section-4 #19 detail (sealed SuspendReason constructor parameter lists + enum value sets). DEMOTED non-authoritative pending normalized view; naming SuspendReason as a boundary identity stays, the signatures migrate to docs/contracts/*.v1.yaml + code-symbols.json. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -352,6 +413,7 @@ entries:
     title: "RunLifecycle SPI Separation and RunStatus Formal DFA"
     raw_path: docs/adr/locked/0020-runlifecycle-spi-and-runstatus-formal-dfa.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0020-runstatus-dfa-sql-status (L7-method-signature, L3-sql-rls-persistence, L4-http-status-route-verb, L2-runtime-sequence). Authors leaked L0 section-4 #20 detail (RunLifecycle signatures, DFA transition table, run_state_change DDL, 200/409 cancel codes, optimistic-lock UPDATE-WHERE). DEMOTED non-authoritative pending normalized view; the formal-DFA / atomic-advance INVARIANT stays, the mechanism migrates to docs/contracts/*.v1.yaml + architecture/docs/L2/fp-run-state-transition/. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -363,6 +425,7 @@ entries:
     title: "Layered SPI Taxonomy: Cross-Tier Core vs Tier-Specific Adapters"
     raw_path: docs/adr/0021-layered-spi-taxonomy.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0021-layered-spi-method-surface (L7-method-signature). Authors leaked L0 section-4 #9 detail (RunRepository six-method signature surface + per-tier GraphDefinition type shapes). DEMOTED non-authoritative pending normalized view; the three-layer taxonomy + cross-tier boundary identities stay, the method-list inventory migrates to docs/contracts/*.v1.yaml + code-symbols.json. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -374,6 +437,7 @@ entries:
     title: "PayloadCodec SPI and Typed Payload Contract"
     raw_path: docs/adr/0022-payload-codec-spi.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0022-payloadcodec-runevent-signatures (L7-method-signature, L1-method-call-chain). Authors leaked L0 section-4 #21 detail (Payload / PayloadCodec / RunEvent sealed signatures + PayloadCodecRegistry -> PiiFilter -> RuntimeHook chain). DEMOTED non-authoritative pending normalized view; naming PayloadCodec / Payload / RunEvent as boundary identities stays, the signatures + call chain migrate to docs/contracts/*.v1.yaml + code-symbols.json. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -385,6 +449,7 @@ entries:
     title: "Cross-Boundary Context Propagation: Tenant, Trace, MDC, Metric Tags"
     raw_path: docs/adr/0023-cross-boundary-context-propagation.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0023-context-propagation-signature-status (L7-method-signature, L4-http-status-route-verb, L3-sql-rls-persistence; sibling tier). Authors leaked L0 section-4 #22 detail (RunContext.tenantId():String vs TenantContext.tenantId():UUID, 403 resume mismatch, Run.traceparent column). DEMOTED non-authoritative pending normalized view; the propagation model + carrier identities stay, the signatures/status/column migrate. sunset 2026-08-31."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -396,6 +461,7 @@ entries:
     title: "Suspension Write Atomicity: Checkpointer and RunRepository Transactional Contract"
     raw_path: docs/adr/0024-suspension-write-atomicity.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0024-suspension-atomicity-sequence (L1-method-call-chain, L2-runtime-sequence, L3-sql-rls-persistence). Authors leaked L0 section-4 #23 detail (RunRepository.save + Checkpointer.save hops, @Transactional / outbox per-tier mechanism, table names). DEMOTED non-authoritative pending normalized view; the suspension-atomicity INVARIANT stays, the write-sequence + persistence mechanism migrate to architecture/docs/L2/fp-run-state-transition/ + docs/contracts/*.v1.yaml. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -407,6 +473,7 @@ entries:
     title: "Checkpoint Ownership Boundary: Executor Resume Cursors vs Orchestrator Run Row"
     raw_path: docs/adr/0025-checkpoint-ownership-boundary.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0025-checkpoint-ownership-source-refs (L1-method-call-chain; sibling tier). Authors leaked L0 section-4 #9 detail (Checkpointer.java + SequentialGraphExecutor.java:44 / IterativeAgentLoopExecutor.java:52 source-line refs + key-prefix convention). DEMOTED non-authoritative pending normalized view; the ownership-boundary INVARIANT stays, the source-line refs + key convention migrate to L2 / code-symbols.json. sunset 2026-08-31."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -430,6 +497,7 @@ entries:
     title: "Causal Payload Envelope and Semantic Ontology Tags"
     raw_path: docs/adr/0028-causal-payload-envelope-and-semantic-ontology.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0028-causal-envelope-ontology-signatures (L7-method-signature, L1-method-call-chain; sibling tier). Authors leaked L0 section-4 #25 detail (SemanticOntology enum + CausalPayloadEnvelope record signatures, ExecutorDefinition.java source-line refs, PII-filter call chain). DEMOTED non-authoritative pending normalized view; the envelope boundary identity + logical-decay INVARIANT stay, the signatures + chain migrate. sunset 2026-08-31."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -452,6 +520,7 @@ entries:
     title: "Skill SPI: Lifecycle, Resource Matrix, and Posture-Mandatory Sandbox"
     raw_path: docs/adr/0030-skill-spi-lifecycle-resource-matrix.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0030-skill-spi-sealed-signatures (L7-method-signature; sibling tier). Authors leaked L0 section-4 #27 detail (SkillTrustTier / SkillKind enums, SkillResourceMatrix / SkillCostReceipt / ResiliencePolicy records, Skill interface signatures). DEMOTED non-authoritative pending normalized view; the Skill SPI lifecycle + two-axis identities stay, the signatures migrate to docs/contracts/*.v1.yaml + code-symbols.json. sunset 2026-08-31."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -464,6 +533,7 @@ entries:
     title: "Three-Track Channel Isolation for Northbound Streaming"
     raw_path: docs/adr/0031-three-track-channel-isolation.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0031-three-track-dispatcher-signatures (L7-method-signature, L6-wire-format; sibling tier). Authors leaked L0 section-4 #28 detail (RunDispatcher / CapabilityRegistry interface signatures + RunDispatchRequest record, heartbeat cadence, DROP_OLDEST buffer; the buffer claim is also frozen as status-ledger run_dispatcher_spi). DEMOTED non-authoritative pending normalized view; the three-track-isolation INVARIANT stays, the signatures + buffer/cadence detail migrate. sunset 2026-08-31."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -563,6 +633,7 @@ entries:
     title: "W1 HTTP Contract Reconciliation"
     raw_path: docs/adr/0040-w1-http-contract-reconciliation.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0040-w1-http-routes-status (L4-http-status-route-verb). Authors leaked L0 section-4 #37 detail (POST /v1/runs -> 201 PENDING; POST cancel -> 200/409; 403/401; DELETE-is-not-cancel). DEMOTED non-authoritative pending normalized view; the cross-check / DFA-initial-status / cancel-is-a-transition INVARIANTs + Gate Rule 16 citation stay, the routes/verbs/status codes migrate to docs/contracts/*.v1.yaml + architecture/docs/L2/run-http-contract/. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -608,6 +679,7 @@ entries:
     title: "ADR-0044: SPI Contract Precision and Memory Metadata Reconciliation"
     raw_path: docs/adr/0044-spi-contract-precision-and-memory-metadata-reconciliation.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0044-spi-precision-runcontext-shape (L7-method-signature). Authors leaked L0 section-4 #41 detail (RunContext interface-not-record classification, per-SPI scope table, embeddingModelVersion field). DEMOTED non-authoritative pending normalized view; the reconciliation + Gate Rule 17 citation stay, the type-kind / scope table / field name migrate to docs/contracts/*.v1.yaml + code-symbols.json (FACT-OWNED per no-loss-audit.md). sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -799,6 +871,7 @@ entries:
     title: "ADR-0061 — Telemetry Vertical Layer"
     raw_path: docs/adr/0061-telemetry-vertical-layer.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0061-telemetry-otlp-wire-sampling (L6-wire-format, L7-method-signature, L5-filter-ordering, L8-test-class-inventory). Authors leaked L0 section-0.5.3 + section-4 #53-#59 detail (OTLP/HTTP wire, gen_ai.* / langfuse.* namespaces, posture sampling %, traceresponse grammar, filter-chain order, named *IT). DEMOTED non-authoritative pending normalized view; the Telemetry Vertical concept, Trace/Span/LlmCall + TraceContext identities, and enforcer citations stay, the wire/sampling/order/test detail migrates to docs/contracts/*.v1.yaml + docs/telemetry/policy.md + architecture/docs/L2/telemetry-vertical/. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -810,6 +883,7 @@ entries:
     title: "ADR-0062 — Trace ↔ Run ↔ Session Identity (N:M with session_id)"
     raw_path: docs/adr/0062-trace-run-session-identity.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0062-trace-run-session-column-shape (L7-method-signature, L3-sql-rls-persistence, L5-filter-ordering). Authors leaked L0 section-4 #54 detail (Run.traceId / Run.sessionId typed field shapes, RunContext accessor signatures, Flyway V2__run_trace_id_notnull.sql, MDC carrier order). DEMOTED non-authoritative pending normalized view; the N:M Trace<->Run-with-session decision + cross-suspend federation INVARIANT stay, the field/accessor/migration/MDC-order detail migrates to docs/contracts/*.v1.yaml + code-symbols.json + architecture/docs/L2/telemetry-vertical/. sunset 2026-06-30."
     current_state: active_guidance
     supersedes: []
     superseded_by: []
@@ -821,6 +895,7 @@ entries:
     title: "ADR-0063 — Client SDK Observability Contract (W3, design recorded at L1.x)"
     raw_path: docs/adr/0063-client-sdk-observability-contract.md
     normalized_path: ""
+    altitude_demotion: "LPV-ADR-0063-client-sdk-traceparent-otlp-tests (L4-http-status-route-verb, L6-wire-format, L8-test-class-inventory; sibling tier). Authors leaked L0 section-4 #59-area detail (traceparent/traceresponse W3C grammar, 200/4xx/5xx emit, OTLP/HTTP batch wire, named *IT). DEMOTED non-authoritative pending normalized view; the client-SDK contract identity + ADR-0063 pointer stay, the header grammar/status/wire/test detail migrates to docs/contracts/*.v1.yaml + docs/telemetry/policy.md + tests.json. sunset 2026-08-31."
     current_state: active_guidance
     supersedes: []
     superseded_by: []

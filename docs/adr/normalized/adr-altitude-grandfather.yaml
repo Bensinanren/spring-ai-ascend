@@ -1,0 +1,402 @@
+# Layer-Purity By-ADR Grandfather list -- known L2/L3/L4/L6/L7/L8 code detail
+# asserted as current authority on the BY-ADR surface (the remediation ledger's
+# entries for accepted Markdown/locked ADRs that author a leaked L0 section-4
+# constraint), not yet demoted by a normalized view.
+#
+# Authority: ADR-0159 (Progressive Learning Curve and Authority Lanes) section 7
+#   + section 9; ADR-0160 (ADR Governance Model). Companion policy:
+#   docs/governance/layer-purity-policy.yaml (the owns/forbids category
+#   vocabulary every row here cites; the SAME vocabulary the L0/L1 helpers and
+#   the status-ledger grandfather consume). The adjudicated verdict that
+#   motivates this file (the "L0/L1 carries L2/code detail" critique is TRUE) is
+#   recorded in docs/governance/remediation-inventory/layer-purity-scan.md
+#   section 0 and the 2026-05-29 engineering-governance systemic-remediation
+#   response; it is NOT re-litigated here.
+#
+# Why this file exists, and why it is SEPARATE from the L0/L1 list
+#   (docs/governance/layer-purity-temporary-violations.yaml) and the
+#   status-ledger list (docs/governance/layer-purity-status-ledger-grandfather.yaml).
+#   The remediation drained the L0/L1 ARCHITECTURE.md prose COPIES (W12/W13) and
+#   built the ADR-governance machinery (the ADR-0160 model, adr-taxonomy.yaml
+#   altitude policy, adr-governance-policy.yaml, the remediation ledger, the 90
+#   YAML-ADR normalized views), but DEFERRED authoring normalized views for the
+#   Markdown/locked ADRs to a later wave (tracked per-entry as required_follow_up
+#   / due_wave W6 in docs/governance/adr-remediation-ledger.yaml). Two facts make
+#   the by-adr surface a real, unscanned altitude leak:
+#     1. The remediation ledger asserts every such ADR at current_state
+#        active_guidance with normalized_path "" -- so each ADR's leaked
+#        L2/L3/L4/L6/L7/L8 detail (SQL CREATE TABLE / SET LOCAL / Flyway
+#        filenames; HTTP 201/400/403/404/409/422 + route-verb; OTLP/HTTP wire +
+#        gen_ai.* / langfuse.* namespaces + sampling %; sealed-interface and
+#        method/field signatures; named *IT test inventories) is read by review
+#        as CURRENT AUTHORITY with no demotion.
+#     2. The altitude gate is structurally BLIND to it. Rule G-28 /
+#        gate/lib/check_adr_taxonomy.py validates decision_type against
+#        forbidden_decision_types ONLY for docs/adr/normalized/ADR-NNNN.yaml
+#        views -- with no view it never fires on the raw ADR. Rule G-28 /
+#        gate/lib/check_historical_adr_governance.py only REQUIRES a view for an
+#        ADR whose architecture/facts/generated/adrs.json status is accepted, and
+#        the Markdown/locked ADRs are absent from that YAML-only fact layer -- so
+#        no view is even demanded for them. The leak therefore persists at its
+#        normative source while CI stays green.
+#   This file closes that by-authority-surface gap the same way the status-ledger
+#   grandfather closed it for the allowed_claim narrative: a per-surface, dated,
+#   closed grandfather list that FREEZES each known leak, demotes it to
+#   non-authoritative (quoted as evidence, never as a live claim), and pins a
+#   sunset_date by which the demotion MUST be completed (by authoring the ADR's
+#   normalized view, whose non_authoritative_legacy_content / l2_refs quarantine
+#   the detail, OR by widening AdrFactExtractor to the Markdown/locked sources so
+#   Rule G-28 view coverage becomes demandable -- whichever the W6 normalization
+#   wave chooses). It is NOT an ADR-NNNN.yaml view, so the Rule G-28 view
+#   validator (which globs ADR-*.yaml and filters ^ADR-\d{4}\.yaml$) does not read
+#   it; it lives beside the views because it is the by-adr demotion layer that
+#   peer to those views.
+#
+# Reading discipline (binding, ADR-0160 + ADR-0154 cascade). This file is a
+#   READABLE INTERPRETATION layer over the raw Markdown/locked ADR sources and
+#   the remediation ledger. It INVENTS NO ADR ids and NO relationships; every row
+#   names an ADR id that already exists in docs/adr/ and re-states (does not mint)
+#   which clause of that ADR is a leaked-altitude assertion. Authority cascade is
+#   unchanged: generated facts > DSL > Card/prose; this file never outranks a
+#   generated fact and never edits the ledger (owned by the
+#   adr-remediation-ledger reconcile step) or the raw ADR.
+#
+# What this file is NOT. A migration plan, a rule card, an enforcer row, or a
+#   normalized ADR view. It does not move any L2 detail; the actual migration
+#   (authoring the per-ADR normalized view + landing the demoted detail in
+#   architecture/docs/L2/ + docs/contracts/*.v1.yaml + the generated facts) is the
+#   W6 normalization wave. It does not register itself as a governed_surface in
+#   docs/governance/layer-purity-policy.yaml or wire a gate -- that registration +
+#   the executable by-adr altitude enforcer (a free G-band rule + E-band enforcer
+#   per ADR-0159 section 9) are owned by the reconcile / governance wave; this
+#   file is the policy DATA that wave consumes, authored now so the gate, on
+#   landing, starts changed-files-blocking against a dated baseline rather than
+#   hard-blocking the corpus (avoids the ratchet-promotion-without-baseline
+#   defect). Recurring-defect family: F-architecture-authority-fragmentation (the
+#   ALTITUDE-fragmentation variant -- one concern's authority split across layers,
+#   here the leaked L0 section-4 constraint asserted at full altitude on the
+#   by-adr surface while its L0 prose copy was drained).
+#
+# Schema (mirrors docs/governance/layer-purity-status-ledger-grandfather.yaml so
+# the per-surface allow-lists read identically):
+#   schema_version  - integer, bumped when fields are added.
+#   authority       - the ratifying ADR ids.
+#   last_updated    - ISO yyyy-mm-dd (UTC). The freshness/sunset convention is
+#                     UTC: a local +08 date can be UTC-future and trip a freshness
+#                     gate, and a sunset comparison runs in UTC.
+#   status          - advisory | blocking. The LIST's posture, not a
+#                     contract-status enum (Rule 62 does not apply -- this is not
+#                     a docs/contracts/*.v1.yaml). Advisory until the by-adr
+#                     altitude ratchet is authored and promoted to full-blocking
+#                     per ADR-0159 section 9.
+#   list_closed     - true. Once the by-adr ratchet is full-blocking, no new entry
+#                     may be added -- a new leaked-altitude ADR assertion must be
+#                     demoted (its normalized view authored) at authoring time,
+#                     never grandfathered.
+#   surface         - the authority surface these rows demote: the by-adr surface
+#                     (the remediation ledger entries for the named ADRs). Recorded
+#                     once here so a row is unambiguously not an L0/L1 prose row
+#                     and not a status-ledger allowed_claim row.
+#   violations[]    - one row per leaked-altitude ADR assertion. Each row:
+#       id          - stable kebab id, prefix LPV-ADR- (Layer-Purity Violation,
+#                     By-ADR).
+#       layer       - BY-ADR (the surface label; distinct from L0/L1 and
+#                     STATUS-LEDGER).
+#       adr         - REQUIRED. The ADR id whose leaked L0 section-4 constraint is
+#                     asserted at full altitude on the by-adr surface (the durable
+#                     anchor; matches an existing docs/adr/ source and a ledger
+#                     entries[].adr). A row freezes EXACTLY ONE ADR.
+#       raw_path    - the raw ADR source the leaked clause lives in (Markdown or
+#                     locked Markdown; absent from the adrs.json fact layer, which
+#                     is why no view is demanded today).
+#       ledger_locus - the in-ledger anchor: the entries[].adr key whose
+#                     normalized_path is "" and current_state is active_guidance,
+#                     so the leaked detail is read as current authority. Line
+#                     numbers drift as the ledger is edited; the ADR id is the
+#                     durable handle.
+#       l0_constraint - the leaked L0 section-4 constraint this ADR authors
+#                     (re-stated from the raw ADR's own "section-4" / "new, this
+#                     ADR" reference; the drained L0 prose copy is recorded in
+#                     layer-purity-scan.md where applicable).
+#       category    - the FIRST leaked-category id from layer-purity-policy.yaml
+#                     (one of L1..L8) the clause carries, in policy order.
+#       categories  - the full set of leaked categories the clause carries (used
+#                     so the demotion is scoped to all of them before the row is
+#                     retired).
+#       trigger     - the smallest verbatim phrase(s) from the raw ADR that make
+#                     the clause a leak. Quoted as EVIDENCE, never as a live claim.
+#       migrate_to  - the authoritative home the detail must move to when the ADR's
+#                     normalized view is authored (its l2_refs / contract_refs /
+#                     fact_refs targets).
+#       sunset_date - REQUIRED ISO yyyy-mm-dd by which the demotion MUST complete
+#                     (the normalized view authored, this row removed). Tiered by
+#                     priority: the ADRs the 2026-05-29 convergence-scan verdict
+#                     and the round-3 residual NAMED are at the v1.0 boundary
+#                     2026-06-30 (the by-adr surface is read by architecture review
+#                     as current authority, so its named leaks share the
+#                     highest-priority L0 sunset); the SIBLING leaked-constraint
+#                     ADRs the same families surfaced but the round-3 residual did
+#                     not enumerate are at 2026-08-31 (the lower-priority sibling
+#                     tier the L0/L1 + status-ledger lists use). Both tiers are at
+#                     or before the W6 normalization due_wave in the ledger.
+#       verdict_named - true when the 2026-05-29 verdict / round-3 residual
+#                     enumerated this exact ADR; false for a sibling the mechanical
+#                     family scan found.
+#       defensible_part - OPTIONAL note on the boundary-identity portion of the
+#                     constraint that MAY stay at L0/L1 (and in the ADR's future
+#                     active_guidance) after the leaked detail is demoted: a D1 SPI
+#                     boundary identity, a D2 package decomposition, or a D3
+#                     enforcer/gate citation, per the verdict rubric.
+
+schema_version: 1
+authority:
+  - ADR-0159
+  - ADR-0160
+last_updated: 2026-05-30
+status: advisory
+list_closed: true
+surface: docs/governance/adr-remediation-ledger.yaml#entries  # the by-adr surface
+
+violations:
+
+  # ======================================================================
+  # Verdict-named / round-3-residual leaks. Highest priority; sunset
+  # 2026-06-30 (v1.0 boundary) -- the by-adr surface is read by architecture
+  # review as current authority, so its named leaks share the L0
+  # highest-priority sunset. These are the ten ADRs the residual enumerated as
+  # authoring a leaked L0 section-4 constraint asserted at full altitude with
+  # no normalized view.
+  # ======================================================================
+
+  - id: LPV-ADR-0005-set-local-rls-trigger
+    layer: BY-ADR
+    adr: ADR-0005
+    raw_path: docs/adr/locked/0005-tenant-isolation-guc-set-local.md
+    ledger_locus: "entries[].adr ADR-0005 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #3 -- tenant isolation (the drained L0 prose copy is recorded in layer-purity-scan.md section 1.5; the leaked persistence mechanism still lives in this ADR)"
+    category: L3-sql-rls-persistence
+    categories: [L3-sql-rls-persistence]
+    trigger: "SET LOCAL app.tenant_id inside every transaction; auto-discarded by Postgres on commit/rollback ... a trigger that fires fail-closed when the GUC is empty ... assertion trigger on every tenant table"
+    migrate_to: "docs/security/rls-policy.sql + architecture/docs/L2/fp-tenant-cross-check/ (FunctionPoint FP-TENANT-CROSS-CHECK)"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "The end-to-end tenant-isolation invariant (transaction-scoped binding eliminates the connection-reuse race; raw JDBC forbidden) is the L0-durable commitment, D3-citable to its enforcing trigger/test; the SET LOCAL GUC statement, the per-table assertion trigger, and the connection-pool tuning detail migrate."
+
+  - id: LPV-ADR-0019-suspendreason-sealed-signatures
+    layer: BY-ADR
+    adr: ADR-0019
+    raw_path: docs/adr/0019-suspend-signal-and-suspend-reason-taxonomy.md
+    ledger_locus: "entries[].adr ADR-0019 (normalized_path '', current_state active_guidance; carries a supersession_note for the ADR-0146 variant-name partial supersession)"
+    l0_constraint: "L0 section-4 #19 -- SuspendReason taxonomy (the drained L0 prose is recorded in layer-purity-scan.md section 1.2 #19, still present at L0; this ADR is its authoring source)"
+    category: L7-method-signature
+    categories: [L7-method-signature, L2-runtime-sequence]
+    trigger: "public sealed interface SuspendReason permits SuspendReason.ChildRun, SuspendReason.AwaitChildren ... record ChildRun(UUID childRunId, ChildFailurePolicy failurePolicy, Instant deadline) ... public enum JoinPolicy { ALL, ANY, N_OF }"
+    migrate_to: "docs/contracts/*.v1.yaml (SPI sealed-variant shape) + architecture/docs/L2/fp-suspend-resume/ + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "Naming SuspendReason as the orchestration-SPI boundary identity (a sealed reason taxonomy is the suspend primitive) is D1-defensible at L0/L1; the per-variant constructor parameter lists with JVM types and the enum value sets are the L7 signature catalogue that migrates. The ADR-0146 6-variant alignment is already recorded as a ledger supersession_note."
+
+  - id: LPV-ADR-0020-runstatus-dfa-sql-status
+    layer: BY-ADR
+    adr: ADR-0020
+    raw_path: docs/adr/locked/0020-runlifecycle-spi-and-runstatus-formal-dfa.md
+    ledger_locus: "entries[].adr ADR-0020 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #20 -- RunStatus formal transition DFA + transition audit trail (the drained L0 prose copy is recorded in layer-purity-scan.md section 1.5 as the heaviest W0 L0 leak; the leaked mechanism still lives in this ADR)"
+    category: L7-method-signature
+    categories: [L7-method-signature, L3-sql-rls-persistence, L4-http-status-route-verb, L2-runtime-sequence]
+    trigger: "public interface RunLifecycle { Run cancel(...); Run resume(...); Run retry(...); } ... full DFA transition table (PENDING -> RUNNING | CANCELLED ...) ... RunStateMachine.validate(from, to) ... CREATE TABLE run_state_change (...) ... cancel on already-CANCELLED returns 200; on SUCCEEDED/FAILED/EXPIRED returns 409 ... UPDATE ... WHERE run_id = ? AND version = ?"
+    migrate_to: "docs/contracts/*.v1.yaml (RunLifecycle SPI + cancel route x verb x status) + architecture/docs/L2/fp-run-state-transition/ (DFA table + audit-log DDL + optimistic-lock CAS) + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "Naming RunLifecycle as a separate orchestration SPI (lifecycle split from execution dispatch) and the formal-DFA / atomic-advance / audited-lifecycle invariant are L0/L1-durable (D1 + the invariant); the RunLifecycle method signatures, the transition table, the run_state_change DDL, the cancel-idempotency 200/409 status codes, and the optimistic-lock UPDATE-WHERE migrate."
+
+  - id: LPV-ADR-0021-layered-spi-method-surface
+    layer: BY-ADR
+    adr: ADR-0021
+    raw_path: docs/adr/0021-layered-spi-taxonomy.md
+    ledger_locus: "entries[].adr ADR-0021 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #9 (revised) -- layered SPI taxonomy / durability-tier surface; section-4 #15 CapabilityRegistry trigger"
+    category: L7-method-signature
+    categories: [L7-method-signature]
+    trigger: "RunRepository SPI (six-method surface): findById(UUID runId), save(Run run), findByTenant(String tenantId), findByTenantAndStatus(String tenantId, RunStatus status), findByParentRunId(UUID parentRunId), findRootRuns(String tenantId) ... GraphDefinition(Map<String, NodeFunction>, ...) at W0 -> Map<String, String /capabilityName/> at W4"
+    migrate_to: "docs/contracts/*.v1.yaml (RunRepository SPI six-method surface + ExecutorDefinition tier shapes) + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "The three-layer taxonomy itself (cross-tier core vs tier-specific adapters vs tier-internal SPIs) and naming Run / RunStatus / RunRepository / RunContext / Orchestrator as the cross-tier boundary identities are D1/D2-defensible classification; the enumerated RunRepository six-method signature surface and the per-tier GraphDefinition type shapes are the L7 method-list inventory that migrates."
+
+  - id: LPV-ADR-0022-payloadcodec-runevent-signatures
+    layer: BY-ADR
+    adr: ADR-0022
+    raw_path: docs/adr/0022-payload-codec-spi.md
+    ledger_locus: "entries[].adr ADR-0022 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #21 -- typed payload + PayloadCodec SPI (+ RunEvent schema)"
+    category: L7-method-signature
+    categories: [L7-method-signature, L1-method-call-chain]
+    trigger: "public sealed interface Payload permits Payload.TypedPayload, Payload.RawPayload ... public record EncodedPayload(byte[] bytes, String codecId, String typeRef) ... public interface PayloadCodec<T> { String id(); Class<T> type(); EncodedPayload encode(T value); T decode(EncodedPayload encoded); } ... public sealed interface RunEvent permits RunEvent.NodeStarted, ... ; dependency chain PayloadCodecRegistry -> PiiFilter<T> -> RuntimeHook"
+    migrate_to: "docs/contracts/*.v1.yaml (Payload / PayloadCodec / RunEvent SPI shapes) + architecture/docs/L2/fp-payload-codec/ + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "Naming PayloadCodec, Payload, and RunEvent as the orchestration-SPI boundary identities (pluggable codec seam; typed event hierarchy) is D1-defensible; the full record/interface/sealed signatures, the EncodedPayload field list, and the PayloadCodecRegistry -> PiiFilter -> RuntimeHook call chain are the L7/L1 inventory that migrates."
+
+  - id: LPV-ADR-0024-suspension-atomicity-sequence
+    layer: BY-ADR
+    adr: ADR-0024
+    raw_path: docs/adr/0024-suspension-write-atomicity.md
+    ledger_locus: "entries[].adr ADR-0024 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #23 -- suspension write atomicity (still present at L0 per layer-purity-scan.md section 1.2 #23; this ADR is its authoring source)"
+    category: L1-method-call-chain
+    categories: [L1-method-call-chain, L2-runtime-sequence, L3-sql-rls-persistence]
+    trigger: "RunRepository.save(suspended) + Checkpointer.save(payload) in one @Transactional block ... transactional outbox: write run_status=SUSPENDED + pending_checkpoint row in one Postgres txn; outbox publisher writes Redis + deletes pending row ... both runs and run_checkpoints in the same DataSource"
+    migrate_to: "architecture/docs/L2/fp-run-state-transition/ (suspension write-sequence + per-tier atomicity) + docs/contracts/*.v1.yaml (Checkpointer SPI)"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "The suspension-atomicity INVARIANT (the SUSPENDED-status write and the checkpoint write are observable atomically) is the L0-durable commitment; the named persistence-write hops (RunRepository.save + Checkpointer.save), the per-tier @Transactional / outbox / XA mechanism table, and the table names migrate."
+
+  - id: LPV-ADR-0040-w1-http-routes-status
+    layer: BY-ADR
+    adr: ADR-0040
+    raw_path: docs/adr/0040-w1-http-contract-reconciliation.md
+    ledger_locus: "entries[].adr ADR-0040 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #37 -- W1 HTTP contract reconciliation (the drained L0 prose copy is recorded in layer-purity-scan.md section 1.5 #37; the leaked wire detail still lives in this ADR)"
+    category: L4-http-status-route-verb
+    categories: [L4-http-status-route-verb]
+    trigger: "POST /v1/runs -> 201 Created, body { status: PENDING } ... POST /v1/runs/{runId}/cancel -> 200 OK (idempotent if already CANCELLED) -> 409 Conflict if terminal-non-CANCELLED ... DELETE /v1/runs/{runId} is NOT the cancel mechanism ... Mismatch -> 403 Forbidden; Missing JWT -> 401 Unauthorized"
+    migrate_to: "docs/contracts/*.v1.yaml (OpenAPI route x verb x status: createrun / getrun / cancelrun) + architecture/docs/L2/run-http-contract/"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "The cross-checked-not-replaced tenant-model invariant, the DFA-initial-status (PENDING, no CREATED) invariant, and the cancel-is-a-transition-not-deletion invariant are L0-durable; the concrete routes, verbs, 201/200/409/403/401 status codes, and header names are runtime-contract detail that the future view should POINT at, not restate. The Gate Rule 16 / 16a citation is D3-defensible."
+
+  - id: LPV-ADR-0044-spi-precision-runcontext-shape
+    layer: BY-ADR
+    adr: ADR-0044
+    raw_path: docs/adr/0044-spi-contract-precision-and-memory-metadata-reconciliation.md
+    ledger_locus: "entries[].adr ADR-0044 (normalized_path '', current_state active_guidance; carries a supersession_note for the ADR-0070 / ADR-0081 ResilienceContract partial supersession)"
+    l0_constraint: "L0 section-4 #41 -- contract-catalog SPI precision (still present at L0 per layer-purity-scan.md section 1.2 #41, FACT-OWNED; this ADR is its authoring source)"
+    category: L7-method-signature
+    categories: [L7-method-signature]
+    trigger: "RunContext must be classified as interface (not record) ... per-SPI scope table (RunRepository tenant-scoped explicit tenantId arg on findByTenant*; ResilienceContract single-arg resolve(operationId) -> two-arg resolve(tenant, skill)) ... embeddingModelVersion is the canonical field name"
+    migrate_to: "docs/contracts/*.v1.yaml (per-SPI scope table) + architecture/facts/generated/code-symbols.json (RunContext type-kind via code-symbol/com-huawei-ascend-bus-spi-engine-runcontext + embeddingModelVersion field)"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "That the SPI-precision reconciliation happened and the Gate Rule 17 extension (a D3 enforcer citation) stay; the interface-vs-record type-kind classification, the per-SPI argument-shape table, and the canonical field name are code-symbol / contract material the future view should point at, not restate (no-loss-audit.md treats the RunContext type-kind/field as FACT-OWNED). The ADR-0070/0081 ResilienceContract realignment is already recorded as a ledger supersession_note."
+
+  - id: LPV-ADR-0061-telemetry-otlp-wire-sampling
+    layer: BY-ADR
+    adr: ADR-0061
+    raw_path: docs/adr/0061-telemetry-vertical-layer.md
+    ledger_locus: "entries[].adr ADR-0061 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-0.5.3 + section-4 #53-#59 -- Telemetry Vertical (the drained L0 section-0.5.3 prose copy is recorded in layer-purity-scan.md section 1.5; the leaked wire/sampling detail still lives in this ADR)"
+    category: L6-wire-format
+    categories: [L6-wire-format, L7-method-signature, L5-filter-ordering, L8-test-class-inventory]
+    trigger: "OTLP/HTTP is the wire format ... gen_ai.system, gen_ai.request.model, gen_ai.usage.input_tokens, langfuse.cost_usd ... Sampling posture-aware (dev 100 %, research 10 % head-based, prod 1 % head + tail-on-error) ... traceresponse: 00-<trace_id>-<span_id>-01 ... Filter order: Trace -> JwtTenantClaimCrossCheck -> Tenant -> RunId -> Idempotency ... enforcers E38-E51 (TelemetryVerticalArchTest, TraceExtractFilterIT, ...)"
+    migrate_to: "docs/contracts/*.v1.yaml + docs/telemetry/policy.md (wire/sink/sampling) + architecture/docs/L2/telemetry-vertical/ + architecture/facts/generated/{code-symbols,tests}.json"
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "Naming the Telemetry Vertical as a top-level architectural concept, its three entities (Trace / Span / LlmCall) as boundary identities, the single TraceContext carrier SPI identity, and the enforcer rows (D3 citations) stay; the OTLP/HTTP wire encoding, the gen_ai.* / langfuse.* attribute namespaces, the per-posture sampling percentages, the traceresponse header grammar, the numeric filter-chain order, and the named *IT inventory migrate."
+
+  - id: LPV-ADR-0062-trace-run-session-column-shape
+    layer: BY-ADR
+    adr: ADR-0062
+    raw_path: docs/adr/0062-trace-run-session-identity.md
+    ledger_locus: "entries[].adr ADR-0062 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #54 -- Trace <-> Run <-> Session identity / Run.traceId + Run.sessionId columns + RunContext accessors"
+    category: L7-method-signature
+    categories: [L7-method-signature, L3-sql-rls-persistence, L5-filter-ordering]
+    trigger: "Run.traceId (String, 32-char lowercase hex) -- nullable at L1.x; NOT NULL from W2 ... Run.sessionId (String, UUID) ... RunContext.traceId() : String and RunContext.sessionId() : String ... Flyway V2__run_trace_id_notnull.sql ... MDC order: tenant_id, trace_id, span_id, run_id"
+    migrate_to: "docs/contracts/*.v1.yaml + architecture/facts/generated/code-symbols.json (Run field/constructor + RunContext accessor shape) + architecture/docs/L2/telemetry-vertical/ (MDC carriers + Flyway migration) "
+    sunset_date: 2026-06-30
+    verdict_named: true
+    defensible_part: "The N:M Trace<->Run-with-session decision and the cross-suspend trace-federation invariant are the L0/L1-durable architecture; the typed Run.traceId / Run.sessionId field shapes, the RunContext accessor signatures, the Flyway migration-file name, and the numeric MDC carrier order are code-symbol / contract / L2 material the future view should point at, not restate (no-loss-audit.md treats the field/constructor shape as FACT-OWNED)."
+
+  # ======================================================================
+  # Sibling leaks -- the same leaked-category families the by-adr family scan
+  # surfaced across the 0019-0067 Markdown corpus but the 2026-05-29 verdict /
+  # round-3 residual did not enumerate. Lower priority; sunset 2026-08-31 (the
+  # sibling tier the L0/L1 + status-ledger lists use). Each is an accepted
+  # Markdown ADR asserted at active_guidance with normalized_path "" that
+  # authors a new L0 section-4 constraint carrying the same leaked categories.
+  # ======================================================================
+
+  - id: LPV-ADR-0023-context-propagation-signature-status
+    layer: BY-ADR
+    adr: ADR-0023
+    raw_path: docs/adr/0023-cross-boundary-context-propagation.md
+    ledger_locus: "entries[].adr ADR-0023 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #22 -- canonical run-context tenant propagation"
+    category: L7-method-signature
+    categories: [L7-method-signature, L4-http-status-route-verb, L3-sql-rls-persistence]
+    trigger: "RunContext.tenantId() : String vs TenantContext.tenantId() : UUID type mismatch ... HTTP 403 mapping for resume mismatch ... Run gains a traceparent column (W3C Trace Context); RunController writes the incoming traceparent header"
+    migrate_to: "docs/contracts/*.v1.yaml (RunContext / TenantContext SPI) + architecture/facts/generated/code-symbols.json + architecture/docs/L2/fp-tenant-cross-check/"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The cross-boundary context-propagation model (ThreadLocal forbidden across suspend; RunContext is the canonical carrier) and naming TenantContext / TraceContext as boundary identities stay; the tenantId() return-type reconciliation, the 403 resume-mismatch status, and the traceparent column shape migrate."
+
+  - id: LPV-ADR-0025-checkpoint-ownership-source-refs
+    layer: BY-ADR
+    adr: ADR-0025
+    raw_path: docs/adr/0025-checkpoint-ownership-boundary.md
+    ledger_locus: "entries[].adr ADR-0025 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #9 (revised wording) -- checkpoint ownership boundary (executor resume cursors vs orchestrator Run row)"
+    category: L1-method-call-chain
+    categories: [L1-method-call-chain]
+    trigger: "documented in Checkpointer.java Javadoc ... SequentialGraphExecutor.java:44, IterativeAgentLoopExecutor.java:52 ... _-prefixed keys via Checkpointer"
+    migrate_to: "architecture/docs/L2/fp-run-state-transition/ (checkpoint-key ownership) + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The ownership-boundary invariant (executor owns resume cursors; orchestrator owns the Run row) is L0/L1-durable; the named source-file line references and the key-prefix convention migrate to the L2 / generated facts."
+
+  - id: LPV-ADR-0028-causal-envelope-ontology-signatures
+    layer: BY-ADR
+    adr: ADR-0028
+    raw_path: docs/adr/0028-causal-payload-envelope-and-semantic-ontology.md
+    ledger_locus: "entries[].adr ADR-0028 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #25 -- causal payload envelope + semantic ontology tags"
+    category: L7-method-signature
+    categories: [L7-method-signature, L1-method-call-chain]
+    trigger: "public enum SemanticOntology { ... } ... public record CausalPayloadEnvelope(...) ... ReasoningResult(boolean terminal, Object payload) (ExecutorDefinition.java:61-64) ... the PII filter hook inspects ontology before ... 16-KiB inline cap"
+    migrate_to: "docs/contracts/*.v1.yaml (CausalPayloadEnvelope / SemanticOntology shape) + architecture/docs/L2/fp-payload-codec/ + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "Naming CausalPayloadEnvelope + SemanticOntology as the payload boundary identity and the logical-decay invariant stay; the enum/record signatures, the source-file line refs, and the PII-filter call chain migrate."
+
+  - id: LPV-ADR-0030-skill-spi-sealed-signatures
+    layer: BY-ADR
+    adr: ADR-0030
+    raw_path: docs/adr/0030-skill-spi-lifecycle-resource-matrix.md
+    ledger_locus: "entries[].adr ADR-0030 (normalized_path '', current_state active_guidance; carries a supersession_note for the ADR-0070 skill-capacity partial supersession)"
+    l0_constraint: "L0 section-4 #27 -- Skill SPI lifecycle + resource matrix"
+    category: L7-method-signature
+    categories: [L7-method-signature]
+    trigger: "public enum SkillTrustTier { ... } public enum SkillKind { ... } public record SkillResourceMatrix(...) public record SkillCostReceipt(...) public interface Skill { ... } public record ResiliencePolicy(...)"
+    migrate_to: "docs/contracts/*.v1.yaml (Skill SPI lifecycle + SkillResourceMatrix) + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The Skill SPI lifecycle identity (init / execute / suspend / teardown) and the two-axis capacity model are D1-defensible boundary identities; the enumerated enum/record/interface signatures are the L7 method-list inventory that migrates. The ADR-0052 distributed-scheduling-layer relationship is structural. The ADR-0070 capacity realignment is already a ledger supersession_note."
+
+  - id: LPV-ADR-0031-three-track-dispatcher-signatures
+    layer: BY-ADR
+    adr: ADR-0031
+    raw_path: docs/adr/0031-three-track-channel-isolation.md
+    ledger_locus: "entries[].adr ADR-0031 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #28 -- three-track channel isolation (the drained L0 section-4 #28 prose copy is recorded in layer-purity-scan.md section 1.5; the leaked SPI/buffer detail still lives in this ADR; the RunDispatcher buffer claim is also frozen in the status-ledger grandfather as run_dispatcher_spi)"
+    category: L7-method-signature
+    categories: [L7-method-signature, L6-wire-format]
+    trigger: "public interface RunDispatcher { ... } public record RunDispatchRequest(...) public interface CapabilityRegistry { ... } ... heartbeat cadence <= 30s ... bounded buffer / DROP_OLDEST overflow"
+    migrate_to: "docs/contracts/*.v1.yaml (RunDispatcher SPI + three-track channel shape) + docs/telemetry/policy.md + architecture/docs/L2/<event-channel-frame>/ + architecture/facts/generated/code-symbols.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The physical three-track-isolation invariant (control / data / rhythm tracks separated; terminal events never dropped as a property) is L0-durable; the RunDispatcher / CapabilityRegistry interface signatures, the buffer depth, the overflow strategy, and the cadence bound migrate."
+
+  - id: LPV-ADR-0063-client-sdk-traceparent-otlp-tests
+    layer: BY-ADR
+    adr: ADR-0063
+    raw_path: docs/adr/0063-client-sdk-observability-contract.md
+    ledger_locus: "entries[].adr ADR-0063 (normalized_path '', current_state active_guidance)"
+    l0_constraint: "L0 section-4 #59-area -- Client SDK observability contract (the client_sdk_observability_contract status-ledger claim is the sibling allowed_claim row)"
+    category: L4-http-status-route-verb
+    categories: [L4-http-status-route-verb, L6-wire-format, L8-test-class-inventory]
+    trigger: "Outbound traceresponse: 00-<trace_id>-<span_id>-01 on every response (200/4xx/5xx) ... inbound traceparent: 00-<trace_id>-<span_id>-01 (W3C Trace Context) ... Batch OTLP/HTTP send ... TraceparentOutboundIT.java, TraceresponseCorrelationIT.java, PiiRedactionContractIT.java"
+    migrate_to: "docs/contracts/*.v1.yaml + docs/telemetry/policy.md + architecture/docs/L2/<observability-frame>/ + architecture/facts/generated/tests.json"
+    sunset_date: 2026-08-31
+    verdict_named: false
+    defensible_part: "The client-SDK observability contract identity (a platform client SDK lands at W3; vanilla OTel clients integrate today via traceparent) and the ADR-0063 pointer stay; the W3C traceparent/traceresponse header grammar, the 200/4xx/5xx emit behaviour, the OTLP/HTTP batch wire, and the named *IT inventory migrate."

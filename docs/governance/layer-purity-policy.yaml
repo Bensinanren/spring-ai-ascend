@@ -59,15 +59,93 @@
 #                     a derived convenience view; the categories[] table is the
 #                     normative source where the two disagree.
 #   governed_surfaces[] - surfaces OTHER than the L0/L1 architecture documents on
-#                     which this same leaked-category vocabulary is enforced, with
-#                     the gate / enforcer that does so and the per-surface dated
-#                     grandfather list it consumes. The L0/L1 documents are
-#                     covered by Rule G-27 (E194/E195); this list records the
-#                     EXTENSIONS to higher-authority surfaces (e.g. the capability
-#                     ledger). It is a registry, not a second vocabulary: every
-#                     entry reuses categories[] unchanged.
+#                     which this same leaked-category vocabulary is enforced (or is
+#                     DECLARED to be enforced, gate pending), with the gate /
+#                     enforcer that does so and the per-surface dated grandfather
+#                     list it consumes. The L0/L1 documents are covered by Rule G-27
+#                     (E194/E195); this list records the EXTENSIONS to the surfaces
+#                     that sit ABOVE the L0/L1 prose in the authority cascade
+#                     (generated facts > DSL > Card/prose) and demonstrably accrete
+#                     the same leaked categories — and must therefore be held to the
+#                     same altitude. Per that cascade two tiers outrank the prose:
+#                       (a) the capability-status ledger `allowed_claim` narrative
+#                           (Card/prose tier, but a higher-authority surface than the
+#                           L0/L1 documents the two existing helpers scan); and
+#                       (b) the STRICTLY-HIGHER DSL tier — the element `description`
+#                           strings of the authored Structurizr fragments
+#                           (architecture/features/{engineering-frames,function-
+#                           points,verification,capabilities}.dsl) plus the
+#                           architecture/profile/*.yaml descriptors — which sit
+#                           directly under the generated facts and above every prose
+#                           surface. The DSL `description` is a free-form narrative
+#                           field with no altitude guard, exactly like an
+#                           `allowed_claim`, and it is PRONE to the same leaked
+#                           categories (it has historically carried method call
+#                           chains and arrow dispatch in function-point
+#                           descriptions, route x verb + DFA in the same, enumerated
+#                           SPI type inventories in frame descriptions, and
+#                           named-test runtime-behaviour phrases in verification
+#                           descriptions). The CURRENT live leak set is enumerated,
+#                           dated, and element-anchored in the per-surface
+#                           grandfather list (a concurrent DSL-altitude drain has
+#                           since reduced most of those to structural synopses; the
+#                           field still has no guard, so the surface stays
+#                           registered). Registering ONLY the ledger (tier a) and
+#                           stopping short of tier (b) under-scopes the
+#                           by-authority-surface principle the ledger entry
+#                           generalized — so the DSL tier is registered here too.
+#                     It is a registry, not a second vocabulary: every entry reuses
+#                     categories[] unchanged. Each row:
+#       id                - stable kebab id for the governed surface.
+#       surface           - the file (or file-glob) the leaked-category vocabulary
+#                           applies to.
+#       field             - the narrative field within that surface that is scanned
+#                           (the structural keys are NOT scanned — they are the D2
+#                           development-view evidence index, not a behavioural claim).
+#       coverage_status   - REQUIRED enum recording how far this surface's coverage
+#                           has been REALIZED, distinct from the policy-level
+#                           `status` (advisory|blocking) above which is the ledger
+#                           gate's RUNG:
+#                             gated            - an executable enforcer + gate rule
+#                                                already scan this surface today
+#                                                (the ledger row). `rule`,
+#                                                `enforcer`, `gate_rule`, `helper`
+#                                                name the LIVE mechanism.
+#                             declared-gate-pending
+#                                              - this surface is REGISTERED as in
+#                                                scope of the same verdict and its
+#                                                per-surface grandfather list exists,
+#                                                but the executable enforcer + gate
+#                                                rule are NOT yet authored. Authoring
+#                                                + promoting them is a follow-up wave
+#                                                in the G-27..G-33 / E-band per
+#                                                ADR-0159 §9 (this policy DATA file
+#                                                ships no rule or enforcer). `rule`,
+#                                                `enforcer`, `gate_rule`, `helper`
+#                                                then carry the RESERVED (free,
+#                                                not-yet-allocated) identifiers the
+#                                                follow-up wave will use, so the
+#                                                registry is the durable record of
+#                                                BOTH the coverage decision and the
+#                                                ids reserved for it. The grandfather
+#                                                list is authored now so the gate, on
+#                                                landing, starts changed-files-
+#                                                blocking against a dated baseline
+#                                                rather than hard-blocking the corpus
+#                                                (avoids the ratchet-promotion-
+#                                                without-baseline defect).
+#       rule / enforcer / gate_rule / helper - the gate mechanism for this surface:
+#                           LIVE when coverage_status=gated, RESERVED (free ids) when
+#                           coverage_status=declared-gate-pending.
+#       grandfather_list  - the per-surface dated grandfather YAML the gate consumes
+#                           (reuses categories[]; same closed-list + sunset_date
+#                           discipline as the L0/L1 list).
+#       forbids_categories - the leaked categories enforced on this surface (a subset
+#                           of categories[] kind=leaked).
+#       rationale         - why this surface outranks the prose and how its scan is
+#                           bounded (which field, which keys are spared).
 
-schema_version: 2
+schema_version: 3
 authority: ADR-0159
 last_updated: 2026-05-30
 status: advisory
@@ -290,15 +368,31 @@ layers:
 # cascade (generated facts > DSL > Card/prose) some NON-document surfaces
 # OUTRANK the L0/L1 prose yet were unscanned, so they organically accreted the
 # same leaked categories. Each row here registers such a surface, the gate /
-# enforcer that applies THIS vocabulary to it, and the per-surface dated
-# grandfather list that gate consumes. These are EXTENSIONS, not a second
+# enforcer that applies THIS vocabulary to it (LIVE when coverage_status=gated;
+# RESERVED ids when coverage_status=declared-gate-pending), and the per-surface
+# dated grandfather list that gate consumes. These are EXTENSIONS, not a second
 # vocabulary: every entry reuses categories[] above unchanged.
+#
+# Two tiers outrank the L0/L1 prose and are both registered below:
+#   1. status-ledger-allowed-claim — the capability-ledger `allowed_claim`
+#      narrative (gated TODAY by Rule G-34 / E201).
+#   2. dsl-element-description — the STRICTLY-HIGHER DSL tier: the element
+#      `description` strings of the authored Structurizr fragments under
+#      architecture/features/*.dsl (function-points / engineering-frames /
+#      verification / capabilities). The ledger entry generalized the
+#      by-authority-surface insight but stopped at the Card/prose-tier ledger;
+#      the DSL tier sits ABOVE the prose in the same cascade and demonstrably
+#      carries the same leaks, so coverage that omits it is incomplete. It is
+#      registered declared-gate-pending: in scope of the verdict with its dated
+#      grandfather list authored now, the executable enforcer + gate rule to be
+#      authored by a follow-up wave (ADR-0159 §9) under the RESERVED ids below.
 # --------------------------------------------------------------------------
 governed_surfaces:
 
   - id: status-ledger-allowed-claim
     surface: docs/governance/architecture-status.yaml
     field: allowed_claim
+    coverage_status: gated
     rule: G-34
     enforcer: E201
     gate_rule: 151
@@ -326,3 +420,79 @@ governed_surfaces:
       status-ledger reconcile step) and never scans the ledger's structural keys
       (implementation / tests file lists, l0_decision, enforcer rows — those are
       the D2 development-view evidence index, not a behavioural claim).
+
+  - id: dsl-element-description
+    surface: architecture/features/*.dsl
+    field: element_description
+    coverage_status: declared-gate-pending
+    # RESERVED (free, not-yet-allocated) ids. The executable enforcer, gate-rule
+    # script, and rule card are authored + promoted by a follow-up wave in the
+    # G-27..G-33 / E-band per ADR-0159 §9 — NOT by this policy DATA file (which
+    # ships no rule or enforcer). These ids are recorded so the registry is the
+    # durable home of both the coverage decision and the ids reserved for it.
+    rule: G-35
+    enforcer: E202
+    gate_rule: 152
+    helper: gate/lib/check_dsl_description_altitude.py
+    grandfather_list: docs/governance/layer-purity-dsl-grandfather.yaml
+    scanned_fragments:
+      - architecture/features/function-points.dsl
+      - architecture/features/engineering-frames.dsl
+      - architecture/features/verification.dsl
+      - architecture/features/capabilities.dsl
+    forbids_categories:
+      - L1-method-call-chain
+      - L2-runtime-sequence
+      - L3-sql-rls-persistence
+      - L4-http-status-route-verb
+      - L5-filter-ordering
+      - L6-wire-format
+      - L7-method-signature
+      - L8-test-class-inventory
+    rationale: >
+      The element `description` (the second positional string of a Structurizr
+      `element` / relationship declaration, e.g. the FunctionPoint synopsis) is a
+      free-form narrative field with no altitude guard, exactly like an
+      `allowed_claim`. Under the authority cascade (generated facts > DSL >
+      Card/prose) the DSL tier sits ABOVE every prose surface and directly under
+      the generated facts, so a runtime-detail leak in a `description` is MORE
+      significant than the L0/L1 prose leaks the two existing helpers gate, and at
+      least as significant as a ledger-claim leak. The ledger entry generalized
+      the by-authority-surface insight to the Card/prose-tier ledger but stopped
+      short of this strictly-higher tier; this row closes that under-scope. The
+      descriptions demonstrably carry the same leaked categories the verdict named:
+      a scan of the live fragments with the canonical probe library finds four
+      function-point synopses leaking today — a concrete route x verb (fpCreateRun
+      "POST /v1/runs", fpGetRunStatus "GET /v1/runs/(runId)", fpCancelRun
+      "POST /v1/runs/(runId)/cancel ... DFA transition": L4, the last also a
+      same-block L2 DFA-transition residue) and a method-call-and-dispatch arrow
+      chain (fpEngineDispatch "EngineRegistry.resolve(envelope) -> typed
+      ExecutorAdapter dispatch": L1). Those four are frozen in the dated grandfather
+      list. The verdict's by-fact-id DSL scope was broader (the engineering-frames
+      type rosters, the verification named-test runtime-behaviour phrases, and
+      several other function-point arrow/sequence descriptions), but a concurrent
+      DSL-altitude drain reduced those to claim-agnostic structural synopses, so the
+      canonical probes no longer fire on them; they are NOT grandfathered (a row
+      over zero live leak would be the dead weight the closed-list discipline
+      forbids). The surface stays registered regardless of the current leak count
+      because the `description` field carries no altitude guard, so a future
+      hand-authored description on ANY of the four fragments must be held to this
+      altitude the day it is written. The eventual enforcer (E202) reuses the SAME
+      closed leaked-category vocabulary and the SAME imported trigger library as
+      Rule G-27 / G-34 (one verdict, one probe set, now four surfaces), scans ONLY
+      the element `description` string of each
+      fragment listed in `scanned_fragments` (the structural `properties { saa.* }`
+      keys — saa.id / saa.primaryPackage / saa.sourceAdr / saa.code_entrypoint_refs
+      / saa.test_refs / saa.contract_op_refs — are the D2 development-view evidence
+      index and a generated-fact pointer surface, NOT a behavioural claim, and are
+      NEVER scanned, mirroring how E201 spares the ledger's structural keys), and
+      reports a leak not redeemed by a still-open, element-precise row in the
+      per-surface grandfather list. It would invent no id and no relationship and
+      never outrank a generated fact — it reads the policy as the vocabulary and
+      the DSL `description` as the data. The DSL fragments themselves are AUTHORED
+      authority surfaces owned by their own waves / the reconcile step; this row
+      does not edit them. capabilities.dsl is in `scanned_fragments` for
+      completeness (its mounted descriptions are currently the generic
+      "L1 capability mounted from architecture-status.yaml" boilerplate and carry
+      no leak today), so a future hand-authored capability description is held to
+      the same altitude the day it is written.
