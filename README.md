@@ -28,8 +28,10 @@ The platform optimises four pillars:
 - **Developer onboarding** — extend via `@Bean` SPI overrides, exactly like
   Spring Boot; a runnable quickstart reaches a first agent run with no
   platform-team hand-holding.
-- **Governance** — audit-grade evidence, posture-aware fail-closed defaults, and
-  a Code-as-Contract gate that keeps the docs and the code honest.
+- **Governance** — audit-grade evidence and posture-aware fail-closed defaults.
+  Governance (gates, ADRs, enforcers) constrains the engineering **main-path**;
+  the searchable **AI knowledge system** (`knowledge/`) sits outside it, kept
+  honest by advisory integrity scripts rather than blocking gates.
 
 Measured baselines: [`docs/governance/competitive-baselines.yaml`](docs/governance/competitive-baselines.yaml).
 

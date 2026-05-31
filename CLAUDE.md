@@ -6,6 +6,10 @@ CLAUDE.md is the **team-collaboration kernel** — only rules that govern how th
 
 CLAUDE.md is **NOT** the product authority (read `product/PRODUCT.md` for that — auto-loaded Tier-1). **NOT** the architecture-of-record (read `architecture/workspace.dsl` + `architecture/docs/L0/ARCHITECTURE.md` on-demand via `/design-mode`). **NOT** the constraint corpus (`ARCHITECTURE.md` §4). **NOT** the runtime contract surface (`docs/contracts/contract-catalog.md`). **NOT** the L1 module design (`architecture/docs/L1/<module>/`). **NOT** the rule encyclopedia (`docs/governance/rules/*.md` are loaded on-demand by phase contracts; gate Rule 68/69 treat cards as the sole rule authority since 2026-05-28).
 
+## Governance scope — main-path only
+
+Governance (gates, ADRs, enforcers) constrains the engineering **main-path** only: product code, the architecture-of-record, runtime contracts, and the small set of current governed invariants. The AI knowledge system (`knowledge/`) sits OUTSIDE it — a searchable corpus maintained by advisory integrity scripts, not bound by ADRs or blocking gates. Knowledge is available unless needed; governance applies only when justified. The gate's corpus scans exclude `knowledge/` and `docs/logs/` (history). See `knowledge/README.md` for how to search/add knowledge and how a fact gets promoted to governance.
+
 ## Phase Entry — Invoke the matching skill BEFORE working
 
 ADR-0098 (rc21) replaces progressive on-demand rule loading with scenario-loaded contracts. At phase entry, **MUST invoke** the matching skill; the skill reads the phase contract and surfaces its active rules + forbidden patterns + exit criteria into context.
@@ -81,6 +85,7 @@ Enforced by [`rule-G-7.md`](docs/governance/rules/rule-G-7.md).
 |---|---|---|
 | Product authority — claims, personas, journey | `product/PRODUCT.md`, `claims.yaml`, `personas.yaml`, `journey.md` | Tier-1 auto-loaded |
 | Persona onboarding | `docs/onboarding/{developer,sre,architect,compliance-reviewer}.md` | On disk; not auto-loaded |
+| AI knowledge system (searchable; NOT governed) | `knowledge/` — start at `knowledge/README.md`; advisory tools in `knowledge/_tools/` | On-demand; not auto-loaded |
 | Architecture of record | `architecture/workspace.dsl`, `architecture/docs/L0/ARCHITECTURE.md` | On-demand via `/design-mode` |
 | L1 module design | `architecture/docs/L1/<module>/` | On-demand |
 | Architecture + governance rule cards (full bodies) | `docs/governance/rules/rule-*.md` | On-demand via phase contracts |
@@ -93,4 +98,4 @@ Enforced by [`rule-G-7.md`](docs/governance/rules/rule-G-7.md).
 
 ## Program status
 
-The repository is mid-program transition from a governance-forward auto-load to a product-forward Tier-1 + progressive disclosure model (2026-05-28). Five Product Claims and six Personas now anchor every ADR / rule / feature decision; the traceability chain `ProductClaim → ProductFeature → ArchitectureFeature → FunctionPoint → Contract → CodeFact/TestFact → Rule/Enforcer` is the binding axis. v1.0 financial-vertical release target 2026-06-30. Weekly cadence after. Full plan + progress in the plan file linked above.
+The repository is mid **knowledge/governance rebalancing** (2026-06-01): governance is being narrowed to the main-path while the AI knowledge system (`knowledge/`) is carved out as a searchable, non-governed corpus. Five Product Claims and six Personas anchor every decision; the traceability chain `ProductClaim → ProductFeature → ArchitectureFeature → FunctionPoint → Contract → CodeFact/TestFact → Rule/Enforcer` binds the value axis. v1.0 financial-vertical target 2026-06-30. Rebalancing record: `docs/reviews/2026-06-01-knowledge-governance-rebalancing-charter.en.md`.
