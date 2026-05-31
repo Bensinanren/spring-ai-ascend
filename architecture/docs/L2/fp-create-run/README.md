@@ -79,7 +79,7 @@ requirement `REQ-001`; on the structural axis it is
 | Channel | `http` (`saa.channel`) |
 | Actor | `tenant-developer` (`saa.actor`) |
 | Trigger | `HTTP POST /v1/runs` (`saa.trigger`) |
-| Source ADR | `ADR-0020` (`saa.sourceAdr`) |
+| Source ADR | `ADR-0040` (`saa.sourceAdr`) |
 
 ## 2. I/O
 

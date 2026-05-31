@@ -286,9 +286,9 @@ function_points:
         - test/com-huawei-ascend-service-platform-web-runs-runhttpcontractit
         - test/com-huawei-ascend-service-runtime-runs-runstatemachinetest
     decision:
-      source_adr: [ADR-0020]
+      source_adr: [ADR-0040]
       resolution:
-        - {adr: ADR-0020, resolves_to: unresolved}
+        - {adr: ADR-0040, resolves_to: disk, ref: docs/adr/0040-w1-http-contract-reconciliation.md}
   - id: FP-CANCEL-RUN
     status: shipped
     owner_module: agent-service
@@ -318,9 +318,9 @@ function_points:
       code_symbol_facts: [code-symbol/com-huawei-ascend-service-platform-web-runs-runcontroller]
       test_facts: [test/com-huawei-ascend-service-platform-web-runs-runhttpcontractit]
     decision:
-      source_adr: [ADR-0020]
+      source_adr: [ADR-0040]
       resolution:
-        - {adr: ADR-0020, resolves_to: unresolved}
+        - {adr: ADR-0040, resolves_to: disk, ref: docs/adr/0040-w1-http-contract-reconciliation.md}
   - id: FP-INGRESS-ENVELOPE
     status: shipped
     owner_module: agent-bus
@@ -354,9 +354,9 @@ function_points:
     join: {channel: internal, actor: platform-runtime, trigger: internal-orchestration-event}
     evidence: {}
     decision:
-      source_adr: [ADR-0118]
+      source_adr: [ADR-0142]
       resolution:
-        - {adr: ADR-0118, resolves_to: fact, ref: adr/0118-rc38-audit-corrective-latent-correctness-and-deploy-packaging}
+        - {adr: ADR-0142, resolves_to: fact, ref: adr/0142-run-aggregate-single-owner}
   - id: FP-SUSPEND-RESUME
     status: shipped
     owner_module: agent-service
@@ -402,9 +402,9 @@ function_points:
     join: {channel: internal, actor: platform-runtime, trigger: internal-orchestration-event}
     evidence: {}
     decision:
-      source_adr: [ADR-0056]
+      source_adr: [ADR-0040]
       resolution:
-        - {adr: ADR-0056, resolves_to: disk, ref: docs/adr/0056-jwt-validation-and-tenant-claim-cross-check.md}
+        - {adr: ADR-0040, resolves_to: disk, ref: docs/adr/0040-w1-http-contract-reconciliation.md}
   - id: FP-POSTURE-BOOT-GUARD
     status: shipped
     owner_module: agent-service

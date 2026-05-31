@@ -78,7 +78,7 @@ endpoint — it performs no state write. On the value axis it is
 | Channel | `http` (`saa.channel`) |
 | Actor | `tenant-developer` (`saa.actor`) |
 | Trigger | `HTTP GET /v1/runs/(runId)` (`saa.trigger`) |
-| Source ADR | `ADR-0020` (`saa.sourceAdr`) |
+| Source ADR | `ADR-0040` (`saa.sourceAdr`) |
 
 ## 2. I/O
 

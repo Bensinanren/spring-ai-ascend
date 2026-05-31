@@ -328,5 +328,15 @@ list_closed: true
 # these FunctionPoints do not carry), so no generated artefact changed and no
 # fact/graph/catalog regeneration was required. The authority cascade (generated
 # facts > DSL > Card/prose) is untouched.
+#
+# Re-verified 2026-05-31 (residual-cleanup C5 closeout, continuation): the canonical
+# by-fact-id marker set + the canonical probe library (gate/lib/check_layer_purity.py
+# _scan_text_for_leaks, the set the RESERVED E202 will reuse) were re-run over the
+# registered fragments' element `description` strings on the current disk state — the
+# four previously-drained function-points.dsl descriptions (fpCreateRun / fpGetRunStatus
+# / fpCancelRun / fpEngineDispatch) still carry ZERO by-fact-id leak and ZERO probe
+# hit, and no fragment description re-surfaced a route x verb / state-name arrow / call
+# chain. The surface stays fully drained and the closed list correctly empty; no
+# fragment was edited.
 
 violations: []

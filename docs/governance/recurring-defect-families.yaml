@@ -2381,10 +2381,10 @@ families:
       346/346; E201 0 findings/0 grandfathered at full-blocking.
 
   - id: F-hand-authored-factual-drift
-    title: "Hand-authored factual fields (devPaths, test FQNs, verification commands, SPI counts) drift from code/contracts/tests"
+    title: "Hand-authored factual fields (devPaths, test FQNs, verification commands, SPI counts, card/map sourceAdr) drift from code/contracts/tests/DSL"
     first_observed_rc: rc5
-    last_observed_rc: progressive-learning-curve-remediation-W2
-    occurrences: [rc5, rc7, rc12, rc14, rc15, rc17, rc18, rc19, rc35, rc40, rc48, rc54, rc55, post-W5-L1-feature-registry, progressive-learning-curve-remediation-W2]
+    last_observed_rc: progressive-learning-curve-remediation-C5
+    occurrences: [rc5, rc7, rc12, rc14, rc15, rc17, rc18, rc19, rc35, rc40, rc48, rc54, rc55, post-W5-L1-feature-registry, progressive-learning-curve-remediation-W2, progressive-learning-curve-remediation-C5]
     root_cause: |
       Factual claims about code shape (saa.devPaths, saa.verificationTestFqns,
       saa.verificationCommands, saa.sourceFile, contract-catalog SPI counts,
@@ -2407,6 +2407,8 @@ families:
       - docs/contracts/contract-catalog.md (SPI count + ModelGateway authority drifts)
       - root README.md / gate/README.md baseline metric blocks
       - root ARCHITECTURE.md module-count + path claims
+      - architecture/docs/L2 (L2 FunctionPoint-spec "Source ADR | (saa.sourceAdr)" cells hand-copied from the DSL; drift when the DSL saa.sourceAdr is re-pointed and the card is not updated in lockstep — C5 found 4 such cells stale after the C1b/C1c decision re-points)
+      - architecture/mappings/ai-understanding-map.yaml (function_points[].decision.source_adr/resolution hand-mirrors the DSL saa.sourceAdr; same C1b/C1c re-point lag — 4 blocks stale)
     prevention_rules:
       - "Rule G-13 (Single-Source Rendering Coherence) — closes the *rendered* surface for derived YAML/Markdown"
       - "Rule G-15 (Fact-Layer Integrity, ADR-0154) — closes the *extracted* surface for generated facts under architecture/facts/generated/"
@@ -2434,6 +2436,25 @@ families:
       AND (b) Rule G-15.c blocking (Wave 4 ship) AND (c) the 2026-07-31 sunset
       date passing with the hand-authored fields removed (or migrated to the
       frame fact extractor for saa.cardPath / saa.primaryPackage).
+      progressive-learning-curve-remediation-C5 (2026-05-31) recorded a NEW
+      sub-variant of this family on the DECISION axis: the readiness-driven DSL
+      saa.sourceAdr re-points the C1b/C1c waves made (ADR-0020/ADR-0056 ->
+      ADR-0040, ADR-0118 -> ADR-0142, to satisfy the feature-readiness
+      decision-axis normalized-view requirement) were NOT propagated to the two
+      hand-authored surfaces that explicitly claim to copy that field — the four
+      affected L2 FunctionPoint specs' "Source ADR | (saa.sourceAdr)" cells and
+      the ai-understanding-map function_points[].decision.source_adr/resolution —
+      leaving a verifiably-false "copied verbatim from the DSL" claim until C5
+      reconciled all four cells + map blocks to the live DSL. The coverage gap
+      this exposes: NO gate enforces L2-card / understanding-map source_adr
+      parity with the DSL saa.sourceAdr (the readiness gate Rule G-30 reads ONLY
+      the DSL -> normalized view; check_frame_card_consistency.py does not read
+      sourceAdr), so a future re-point can re-introduce the same lag silently.
+      The durable fix is a card/map-vs-DSL sourceAdr parity probe (a gate-precision
+      addition, deferred to the EngineeringFrameFactExtractor / a Frame-Card-parity
+      wave), NOT a hand-sweep each time; until that lands, any saa.sourceAdr
+      re-point MUST update the L2 card cell + the map decision block in lockstep
+      (closed-list discipline for this family's decision-axis surfaces).
 
   - id: F-llm-fabricated-factual-claim
     title: "Hand-authored references to code paths / FQNs / test classes / contract operations that do not exist on disk"

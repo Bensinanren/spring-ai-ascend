@@ -182,4 +182,9 @@ list_closed: true
 # allowed_claim altitude rewrite recorded in the Coverage note above; the E201
 # scan reports 0 findings / 0 grandfathered on the current disk state. An empty
 # closed list is the correct end state for a fully-drained surface.
+# Re-verified 2026-05-31 (residual-cleanup C5 closeout, continuation): E201
+# (gate/lib/check_status_claim_altitude.py --mode advisory) still scans the 155
+# allowed_claim/note narrative values and reports 0 findings / 0 grandfathered on the
+# current disk state; no allowed_claim regressed to a lower altitude, so the surface
+# stays fully drained and the list correctly empty.
 violations: []

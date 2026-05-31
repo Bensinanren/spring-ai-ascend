@@ -9,7 +9,7 @@ relates_to:
   - "architecture/docs/L1/frames/EF-ACCESS-ADMISSION.md"
   - "architecture/docs/L1/agent-service/features/access-layer.md"
   - "docs/contracts/openapi-v1.yaml"
-authority: "ADR-0068 (Layered 4+1 + Architecture Graph) + ADR-0161 (EngineeringFrame package-cluster anchor + Card over DSL) + ADR-0056 (JWT validation + tenant claim cross-check)"
+authority: "ADR-0068 (Layered 4+1 + Architecture Graph) + ADR-0161 (EngineeringFrame package-cluster anchor + Card over DSL) + ADR-0040 (W1 HTTP-contract cross-check-not-replace — current governing decision / saa.sourceAdr) + ADR-0056 (JWT validation + tenant claim cross-check — originating decision)"
 ---
 
 # L2 FunctionPoint Spec — `FP-TENANT-CROSS-CHECK`
@@ -53,7 +53,9 @@ migration target for that leaked detail, not a second source of truth.
    is the filter type cited in §4 (see §6).
 5. **L0 constraint authority** — `architecture/docs/L0/ARCHITECTURE.md` §4 names the
    cross-check-not-replace tenant-identity invariant; this spec carries the
-   guard's runtime detail. The behaviour is governed by ADR-0056.
+   guard's runtime detail. The current governing decision is ADR-0040 (the W1
+   HTTP-contract cross-check-not-replace invariant — the value carried by the DSL
+   `saa.sourceAdr`); the originating JWT-validation decision is ADR-0056.
 
 ---
 
@@ -78,7 +80,7 @@ FunctionPoint`); on the structural axis it is anchored by `EF-ACCESS-ADMISSION`
 | Channel | `internal` (`saa.channel`) |
 | Actor | `platform-runtime` (`saa.actor`) |
 | Trigger | `internal-orchestration-event` (`saa.trigger`) |
-| Source ADR | `ADR-0056` (`saa.sourceAdr`) |
+| Source ADR | `ADR-0040` (`saa.sourceAdr`) |
 
 ## 2. I/O
 
@@ -222,8 +224,12 @@ Per the layer-purity keep-list, the following remain at L0 / L1 and are only
   ([`../../../../docs/adr/0068-layered-4plus1-and-architecture-graph.yaml`](../../../../docs/adr/0068-layered-4plus1-and-architecture-graph.yaml)).
 - ADR-0161 — EngineeringFrame package-cluster anchor + Card over DSL
   ([`../../../../docs/adr/0161-engineering-frame-package-cluster-anchor-and-card-over-dsl.yaml`](../../../../docs/adr/0161-engineering-frame-package-cluster-anchor-and-card-over-dsl.yaml)).
-- ADR-0056 — JWT validation + tenant claim cross-check (the ADR governing this
-  FunctionPoint)
+- ADR-0040 — W1 HTTP-contract reconciliation: tenant identity is cross-checked,
+  never replaced (the current governing decision, and the value the DSL
+  `saa.sourceAdr` carries)
+  ([`../../../../docs/adr/normalized/ADR-0040.yaml`](../../../../docs/adr/normalized/ADR-0040.yaml)).
+- ADR-0056 — JWT validation + tenant claim cross-check (the originating
+  JWT-validation decision)
   ([`../../../../docs/adr/0056-jwt-validation-and-tenant-claim-cross-check.md`](../../../../docs/adr/0056-jwt-validation-and-tenant-claim-cross-check.md)).
 - Rule 33 — Layered 4+1 Discipline; Rule 145 — L2 detail sink; Rule 146 — Frame
   Card / FunctionPoint spec is a readable interpretation (`CLAUDE.md` / rule cards).

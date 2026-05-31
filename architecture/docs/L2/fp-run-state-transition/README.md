@@ -77,7 +77,7 @@ FP-RUN-STATE-TRANSITION` (an `anchors` reach across the structural map — the
 | Channel | `internal` (`saa.channel`) |
 | Actor | `platform-runtime` (`saa.actor`) |
 | Trigger | `internal-orchestration-event` (`saa.trigger`) |
-| Source ADR | `ADR-0118` (`saa.sourceAdr`) |
+| Source ADR | `ADR-0142` (`saa.sourceAdr`) |
 | Value-axis Feature | `FEAT-RUN-LIFECYCLE-CONTROL` (`requires` edge, owner `agent-service`) |
 
 ## 2. I/O

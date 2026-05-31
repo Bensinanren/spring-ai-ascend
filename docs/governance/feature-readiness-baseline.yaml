@@ -146,6 +146,40 @@
 #     concrete implementation/test in tests.json). No ref was fabricated — every
 #     fact_refs resolves in code-symbols.json, every test_refs in tests.json, and
 #     ADR-0040's normalized view is on-disk in active_guidance.
+#   2026-05-31 — residual-cleanup C5 closeout (continuation; verification + downstream
+#     drift reconcile). No FRB row was drained or added: the three rows below were
+#     re-confirmed GENUINE honest-holds against the live disk state, and a fabrication
+#     audit of every prior C1a/C1b/C1c discharge passed (independent re-resolution).
+#       * Fabrication audit (PASS): every shipped FunctionPoint's saa.fact_refs was
+#         re-resolved against architecture/facts/generated/code-symbols.json (all 14
+#         resolve) and every saa.test_refs FQN against tests.json by its kebab fact_id
+#         (test/<kebab-fqn> — all resolve). No discharged row points at an absent fact;
+#         no FunctionPoint was marked ready without real backing. The decision re-points
+#         C1b/C1c made (ADR-0118->ADR-0142, ADR-0020/ADR-0056->ADR-0040) were verified
+#         genuine: ADR-0142 (active_guidance) governs the RunRepository single-owner CAS;
+#         ADR-0040 (active_guidance) governs the W1 "tenant identity cross-checked, never
+#         replaced" + DFA-initial-status invariant verbatim — not citation-shopping.
+#       * FP-POSTURE-BOOT-GUARD decision hold RE-EXAMINED, KEPT. ADR-0114 (partial_guidance,
+#         citeable) carries an active_guidance clause that DOES state the posture-fail-closed-
+#         on-missing-config-under-research/prod invariant verbatim, so a re-point ADR-0058->
+#         ADR-0114 is technically available. It was NOT taken: ADR-0114 is a batched
+#         feasibility-closure ADR its own normalized review_notes flag AMBIGUOUS (close to a
+#         remediation_record), not the primary posture decision, and a re-point would require
+#         a 5-surface lockstep (function-points.dsl + the fp-posture-boot-guard L2 README +
+#         features.dsl FEAT-POSTURE-BOOTSTRAP + requirements.yaml REQ-007 + the
+#         understanding-map) in a corpus that already carries Feature-vs-FP ADR-provenance
+#         drift. Per the guardrail "a wrong fix is worse than a dated row / prefer keep over
+#         a risky change," the dated hold is the honest outcome until ADR-0058 migrates to a
+#         raw YAML ADR or an unambiguous active YAML ADR adopts the boot-guard invariant.
+#       * Downstream sourceAdr drift the C1b/C1c re-points introduced was RECONCILED (the
+#         integrity fix this closeout committed): the four re-pointed FunctionPoints' L2
+#         README "Source ADR | (saa.sourceAdr)" cells + the understanding-map
+#         function_points[].decision.source_adr/resolution had been left at the OLD ADR
+#         (ADR-0020/ADR-0056/ADR-0118) while the DSL saa.sourceAdr moved to ADR-0040/ADR-0142
+#         — a verifiably-false "copied verbatim from the DSL" claim. Each cell + map block now
+#         matches the DSL; the map resolution records the correct resolves_to (ADR-0040 disk,
+#         ADR-0142 fact). The feature-readiness gate is unaffected (it reads only the DSL
+#         saa.sourceAdr -> normalized view); full architecture-sync gate stays GREEN.
 
 schema_version: 1
 authority: ADR-0159
@@ -195,10 +229,16 @@ findings:
       (the ADR-0068 / 0147 / 0149 keyword hits on "idempot" are incidental — none is
       the governing claim+replay decision), so no honest re-point exists. The
       evidence axis is fully discharged (C1b wired entry/fact/test refs + a
-      no_contract_rationale); only the decision-axis normalized view remains. KEEP
-      until either ADR-0027 is migrated to a raw YAML ADR (then author its normalized
-      view) or an active YAML ADR governing the idempotency claim+replay invariant is
-      adopted. Honest hold, not a wiring gap.
+      no_contract_rationale); only the decision-axis normalized view remains. C5
+      (2026-05-31) re-surveyed the citeable ADR corpus for the claim+replay invariant
+      (ADR-0088 idempotency-type module-home, ADR-0108 tenant side-channel, ADR-0109
+      "replay protection REUSES the existing idempotency-dedup mechanism", ADR-0119/0147/
+      0151 render-/gate-idempotency) and confirmed NONE governs the idempotency
+      claim+replay decision itself — ADR-0109 explicitly leans on it as a pre-existing
+      surface rather than establishing it — so no honest re-point exists. KEEP until
+      either ADR-0027 is migrated to a raw YAML ADR (then author its normalized view) or
+      an active YAML ADR governing the idempotency claim+replay invariant is adopted.
+      Honest hold, not a wiring gap.
     sunset_date: 2026-08-31
 
   - id: FRB-ingress-envelope-no-test
@@ -212,9 +252,16 @@ findings:
       implementation and NO test referencing IngressGateway.routeClientRequest /
       IngressEnvelope in tests.json). The evidence axis is otherwise discharged
       (no_contract_rationale + a resolving saa.fact_refs to the IngressGateway
-      interface fact + code_entrypoint_refs). KEEP until a concrete ingress-routing
-      implementation lands with a test fact to cite; fabricating a test_exception
-      for a surface that has no production implementation would be dishonest.
+      interface fact + code_entrypoint_refs). C5 (2026-05-31) re-checked the source
+      tree: the only test naming IngressGateway is the agent-client ArchUnit
+      EdgeToComputeDirectLinkArchTest, which enforces the NEGATIVE topology
+      prohibition (edge MUST NOT directly import compute_control) and is itself
+      "vacuous-but-armed" (agent-client has no production code) — it does NOT exercise
+      the positive routeClientRequest routing behaviour this FunctionPoint names, so it
+      is not a behavioural test_ref and citing it would misrepresent the evidence. KEEP
+      until a concrete ingress-routing implementation lands with a behavioural test
+      fact to cite; fabricating a test_exception for a surface that has no production
+      implementation would be dishonest.
     sunset_date: 2026-08-31
 
   # FP-POSTURE-BOOT-GUARD and FP-TENANT-CROSS-CHECK discharged their full evidence
@@ -247,7 +294,15 @@ findings:
       none (the ADR-0062 / 0147 / 0151 keyword hits on "posture" are incidental —
       none is the governing boot-guard decision), so no honest re-point exists. The
       evidence axis is fully discharged (entry/fact/test refs all wired in C1c); only
-      the decision-axis normalized view remains. KEEP until either ADR-0058 is
-      migrated to a raw YAML ADR (then author its normalized view) or an active YAML
-      ADR governing the boot-guard invariant is adopted. Honest hold, not a wiring gap.
+      the decision-axis normalized view remains. C5 (2026-05-31) re-examined ADR-0114
+      (partial_guidance, citeable) whose active_guidance clause DOES state the
+      posture-fail-closed-on-missing-config invariant verbatim — a technically
+      available re-point ADR-0058->ADR-0114 — but DELIBERATELY KEPT the hold: ADR-0114
+      is a batched feasibility-closure ADR its own review_notes flag AMBIGUOUS (close
+      to a remediation_record), not the primary posture decision, and a re-point would
+      need a 5-surface lockstep in a corpus already carrying Feature-vs-FP provenance
+      drift (a wrong fix is worse than a dated row; prefer keep over a risky change).
+      KEEP until either ADR-0058 is migrated to a raw YAML ADR (then author its
+      normalized view) or an unambiguous active YAML ADR governing the boot-guard
+      invariant is adopted. Honest hold, not a wiring gap.
     sunset_date: 2026-07-31

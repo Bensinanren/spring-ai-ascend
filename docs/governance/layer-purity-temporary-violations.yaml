@@ -437,6 +437,19 @@
 #     those that tolerate >=1 live finding on the current disk state. No L0/L1
 #     document was edited — this is a pure allow-list prune; the facts/DSL/graph and
 #     the authority cascade (generated facts > DSL > Card/prose) are untouched.
+#   2026-05-31 — C5 closeout re-verification (continuation; no row drained or added).
+#     Every remaining row was re-checked against the live E194/E195 advisory scan on
+#     the current disk state: each still tolerates >=1 GRANDFATHERED live leak (E194
+#     reports 0 findings / 28 grandfathered, E195 0 findings / 2 grandfathered — the
+#     exact rows below), and each residual is a DEFENSIBLE construct the regex cannot
+#     distinguish from a leak (a delegation pointer NAMING migrated detail to say it
+#     is delegated, a process-view section heading NAMING a flow, an obligation-level
+#     Boundary-Contract statement, or the E195 whole-file test-inventory/wire tolerance).
+#     None was honestly drainable WITHOUT damaging a defensible delegation pointer in
+#     the L0/L1 prose — per the guardrail "do NOT damage the doc to silence a defensible
+#     construct; prefer keep grandfathered over a risky probe change," all retained rows
+#     are KEPT with their existing sunset tiers. No L0/L1 document, fact, DSL, graph, or
+#     probe was edited in this closeout; the authority cascade is untouched.
 
 schema_version: 1
 authority: ADR-0159
