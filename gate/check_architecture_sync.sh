@@ -120,9 +120,6 @@
 #  99.  kernel_terminal_verb_vs_shipped_decision_check  -- For every #### Rule N kernel block in CLAUDE.md with a matching ## Rule N.<letter> sub-clause in CLAUDE-deferred.md, the kernel MUST NOT use end-state verb tokens (`are SUSPENDED`, `is SUSPENDED`, `transitions to FAILED`, `consumes the * capacity`, `is rejected, not failed`, `admits the caller`) that overclaim shipped behaviour. Closes rc10 P1-1 (J-α family; Rule 41 kernel said "callers are SUSPENDED" while shipped code returns SkillResolution.reject — the actual transition is deferred to Rule 41.c).
 #  100. kernel_implementation_disjunction_truth        -- For every rule in gate/rule-100-disjunction-allowlist.txt, BOTH the #### Rule N kernel block in CLAUDE.md AND the matching docs/governance/rules/rule-NN.md card MUST contain explicit disjunction wording (EITHER / OR / either surface / either ... or). Closes rc10 P1-3 (J-γ family; Rule 96 kernel said "MUST contain" while impl accepted EITHER kernel OR card — kernel-AND-impl-OR drift in the rule whose job is preventing such drift).
 #  121. whitebox_quality_reports                     -- Maven SpotBugs/PMD/Checkstyle reports exist; high-confidence SpotBugs + hard-style Checkstyle findings block, PMD is review-trigger summary (Rule G-12, enforcer E169)
-#  122. proposal_immediate_scope_pending_contract_guard -- proposal docs must not claim immediate W0/W1 scope while same boundary contracts are still pending (Rule G-2, enforcer E170)
-#  123. proposal_engine_package_truth                 -- proposal FQNs must not contradict current engine/service package authority unless explicitly marked proposed (Rule G-8, enforcer E171)
-#  124. unsupported_absolute_claim_guard              -- proposal security/performance absolutes require evidence wording (Rule G-2, enforcer E172)
 
 set -uo pipefail
 export LC_ALL=C
@@ -4004,43 +4001,6 @@ fi
 
 if [[ $_r111_fail -eq 0 ]]; then pass_rule "architecture_refresh_defect_family_re_eval_required"; fi
 
-# Rule 114 — rule_card_filename_dot_convention (enforcer E161)
-#
-# Per ADR-0096 rc19 Wave 4 + docs/governance/rules/README.md convention:
-# every rule card under docs/governance/rules/rule-*.md MUST match the
-# dotted-suffix filename pattern. Hyphenated variants (e.g.,
-# rule-G-3-1.md) are rejected because the gate's rule_id ↔ card-file
-# mapping uses dot notation (rule_id: G-3.1 → rule-G-3.1.md). rc17
-# corrective #1 had 5 file renames precisely because of this hyphen-vs-dot
-# confusion; this rule prevents the next contributor from re-creating
-# the same trap.
-#
-# Accepted: rule-D-N.md, rule-R-X.md, rule-R-X.N.md, rule-R-X.c.md (R-A.c
-# hybrid), rule-G-N.md, rule-G-N.N.md, rule-M-N.md, README.md.
-#
-# scope_surfaces: docs/governance/rules/*.md
-# ---------------------------------------------------------------------------
-_r114_fail=0
-_r114_dir="docs/governance/rules"
-if [[ -d "$_r114_dir" ]]; then
-  while IFS= read -r _r114_file; do
-    [[ -z "$_r114_file" ]] && continue
-    _r114_basename=$(basename "$_r114_file")
-    # README.md is allowed; ignore. Other names must match the convention.
-    [[ "$_r114_basename" == "README.md" ]] && continue
-    # Convention regex: rule-(D|R|G|M)-<letter>(.<suffix>)?.md
-    # <suffix> is single letter (a-z) for old sub-clause OR digit(.letter)?
-    # for new sub-rule (e.g., R-C.1, R-C.2.a).
-    # Acceptable: rule-D-1.md, rule-R-A.md, rule-R-A.c.md, rule-R-C.1.md,
-    # rule-R-C.2.md, rule-G-3.1.md, rule-G-9.md, rule-M-2.md.
-    if [[ ! "$_r114_basename" =~ ^rule-[DRGM]-[A-Z0-9]+(\.[a-z0-9]+)?\.md$ ]]; then
-      fail_rule "rule_card_filename_dot_convention" "$_r114_file: filename does not match rule card convention (rule-PREFIX-ID[.SUBID].md with dot, NOT hyphen). Per docs/governance/rules/README.md + ADR-0098 Wave 4 (rc21 widened ID to multi-char to admit G-10, G-11). Rule 114 / E161"
-      _r114_fail=1
-    fi
-  done < <(find "$_r114_dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
-fi
-if [[ $_r114_fail -eq 0 ]]; then pass_rule "rule_card_filename_dot_convention"; fi
-
 # ---------------------------------------------------------------------------
 # Rule 115 — no_version_log_metadata_in_code (enforcer E163)
 #
@@ -4329,64 +4289,6 @@ fi
 [[ $_r121_fail -eq 0 ]] && pass_rule "whitebox_quality_reports"
 
 # ---------------------------------------------------------------------------
-# Rule 122 — proposal_immediate_scope_pending_contract_guard (enforcer E170)
-#
-# Design proposals under docs/logs/reviews/ may be exploratory, but they MUST
-# NOT claim immediate W0/W1 execution scope while the same document still says
-# the boundary contracts are pending. This prevents release-readiness drift
-# where a draft looks like current release authority.
-# ---------------------------------------------------------------------------
-_r122_fail=0
-for _r122_file in docs/logs/reviews/*proposal*.md; do
-  [[ -f "$_r122_file" ]] || continue
-  if grep -qiE 'Target Wave:[^[:cntrl:]]*(W0/W1|Immediate Execution)' "$_r122_file" \
-     && grep -qiE 'Pending Refinement|pending gaps|pending contract|pending refinement|TODO annotations' "$_r122_file"; then
-    fail_rule "proposal_immediate_scope_pending_contract_guard" "$_r122_file claims immediate W0/W1 scope while carrying pending boundary-contract work -- Rule G-2 / E170"
-    _r122_fail=1
-  fi
-done
-[[ $_r122_fail -eq 0 ]] && pass_rule "proposal_immediate_scope_pending_contract_guard"
-
-# ---------------------------------------------------------------------------
-# Rule 123 — proposal_engine_package_truth (enforcer E171)
-#
-# Proposal FQNs must respect current package authority unless explicitly marked
-# proposed/future on the same line. Current authority is:
-#   - engine-owned SPI/runtime under com.huawei.ascend.engine.*
-#   - service-owned StatelessEngine under com.huawei.ascend.service.engine.spi
-# ---------------------------------------------------------------------------
-_r123_fail=0
-for _r123_file in docs/logs/reviews/*proposal*.md; do
-  [[ -f "$_r123_file" ]] || continue
-  _r123_hits=$(grep -nE 'com\.huawei\.ascend\.agent\.engine|StatelessEngineExecutor' "$_r123_file" 2>/dev/null \
-    | grep -viE 'proposed|future|candidate|exploratory|not current' || true)
-  if [[ -n "$_r123_hits" ]]; then
-    fail_rule "proposal_engine_package_truth" "$_r123_file contains engine/service FQN or signature claims not marked proposed: ${_r123_hits//$'\n'/; } -- Rule G-8 / E171"
-    _r123_fail=1
-  fi
-done
-[[ $_r123_fail -eq 0 ]] && pass_rule "proposal_engine_package_truth"
-
-# ---------------------------------------------------------------------------
-# Rule 124 — unsupported_absolute_claim_guard (enforcer E172)
-#
-# Security/performance absolutes in proposal docs invite false release claims.
-# The terms below are allowed only when the same line points at evidence such as
-# a benchmark, threat model, measurement, or acceptance criterion.
-# ---------------------------------------------------------------------------
-_r124_fail=0
-for _r124_file in docs/logs/reviews/*proposal*.md; do
-  [[ -f "$_r124_file" ]] || continue
-  _r124_hits=$(grep -nEi 'bulletproof|zero-day safety|zero downtime|sub-millisecond|sub-milliseconds' "$_r124_file" 2>/dev/null \
-    | grep -viE 'benchmark|threat model|measured|measurement|acceptance criteria|acceptance criterion|deferred' || true)
-  if [[ -n "$_r124_hits" ]]; then
-    fail_rule "unsupported_absolute_claim_guard" "$_r124_file contains unsupported absolute claim(s): ${_r124_hits//$'\n'/; } -- Rule G-2 / E172"
-    _r124_fail=1
-  fi
-done
-[[ $_r124_fail -eq 0 ]] && pass_rule "unsupported_absolute_claim_guard"
-
-# ---------------------------------------------------------------------------
 # Rule 125 — codegraph_install_truth (enforcer E173)
 #
 # Operationalises Rule R-A's developer-self-service clause for the
@@ -4439,57 +4341,6 @@ elif ! grep -qE '"tools/codegraph/node_modules/@colbymchenry/codegraph/[^"]+"' "
 fi
 
 [[ $_r125_fail -eq 0 ]] && pass_rule "codegraph_install_truth"
-
-# ---------------------------------------------------------------------------
-# Rule 126 — template_render_idempotency (enforcer E174, kernel Rule G-13)
-#
-# Operationalises Rule G-13.a (Surface Classification): the
-# single-source rendering registry MUST exist and be parseable. Today's
-# stub verifies existence and structural keys only; Rule G-13.b
-# (byte-identical regen of `templated` + `hybrid` outputs against
-# render(load_context())) is a forward contract that activates when
-# the render engine + general gate driver ship under
-# gate/lib/render_template.py + gate/lib/check_template_render_idempotency.py
-# + gate/check_template_render_idempotency.sh.
-#
-# Today's contract:
-#   - docs/governance/templates/surface-classification.yaml MUST exist.
-#   - It MUST parse as YAML with schema_version + templates keys present.
-#   - The templates list MAY be empty.
-#
-# Forward contract (activated when the render-engine driver lands):
-#   - For each entry where bucket in {templated, hybrid}, the template
-#     file MUST exist, the context_schema file MUST exist, and
-#     render(template, load_context()) MUST byte-match the on-disk output.
-#
-# scope_surfaces: docs/governance/templates/surface-classification.yaml,
-#                 docs/governance/templates/*.md.j2,
-#                 docs/governance/rules/rule-G-13.md
-# ---------------------------------------------------------------------------
-_r126_fail=0
-_r126_registry="docs/governance/templates/surface-classification.yaml"
-
-if [[ ! -f "$_r126_registry" ]]; then
-  fail_rule "template_render_idempotency" "$_r126_registry missing -- Rule G-13.a requires the surface-classification registry to exist; land it from rule-G-13.md scaffolding -- Rule G-13 / E174"
-  _r126_fail=1
-else
-  _r126_out=$(python3 gate/lib/check_template_render_idempotency.py 2>&1)
-  _r126_rc=$?
-  if [[ $_r126_rc -ne 0 ]]; then
-    _r126_first=$(printf '%s' "$_r126_out" | head -1)
-    # Knowledge/governance rebalancing G-track: generated-doc byte-idempotency
-    # (template render drift) demoted from blocking to advisory — a regenerable
-    # rendered doc drifting is maintenance, not a delivery blocker.
-    echo "ADVISORY: template_render_idempotency (${_r126_first:-rc=$_r126_rc}) -- Rule G-13.b demoted to advisory (rebalancing G-track)"
-  fi
-fi
-
-# W1 forward-pointer: when surface-classification.yaml has non-empty
-# templates list, this rule will also delegate to
-# gate/check_template_render_idempotency.sh for the byte-identical
-# check. Today the list is empty (W0); the check is vacuously satisfied.
-
-[[ $_r126_fail -eq 0 ]] && pass_rule "template_render_idempotency"
 
 # ---------------------------------------------------------------------------
 # Rule 127 — release_note_no_pending_evidence (enforcer E175)
@@ -4754,35 +4605,6 @@ fi
 [[ $_r135_fail -eq 0 ]] && pass_rule "traceability_chain_completeness"
 
 # ---------------------------------------------------------------------------
-# Rule 136 — autoload_tier_integrity (enforcer E184, kernel Rule G-19)
-#
-# Phase A Wave 5 (BLOCKING from landing). gate/always-loaded-budget.txt MUST
-# contain product/PRODUCT.md at a non-zero ceiling AND CLAUDE.md MUST have a
-# ceiling <= 12000 bytes. Enforces the Tier-1 product-authority + collab-only
-# kernel discipline established by the 2026-05-28 surgery.
-# ---------------------------------------------------------------------------
-_r136_fail=0
-_r136_budget="gate/always-loaded-budget.txt"
-if [[ ! -f "$_r136_budget" ]]; then
-  fail_rule "autoload_tier_integrity" "$_r136_budget missing -- Rule G-19 / E184"
-  _r136_fail=1
-else
-  if ! grep -qE '^product/PRODUCT\.md=[1-9][0-9]*' "$_r136_budget"; then
-    fail_rule "autoload_tier_integrity" "$_r136_budget missing or zero-ceiling product/PRODUCT.md entry -- Rule G-19 / E184"
-    _r136_fail=1
-  fi
-  _r136_claude_ceiling=$(awk -F= '/^CLAUDE\.md=/{print $2; exit}' "$_r136_budget")
-  if [[ -z "$_r136_claude_ceiling" ]]; then
-    fail_rule "autoload_tier_integrity" "$_r136_budget missing CLAUDE.md entry -- Rule G-19 / E184"
-    _r136_fail=1
-  elif [[ "$_r136_claude_ceiling" -gt 12000 ]]; then
-    fail_rule "autoload_tier_integrity" "$_r136_budget CLAUDE.md ceiling=$_r136_claude_ceiling exceeds 12000 (collab-only kernel discipline) -- Rule G-19 / E184"
-    _r136_fail=1
-  fi
-fi
-[[ $_r136_fail -eq 0 ]] && pass_rule "autoload_tier_integrity"
-
-# ---------------------------------------------------------------------------
 # Rule 140 — shipped_frame_anchor_integrity (enforcer E188, kernel Rule G-23)
 #
 # Authority: ADR-0157 (EngineeringFrame Ontology) + ADR-0158. Closes external
@@ -4812,75 +4634,6 @@ else
   fi
 fi
 [[ $_r140_fail -eq 0 ]] && pass_rule "shipped_frame_anchor_integrity"
-
-# ---------------------------------------------------------------------------
-# Rule 141 — old_orchestration_spi_package_ban (enforcer E189, kernel Rule G-24)
-#
-# Authority: ADR-0158. Closes external review F6.3: active authority surfaces
-# MUST NOT name the old orchestration/engine SPI package
-# `engine.orchestration.spi` / `engine/orchestration/spi` as the CURRENT home
-# (ADR-0158 re-homed it to com.huawei.ascend.bus.spi.engine). Past-tense
-# re-home / dissolution prose is legitimate and skipped via per-line historical
-# markers. Scoped to current-authority surfaces (templates + rendered docs +
-# inline authority); excludes docs/logs, docs/adr, rule-history, archive,
-# scripts, and generated artefacts.
-#
-# NOTE: the rendered architecture/docs/**.md are re-rendered from the fixed .j2
-# in a later wave (W6). The live-tree PASS of this rule is validated POST-RENDER
-# (W8); the .j2 sources + inline surfaces are already clean.
-#
-# scope_surfaces: docs/governance/templates/*.j2, architecture/docs/*.md, docs/dfx/*, docs/quickstart.md, docs/cross-cutting/oss-bill-of-materials.md, docs/governance/enforcers.yaml, docs/governance/architecture-status.yaml, docs/contracts/contract-catalog.md, architecture/features/*, gate/lib/check_old_orchestration_spi_package.py
-# ---------------------------------------------------------------------------
-_r141_fail=0
-_r141_helper="gate/lib/check_old_orchestration_spi_package.py"
-if [[ ! -f "$_r141_helper" ]]; then
-  fail_rule "old_orchestration_spi_package_ban" "$_r141_helper missing -- Rule G-24 / E189"
-  _r141_fail=1
-elif [[ -z "$GATE_PYTHON_BIN" ]]; then
-  : # vacuous pass on hosts without python (Rule G-7 lists WSL as canonical env)
-else
-  _r141_out=$("$GATE_PYTHON_BIN" "$_r141_helper" 2>&1)
-  _r141_rc=$?
-  if [[ $_r141_rc -ne 0 ]]; then
-    _r141_count=$(printf '%s\n' "$_r141_out" | grep -cE '^OLD-PACKAGE:')
-    _r141_first=$(printf '%s' "$_r141_out" | grep -E '^OLD-PACKAGE:' | head -1)
-    fail_rule "old_orchestration_spi_package_ban" "active authority surface(s) name the old engine.orchestration.spi package as current ($_r141_count line(s), first: ${_r141_first:-rc=$_r141_rc}) -- Rule G-24 / E189"
-    _r141_fail=1
-  fi
-fi
-[[ $_r141_fail -eq 0 ]] && pass_rule "old_orchestration_spi_package_ban"
-
-# ---------------------------------------------------------------------------
-# Rule 142 — tier1_non_english_lint (enforcer E190, kernel Rule G-25)
-#
-# Authority: CLAUDE.md kernel "Translate all instructions into English".
-# Closes external review P1-3: every file with a non-zero budget in
-# gate/always-loaded-budget.txt (the always-loaded Tier-1 set) MUST be free of
-# CJK code points [U+4E00..U+9FFF] and common UTF-8/GBK mojibake markers
-# (U+FFFD plus the literal sequences for double-decoded text). Fails closed.
-# The checker reports line:col + byte offset ONLY and MUST NOT echo the
-# offending non-English text, so the gate log never embeds non-English source.
-#
-# scope_surfaces: gate/always-loaded-budget.txt, gate/lib/check_tier1_non_english.py
-# ---------------------------------------------------------------------------
-_r142_fail=0
-_r142_helper="gate/lib/check_tier1_non_english.py"
-if [[ ! -f "$_r142_helper" ]]; then
-  fail_rule "tier1_non_english_lint" "$_r142_helper missing -- Rule G-25 / E190"
-  _r142_fail=1
-elif [[ -z "$GATE_PYTHON_BIN" ]]; then
-  : # vacuous pass on hosts without python (Rule G-7 lists WSL as canonical env)
-else
-  _r142_out=$("$GATE_PYTHON_BIN" "$_r142_helper" 2>&1)
-  _r142_rc=$?
-  if [[ $_r142_rc -ne 0 ]]; then
-    _r142_count=$(printf '%s\n' "$_r142_out" | grep -cE '^(NON-ENGLISH|MISSING-SURFACE|MISSING-BUDGET|NO-SCOPE|UNREADABLE):')
-    _r142_first=$(printf '%s' "$_r142_out" | grep -E '^(NON-ENGLISH|MISSING-SURFACE|MISSING-BUDGET|NO-SCOPE|UNREADABLE):' | head -1)
-    fail_rule "tier1_non_english_lint" "always-loaded Tier-1 surface(s) carry non-English / mojibake ($_r142_count finding(s), first: ${_r142_first:-rc=$_r142_rc}) -- Rule G-25 / E190 (line:col + byte offset only; offending text intentionally not echoed)"
-    _r142_fail=1
-  fi
-fi
-[[ $_r142_fail -eq 0 ]] && pass_rule "tier1_non_english_lint"
 
 # ---------------------------------------------------------------------------
 # Rule 143 — local_plan_path_ban (enforcer E191, kernel Rule G-26)

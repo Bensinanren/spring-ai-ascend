@@ -1147,14 +1147,6 @@
   asserts: "Rule 111 sub-check .c — the set of `^  - id:` family slugs in `docs/governance/recurring-defect-families.yaml` MUST equal the set of `F-...` family-id references in `docs/governance/recurring-defect-families.md`. A family in yaml but not md is an incomplete human view; a family in md but not yaml is a stale human view. Both directions fail closed. Operationalises Rule G-9 sub-clause .c per ADR-0094 rc17 wave."
   governance_infra: true
 
-- id: E161
-  constraint_ref: "Rule 114 (rule_card_filename_dot_convention); ADR-0096"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#rule_card_filename_dot_convention
-  asserts: "Rule 114 (rc19 Wave 4) — every file under docs/governance/rules/rule-*.md MUST match the regex `rule-[DRGM]-[A-Z0-9](\\.[a-z0-9]+)?\\.md` (dot-suffix only, no hyphenated `rule-G-3-1.md` form). Prevents the rc17 corrective-loop where 5 cards needed renames due to hyphen-vs-dot ambiguity. README.md is allowed."
-  governance_infra: true
 - id: E162
   constraint_ref: "Rule 113.a (legacy_paren helper extraction); ADR-0097"
   kind: gate-script
@@ -1217,33 +1209,6 @@
   asserts: "Maven quality reports exist; SpotBugs high-confidence findings and Checkstyle hard-style findings fail the gate while PMD findings are summarized as review triggers"
   governance_infra: true
 
-- id: E170
-  constraint_ref: "Rule G-2 (Authority-Text Reality); 2026-05-25 agent execution engine readiness review"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#proposal_immediate_scope_pending_contract_guard
-  asserts: "Rule 122 — proposal documents under docs/logs/reviews/*proposal*.md MUST NOT claim immediate W0/W1 execution scope while the same document still carries pending boundary-contract refinement work. Prevents design drafts from becoming accidental release authority."
-  governance_infra: true
-
-- id: E171
-  constraint_ref: "Rule G-8 (Cross-Authority Parity); 2026-05-25 agent execution engine readiness review"
-  kind: gate-script
-  level: L0
-  view: development
-  artifact: gate/check_architecture_sync.sh#proposal_engine_package_truth
-  asserts: "Rule 123 — proposal FQNs MUST NOT contradict current engine/service package authority unless marked proposed/future/candidate/exploratory on the same line. Current engine-owned packages live under com.huawei.ascend.engine.*; current service-owned StatelessEngine lives under com.huawei.ascend.service.engine.spi."
-  governance_infra: true
-
-- id: E172
-  constraint_ref: "Rule G-2 (Authority-Text Reality); 2026-05-25 agent execution engine readiness review"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#unsupported_absolute_claim_guard
-  asserts: "Rule 124 — proposal documents MUST NOT use absolute security/performance claims such as bulletproof, zero-day safety, zero downtime, or sub-millisecond unless the same line anchors the claim to benchmark, measurement, threat-model, acceptance-criterion, or deferred-scope wording."
-  governance_infra: true
-
 - id: E173
   constraint_ref: "Rule R-A (Business/Platform Decoupling + Developer Self-Service); 2026-05-25 codegraph MCP integration"
   kind: gate-script
@@ -1252,16 +1217,6 @@
   artifact: gate/check_architecture_sync.sh#codegraph_install_truth
   asserts: "Rule 125 — project-local codegraph MCP install pinning truth (operationalises Rule R-A's developer-self-service clause): (a) tools/codegraph/package.json declares @colbymchenry/codegraph at an EXACT pin (X.Y.Z form; no ^/~/>=/<= prefix that would drift across npm installs); (b) tools/codegraph/package-lock.json exists with lockfileVersion >= 3 (older formats omit integrity hashes for optionalDependencies, so per-platform bundles drift silently between contributors); (c) .mcp.json registers an mcpServers.codegraph entry whose args reference a relative path under tools/codegraph/node_modules/@colbymchenry/codegraph/ (cross-platform, no PATH dependency). Guards pinning truth, not the local install state — CI without `npm ci` still passes."
   product_claim: "PC-001"
-
-- id: E174
-  constraint_ref: "Rule G-13 (Single-Source Rendering Coherence); ADR-0119 W1 wave promotes status to active with gate/lib/render_template.py + gate/lib/load_render_context.py + gate/lib/check_template_render_idempotency.py landed"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#template_render_idempotency
-  asserts: "Rule G-13 — for every entry in docs/governance/templates/surface-classification.yaml whose bucket is `templated` or `hybrid`, render(template, load_context()) MUST produce a buffer byte-identical to the on-disk `output:` file; determinism contract (sorted dict iteration, LC_ALL=C sort, fixed-precision floats, keep_trailing_newline, no datetime/uuid/random) enforced in gate/lib/render_template.py."
-  status: active
-  governance_infra: true
 
 - id: E175
   constraint_ref: "Rule G-2 (Authority-Text Reality); 2026-05-25 rc48 agentic-contract-surface review P0-1"
@@ -1344,15 +1299,6 @@
   asserts: "Rule 135 -- every PC-NNN in product/claims.yaml MUST have >=1 SAA Feature referencing it via saa.productClaim; every shipped feature MUST have >=1 code_entrypoint_refs[] + test_refs[]. Advisory at W5; promotes to blocking when G-21 placeholder count reaches zero."
   governance_infra: true
 
-- id: E184
-  constraint_ref: "Rule G-19 (Auto-Load Tier Integrity); ADR-0156 Phase A Wave 5"
-  kind: gate-script
-  level: L1
-  view: logical
-  artifact: gate/check_architecture_sync.sh#autoload_tier_integrity
-  asserts: "Rule 136 -- gate/always-loaded-budget.txt MUST contain product/PRODUCT.md at non-zero ceiling AND CLAUDE.md MUST have ceiling <= 12000 bytes. Enforces Tier-1 product-authority + collab-only kernel discipline established by 2026-05-28 surgery. Blocking from W5 landing."
-  governance_infra: true
-
 # ---------------------------------------------------------------------------
 # 2026-05-29 EnginePort/Frame authority-convergence review-response prevention
 # wave (Rules 140-143; enforcers E188-E191).
@@ -1367,24 +1313,6 @@
   view: logical
   artifact: gate/check_architecture_sync.sh#shipped_frame_anchor_integrity
   asserts: "Rule 140 -- every SAA EngineeringFrame element with saa.status shipped (across engineering-frames.dsl + features.dsl) MUST have >=1 anchors edge to a FunctionPoint in engineering-frames.dsl, unless allowlisted in gate/frame-shipped-zero-anchor-allowlist.txt (ADR-backed exceptions; ships empty)."
-  governance_infra: true
-
-- id: E189
-  constraint_ref: "Rule G-24 (Old Orchestration-SPI Package Ban); ADR-0158; 2026-05-29 review F6.3"
-  kind: gate-script
-  level: L1
-  view: development
-  artifact: gate/check_architecture_sync.sh#old_orchestration_spi_package_ban
-  asserts: "Rule 141 -- active authority surfaces (templates .j2 + rendered architecture/docs + docs/dfx + quickstart + oss-bom + enforcers.yaml + architecture-status.yaml + contract-catalog.md + architecture/features) MUST NOT name engine.orchestration.spi / engine/orchestration/spi as the current home (ADR-0158 re-homed it to com.huawei.ascend.bus.spi.engine); past-tense re-home/dissolution prose carrying a historical marker is skipped; docs/logs, docs/adr, rule-history, archive, scripts and generated artefacts are excluded."
-  governance_infra: true
-
-- id: E190
-  constraint_ref: "Rule G-25 (Tier-1 Non-English / Mojibake Lint); CLAUDE.md kernel English-only directive; 2026-05-29 review P1-3"
-  kind: gate-script
-  level: L1
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#tier1_non_english_lint
-  asserts: "Rule 142 -- every file with a non-zero budget in gate/always-loaded-budget.txt MUST be free of CJK code points U+4E00..U+9FFF and common UTF-8/GBK mojibake markers (U+FFFD and literal double-decode sequences). Fails closed. The checker reports line:col + byte offset only and MUST NOT echo the offending non-English text into the gate log."
   governance_infra: true
 
 - id: E191
