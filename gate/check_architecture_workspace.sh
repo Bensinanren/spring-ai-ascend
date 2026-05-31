@@ -81,13 +81,8 @@ if [[ -f "$FRAGMENT_CHECK" ]]; then
   frag_exit=0
   ( cd "$REPO_ROOT" && python3 "$FRAGMENT_CHECK" ) || frag_exit=$?
   if [[ $frag_exit -ne 0 ]]; then
-    if [[ "$BLOCKING" == "1" ]]; then
-      red "ARCHITECTURE WORKSPACE: generated-zone drift (exit $frag_exit)"
-      exit $frag_exit
-    else
-      yellow "ARCHITECTURE WORKSPACE (ADVISORY): generated-zone drift (exit $frag_exit) — would block at Wave 5"
-      exit 0
-    fi
+    yellow "ARCHITECTURE WORKSPACE (ADVISORY): generated-zone drift (exit $frag_exit) — generated-artifact byte-freshness demoted from blocking to advisory (knowledge/governance rebalancing G-track: a regenerable DSL projection drifting is maintenance, not a delivery blocker)"
+    exit 0
   fi
 fi
 

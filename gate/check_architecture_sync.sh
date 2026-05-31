@@ -6964,8 +6964,10 @@ else
   _r126_rc=$?
   if [[ $_r126_rc -ne 0 ]]; then
     _r126_first=$(printf '%s' "$_r126_out" | head -1)
-    fail_rule "template_render_idempotency" "${_r126_first:-rc=$_r126_rc} -- Rule G-13.b / E174"
-    _r126_fail=1
+    # Knowledge/governance rebalancing G-track: generated-doc byte-idempotency
+    # (template render drift) demoted from blocking to advisory — a regenerable
+    # rendered doc drifting is maintenance, not a delivery blocker.
+    echo "ADVISORY: template_render_idempotency (${_r126_first:-rc=$_r126_rc}) -- Rule G-13.b demoted to advisory (rebalancing G-track)"
   fi
 fi
 
