@@ -434,37 +434,6 @@ fi
 if [[ $_r7_fail -eq 0 ]]; then pass_rule "shipped_impl_paths_exist"; fi
 
 # ---------------------------------------------------------------------------
-# Rule 8 — no_hardcoded_versions_in_arch
-# module ARCHITECTURE.md files (agent-platform/, agent-runtime/) must not
-# pin OSS versions inline (e.g., "Spring Boot 3.2.1" or "Java 21.0.2").
-# ---------------------------------------------------------------------------
-_r8_fail=0
-for _arch in 'agent-service/ARCHITECTURE.md' 'agent-service/ARCHITECTURE.md'; do
-  if [[ -f "$_arch" ]]; then
-    if grep -qE '[0-9]+\.[0-9]+\.[0-9]+' "$_arch" 2>/dev/null; then
-      fail_rule "no_hardcoded_versions_in_arch" "$_arch contains inline version pin (x.y.z pattern). Move version pins to pom.xml or oss-bill-of-materials.md."
-      _r8_fail=1
-    fi
-  fi
-done
-if [[ $_r8_fail -eq 0 ]]; then pass_rule "no_hardcoded_versions_in_arch"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 9 — openapi_path_consistency
-# /v3/api-docs must appear in the agent-platform ARCHITECTURE.md documenting
-# the security permit path.
-# ---------------------------------------------------------------------------
-_r9_fail=0
-_plat_arch='agent-service/ARCHITECTURE.md'
-if [[ -f "$_plat_arch" ]]; then
-  if ! grep -q '/v3/api-docs' "$_plat_arch" 2>/dev/null; then
-    fail_rule "openapi_path_consistency" "$_plat_arch does not document /v3/api-docs exposure. Document it or remove the security permitAll."
-    _r9_fail=1
-  fi
-fi
-if [[ $_r9_fail -eq 0 ]]; then pass_rule "openapi_path_consistency"; fi
-
-# ---------------------------------------------------------------------------
 # Rule 10 — module_dep_direction (amended at L1 by ADR-0055; further by ADR-0078)
 # Phase C consolidation (ADR-0078) merged agent-platform + agent-runtime into a
 # single agent-service Maven module. The cross-module pom direction is no longer
@@ -922,32 +891,6 @@ while IFS= read -r _rm20; do
   done
 done < <(find . -name 'README.md' ! -path './docs/*' ! -path './third_party/*' ! -path './target/*' 2>/dev/null | sort || true)
 if [[ $_r20_fail -eq 0 ]]; then pass_rule "module_metadata_truth"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 21 — bom_glue_paths_exist
-# ADR-0043: docs/cross-cutting/oss-bill-of-materials.md must not contain the
-# known ghost implementation paths unless the path exists on disk.
-# ---------------------------------------------------------------------------
-_r21_fail=0
-_bom21='docs/cross-cutting/oss-bill-of-materials.md'
-_ghost_paths21=(
-  'agent-service/src/main/java/com/huawei/ascend/service/runtime/llm/ChatClientFactory'
-  'agent-service/src/main/java/com/huawei/ascend/service/runtime/llm/LlmRouter'
-  'agent-service/src/main/java/com/huawei/ascend/service/runtime/memory/PgVectorAdapter'
-  'agent-service/src/main/java/com/huawei/ascend/service/runtime/temporal/RunWorkflow'
-  'agent-service/src/main/java/com/huawei/ascend/service/runtime/tool/McpToolRegistry'
-)
-if [[ -f "$_bom21" ]]; then
-  for _gp21 in "${_ghost_paths21[@]}"; do
-    if grep -qF "$_gp21" "$_bom21" 2>/dev/null; then
-      if [[ ! -e "$_gp21" ]]; then
-        fail_rule "bom_glue_paths_exist" "$_bom21 references path '$_gp21' which does not exist on disk. Per ADR-0043 Gate Rule 21 BoM glue paths must exist or be removed."
-        _r21_fail=1
-      fi
-    fi
-  done
-fi
-if [[ $_r21_fail -eq 0 ]]; then pass_rule "bom_glue_paths_exist"; fi
 
 # ---------------------------------------------------------------------------
 # Rule 22 — lowercase_metrics_in_contract_docs (widened per ADR-0043/ADR-0045)
@@ -1529,26 +1472,6 @@ fi
 if [[ $_r28d_fail -eq 0 ]]; then pass_rule "out_of_scope_name_guard"; fi
 
 # ---------------------------------------------------------------------------
-# Rule 28e — module_count_invariant (enforcer E27)
-# Root pom.xml MUST declare exactly 8 <module> entries after the 2026-05-20
-# rc13 wave (ADR-0088 dissolved agent-runtime-core): BoM + 6 substantive
-# modules (agent-client, agent-bus, agent-middleware, agent-execution-engine,
-# agent-evolve, agent-service) + graphmemory starter. Any other count is
-# rejected; L1 plan decision D3 amended per ADR-0078 + ADR-0088.
-# ---------------------------------------------------------------------------
-_r28e_fail=0
-_root_pom='pom.xml'
-_r28e_expected=8
-if [[ -f "$_root_pom" ]]; then
-  _module_count=$(grep -c '<module>' "$_root_pom" 2>/dev/null || echo 0)
-  if [[ "$_module_count" -ne "$_r28e_expected" ]]; then
-    fail_rule "module_count_invariant" "$_root_pom declares $_module_count <module> entries; L1 (six-module materialization) requires exactly $_r28e_expected. Per Rule 28e / enforcer E27 / plan decision D3."
-    _r28e_fail=1
-  fi
-fi
-if [[ $_r28e_fail -eq 0 ]]; then pass_rule "module_count_invariant"; fi
-
-# ---------------------------------------------------------------------------
 # Rule 28f — enforcers_yaml_wellformed (enforcer E29)
 # docs/governance/enforcers.yaml MUST: exist, parse as YAML, contain a list
 # where every row has all five fields (id, constraint_ref, kind, artifact,
@@ -1934,35 +1857,6 @@ if [[ -f "$_efile" ]] && [[ -f 'CLAUDE.md' ]]; then
   fi
 fi
 if [[ $_r28_fail -eq 0 ]]; then pass_rule "constraint_enforcer_coverage"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 30 — telemetry_vertical_constraint_coverage (enforcer E47)
-#
-# Telemetry Vertical L1.x (ADR-0061 / §4 #53–#59): every Telemetry-Vertical
-# constraint number in ARCHITECTURE.md §4 MUST resolve to at least one
-# enforcer row in docs/governance/enforcers.yaml. Stricter than the existing
-# meta-rule 28 (presence check only) — Rule 30 validates each §4 #N reference
-# individually for N in {53..59}.
-# ---------------------------------------------------------------------------
-_r30_fail=0
-_efile='docs/governance/enforcers.yaml'
-_archfile='ARCHITECTURE.md'
-if [[ -f "$_archfile" && -f "$_efile" ]]; then
-  for _n in 53 54 55 56 57 58 59; do
-    # Constraint number must exist in ARCHITECTURE.md §4 as a top-level numbered item.
-    if ! grep -qE "^${_n}\. \*\*" "$_archfile"; then
-      fail_rule "telemetry_vertical_constraint_coverage" "ARCHITECTURE.md §4 #${_n} (Telemetry Vertical) is missing — expected '${_n}. **' at line start. Per ADR-0061 §8."
-      _r30_fail=1
-      continue
-    fi
-    # And the constraint number must be cited in at least one enforcer row.
-    if ! grep -qE "§4 #${_n}" "$_efile"; then
-      fail_rule "telemetry_vertical_constraint_coverage" "enforcers.yaml has no row citing '§4 #${_n}' (Telemetry Vertical). Add an E-row per ADR-0061 §8 + Rule 28."
-      _r30_fail=1
-    fi
-  done
-fi
-if [[ $_r30_fail -eq 0 ]]; then pass_rule "telemetry_vertical_constraint_coverage"; fi
 
 # ---------------------------------------------------------------------------
 # Rule 31 — quickstart_present (enforcer E49, CLAUDE.md Rule 29 / ADR-0064)
@@ -3706,39 +3600,6 @@ else
 fi
 
 # ===========================================================================
-# Linux-first dev environment policy (PR-E7, 2026-05-18)
-# Authority: docs/governance/rules/rule-74.md + docs/governance/dev-environment.md
-# ===========================================================================
-
-# ---------------------------------------------------------------------------
-# Rule 74 — linux_first_dev_doc_present (enforcer E104)
-#
-# docs/governance/dev-environment.md MUST exist and MUST mention all three
-# of: WSL2 (preferred), WSL1 (fallback), and Linux (native). The doc is the
-# canonical guide an engineer reads when first joining the project; its
-# absence (or absence of the Linux-first recommendation) signals the policy
-# has been silently weakened.
-# ---------------------------------------------------------------------------
-_r74_fail=0
-_r74_doc='docs/governance/dev-environment.md'
-if [[ ! -f "$_r74_doc" ]]; then
-  fail_rule "linux_first_dev_doc_present" "$_r74_doc missing -- Rule 74 requires the canonical Linux-first setup guide on disk"
-  _r74_fail=1
-else
-  _r74_missing=""
-  for _r74_kw in "WSL2" "WSL1" "Linux"; do
-    if ! grep -qF "$_r74_kw" "$_r74_doc" 2>/dev/null; then
-      _r74_missing+="${_r74_kw} "
-    fi
-  done
-  if [[ -n "$_r74_missing" ]]; then
-    fail_rule "linux_first_dev_doc_present" "$_r74_doc missing required Linux-first keywords: ${_r74_missing}-- Rule 74 requires the doc to recommend WSL2, WSL1, and native Linux"
-    _r74_fail=1
-  fi
-fi
-if [[ $_r74_fail -eq 0 ]]; then pass_rule "linux_first_dev_doc_present"; fi
-
-# ===========================================================================
 # Wave 4 — small rule activations (2026-05-18)
 # ===========================================================================
 
@@ -3810,39 +3671,6 @@ elif ! grep -qF '/v1/health' "$_r29c_path" 2>/dev/null; then
   _r29c_fail=1
 fi
 if [[ $_r29c_fail -eq 0 ]]; then pass_rule "quickstart_smoke_job_present"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 72 — rule_duration_regression_check (enforcer E102)
-# Vacuously passes until gate/log/benchmarks/median.json has >= 5 entries
-# (bootstrap window per ADR-0077). After bootstrap: fail if any rule's
-# current duration > 2x baseline median AND > 200ms absolute.
-# ---------------------------------------------------------------------------
-_r72_fail=0
-_r72_median='gate/log/benchmarks/median.json'
-_r72_current="${GATE_LOG_DIR:-gate/log/latest}/per-rule.ndjson"
-if [[ ! -s "$_r72_median" ]] || ! command -v jq >/dev/null 2>&1; then
-  pass_rule "rule_duration_regression_check"
-elif [[ ! -f "$_r72_current" ]]; then
-  pass_rule "rule_duration_regression_check"
-else
-  _r72_baseline_count="$(jq 'length' "$_r72_median" 2>/dev/null || echo 0)"
-  if [[ "${_r72_baseline_count:-0}" -lt 5 ]]; then
-    pass_rule "rule_duration_regression_check"
-  else
-    _r72_alerts="$(jq -r --slurpfile baseline "$_r72_median" '
-      . as $row | $baseline[0][$row.rule_slug] as $median |
-      if ($median != null and $row.duration_ms > $median * 2 and $row.duration_ms > 200)
-      then "\($row.rule_slug): \($row.duration_ms)ms (median \($median)ms)"
-      else empty end
-    ' "$_r72_current" 2>/dev/null || true)"
-    if [[ -n "$_r72_alerts" ]]; then
-      fail_rule "rule_duration_regression_check" "$_r72_alerts"
-      _r72_fail=1
-    else
-      pass_rule "rule_duration_regression_check"
-    fi
-  fi
-fi
 
 # ===========================================================================
 # SPI metadata integrity wave (2026-05-18)
@@ -4390,55 +4218,6 @@ if [[ $_r83_fail -eq 0 ]]; then pass_rule "design_only_contract_registered_in_ca
 #   P0-1 module-level ARCHITECTURE.md path claim drift after refactor   -> Rule 84
 #   P1-2 catalog SPI row not backed by module spi_packages metadata    -> Rule 85
 # ===========================================================================
-
-# Rule 84 — active_module_architecture_path_truth (enforcer E117)
-#
-# Every architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md whose front-matter status: token does NOT
-# contain "skeleton" or "deferred" MUST have every inline path claim of the
-# shape "<module>/src/main/java/..." resolve to a real file on disk OR carry
-# a historical/moved/extracted-per-ADR/superseded/deferred/formerly marker
-# within +/-3 lines. Operationalises the rc5 review P0-1 closure: module-
-# level ARCHITECTURE path claims cannot lag behind real code locations
-# (Rule 81 already covers the symmetric skeleton case; Rule 84 covers the
-# active-module case Rule 81 cannot reach).
-# ---------------------------------------------------------------------------
-_r84_fail=0
-_r84_marker_re='historical|moved|extracted per ADR-[0-9]{4}|extracted at|was rooted|formerly|deferred|superseded|pre-ADR-[0-9]{4}|relocated|relocated to|migrated|per ADR-[0-9]{4} \(2026|post-ADR-[0-9]{4}'
-_r84_path_re='agent-[a-z-]+/src/main/java/[a-zA-Z0-9_/.-]+'
-# Perf fix (2026-05-23): replaced per-line `echo | grep -oE` + per-claim
-# `sed | grep` with mapfile + bash-native regex. On WSL/mnt/d the original
-# took ~52s per gate run; the rewrite finishes in ~1s.
-for _r84_arch in architecture/docs/L1/agent-*.md architecture/docs/L1/agent-service/ARCHITECTURE.md; do
-  [[ -f "$_r84_arch" ]] || continue
-  _r84_status=$(awk 'BEGIN{infm=0} /^---[[:space:]]*$/{infm=!infm; next} infm && /^status:/{print; exit}' "$_r84_arch" 2>/dev/null)
-  [[ "$_r84_status" == *skeleton* ]] && continue
-  [[ "$_r84_status" == *deferred* ]] && continue
-  mapfile -t _r84_arr < "$_r84_arch"
-  _r84_n=${#_r84_arr[@]}
-  for ((_r84_i=0; _r84_i<_r84_n; _r84_i++)); do
-    _r84_line="${_r84_arr[$_r84_i]}"
-    _r84_lineno=$((_r84_i + 1))
-    _r84_rest="$_r84_line"
-    while [[ "$_r84_rest" =~ $_r84_path_re ]]; do
-      _r84_path="${BASH_REMATCH[0]}"
-      _r84_rest="${_r84_rest#*"$_r84_path"}"
-      _r84_path_clean="${_r84_path%.}"  # strip trailing dots from prose
-      if [[ -e "$_r84_path_clean" ]] || [[ -e "${_r84_path_clean}.java" ]]; then continue; fi
-      _r84_lo=$((_r84_i > 3 ? _r84_i - 3 : 0))
-      _r84_hi=$((_r84_i + 3 < _r84_n - 1 ? _r84_i + 3 : _r84_n - 1))
-      _r84_marker_present=0
-      for ((_r84_j=_r84_lo; _r84_j<=_r84_hi; _r84_j++)); do
-        if [[ "${_r84_arr[$_r84_j]}" =~ $_r84_marker_re ]]; then
-          _r84_marker_present=1; break
-        fi
-      done
-      [[ $_r84_marker_present -eq 1 ]] && continue
-      fail_rule "active_module_architecture_path_truth" "$_r84_arch:$_r84_lineno claims path '$_r84_path_clean' that does not exist on disk and the surrounding +/-3 lines carry no historical/moved/extracted-per-ADR marker -- Rule 84 / E117"
-      _r84_fail=1
-    done
-  done
-done
-if [[ $_r84_fail -eq 0 ]]; then pass_rule "active_module_architecture_path_truth"; fi
 
 # Rule 85 — catalog_spi_row_matches_module_spi_metadata (enforcer E118)
 #

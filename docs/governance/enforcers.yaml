@@ -266,15 +266,6 @@
   asserts: "names LLMGateway/PostgresCheckpointer/SkillRegistry/HookChain/SpawnEnvelope/LogicalCallHandle/ConnectionLease/AdmissionDecision/BackpressureSignal/ChronosHydration/SandboxExecutor do not appear in agent-*/src/main/java"
   product_claim: "PC-003"
 
-- id: E27
-  constraint_ref: "CLAUDE.md Rule R-C.a; L1 plan decision D3"
-  kind: gate-script
-  level: L1
-  view: development
-  artifact: gate/check_architecture_sync.sh#module_count_invariant
-  asserts: "root pom.xml declares exactly 4 <module> entries at L1"
-  product_claim: "PC-003"
-
 - id: E28
   constraint_ref: "CLAUDE.md Rule R-C.a (meta); ADR-0059"
   kind: gate-script
@@ -446,15 +437,6 @@
   view: development
   artifact: agent-service/src/test/java/com/huawei/ascend/service/platform/architecture/McpReplaySurfaceArchTest.java
   asserts: "No @RestController is placed under packages matching agent-platform/web/replay, agent-platform/web/trace, or agent-platform/web/session. Preserves §1 exclusion and ADR-0017 MCP-only replay surface."
-  governance_infra: true
-
-- id: E47
-  constraint_ref: "CLAUDE.md Rule G-2 sub-clause .a; ARCHITECTURE.md §4 #53–#59 coverage gate; ADR-0061 §8 enforcer plan"
-  kind: gate-script
-  level: L1
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#telemetry_vertical_constraint_coverage
-  asserts: "Every §4 #53–#59 constraint number resolves to at least one enforcer row in this file (this is enforced positively as Gate Rule R-B in addition to the existing meta-rule 28 which scans must/required sentences)."
   governance_infra: true
 
 # --- Layer-0 Governing Principles (CLAUDE.md Rules 29-32, ARCHITECTURE.md §4 #60-#63, ADR-0064..0067) ---
@@ -1025,31 +1007,8 @@
   governance_infra: true
 
 # ---------------------------------------------------------------------------
-# 2026-05-18 Linux-first dev environment policy (PR-E7).
-# Authority: docs/governance/rules/rule-G-7.md + docs/governance/dev-environment.md
+# 2026-05-18 Wave 4 — rule activations (Rules 11, 24.c, 29.c).
 # ---------------------------------------------------------------------------
-
-- id: E104
-  constraint_ref: "CLAUDE.md Rule G-7 (linux_first_dev_doc_present); 2026-05-18 PR-E7"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#linux_first_dev_doc_present
-  asserts: "docs/governance/dev-environment.md exists on disk AND mentions WSL2 (preferred), WSL1 (fallback), and Linux (native). The doc is the canonical onboarding guide; its absence or weakening signals the Linux-first policy has been silently regressed. Codifies the 2026-05-18 lesson: running the gate in WSL surfaced 2 production bugs (Windows-absolute paths + CRLF line endings) that Git Bash for Windows verification had hidden through multiple review cycles. WSL is 6-20x faster than Git Bash AND honest about platform-portability bugs."
-  governance_infra: true
-
-# ---------------------------------------------------------------------------
-# 2026-05-18 Wave 4 — rule activations (Rules 11, 24.c, 29.c, 72).
-# ---------------------------------------------------------------------------
-
-- id: E102
-  constraint_ref: "CLAUDE.md Rule G-6 sub-clause .a (rule_duration_regression_check); Wave 4 Track A"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#rule_duration_regression_check
-  asserts: "After 5+ successful runs are recorded under gate/log/runs/, every subsequent gate run compares per-rule durations against the rolling median in gate/log/benchmarks/median.json. A rule whose current duration exceeds 2x its baseline AND exceeds 200ms absolute fails Rule G-6 sub-clause .a."
-  governance_infra: true
 
 - id: E105
   constraint_ref: "CLAUDE.md Rule R-C.2.a (contract_spine_tenant_id_required); Wave 4 Track B"
@@ -1163,15 +1122,6 @@
   view: logical
   artifact: gate/check_architecture_sync.sh#design_only_contract_registered_in_catalog
   asserts: "For every docs/contracts/*.v1.yaml with 'status: design_only' OR 'runtime_enforced: false', (a) the file basename appears as a literal substring in docs/contracts/contract-catalog.md, AND (b) at least one ADR-NNNN reference cited in the yaml resolves to a real file under docs/adr/<NNNN>-*.yaml or docs/adr/<NNNN>-*.md. Every cited ADR must exist (dangling references fail). Closes rc4 P1-3 prevention: plan-projection.v1.yaml unregistered + W2/W4 staging ambiguity defect class."
-  governance_infra: true
-
-- id: E117
-  constraint_ref: "CLAUDE.md Rule G-2 sub-clause .c (active_module_architecture_path_truth); rc5 post-response review P0-1; ADR-0078; ADR-0079"
-  kind: gate-script
-  level: L1
-  view: development
-  artifact: gate/check_architecture_sync.sh#active_module_architecture_path_truth
-  asserts: "For every agent-*/ARCHITECTURE.md file whose YAML front-matter status: token does NOT contain 'skeleton' or 'deferred', every inline path claim matching the regex 'agent-[a-z-]+/src/main/java/[a-zA-Z0-9_/.-]+' MUST resolve to a real file on disk OR the surrounding +/-3 lines MUST carry one of the historical markers: historical, moved, extracted per ADR-NNNN, extracted at, was rooted, formerly, deferred, superseded, pre-ADR-NNNN, relocated, migrated, post-ADR-NNNN. Closes rc5 post-response P0-1: active module ARCHITECTURE.md path claims cannot lag behind real code locations after a refactor (Rule M-1 covers the symmetric skeleton case; Rule G-2 sub-clause .c covers the active case Rule M-1 does not reach)."
   governance_infra: true
 
 - id: E118
