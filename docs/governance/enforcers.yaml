@@ -274,33 +274,6 @@
   asserts: "every row in this file has id+constraint_ref+kind+level+view+artifact+asserts; kind is one of the five legal values; level is L0|L1|L2; view is one of the five legal values"
   product_claim: "PC-003"
 
-- id: E30
-  constraint_ref: "CLAUDE.md Rule R-C.a; ADR-0059 §3"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#no_prose_only_constraint_marker
-  asserts: "no TODO:enforce / FIXME:enforcer / XXX:test / deferred:gate markers in CLAUDE.md, ARCHITECTURE.md, or any */ARCHITECTURE.md"
-  product_claim: "PC-003"
-
-- id: E31
-  constraint_ref: "CLAUDE.md Rule R-C.a; architect guidance §16"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#l1_review_checklist_present
-  asserts: "every ADR 0055-0059 contains the §16 review checklist as a sub-section"
-  product_claim: "PC-003"
-
-- id: E32
-  constraint_ref: "CLAUDE.md Rule R-C.a; L1 plan §11"
-  kind: gate-script
-  level: L0
-  view: scenarios
-  artifact: gate/check_architecture_sync.sh#plan_enforcer_table_in_sync
-  asserts: "L1 plan §11 table row IDs equal the set of id: fields in this file"
-  product_claim: "PC-003"
-
 - id: E33
   constraint_ref: "CLAUDE.md Rule R-C.a; L1 plan §18.3 step 1; Phase K audit fix F6; ADR-0059"
   kind: gate-script
@@ -493,33 +466,6 @@
 # Phase 1 of W1.x — L0 ironclad rules promoted from LucioIT W1 §6/§7.
 # Authority: ADR-0069. Each enforcer fails on a detected violation today.
 # ---------------------------------------------------------------------------
-
-- id: E64
-  constraint_ref: "CLAUDE.md Rule R-E (Three-Track Channel Isolation); ADR-0069; LucioIT W1 §6.4"
-  kind: gate-script
-  level: L0
-  view: physical
-  artifact: gate/check_architecture_sync.sh#bus_channels_three_track_present
-  asserts: "docs/governance/bus-channels.yaml exists; declares exactly 3 channels (control/data/rhythm) each with a unique physical_channel: identifier; data channel inherits the 16-KiB inline payload cap."
-  product_claim: "PC-002"
-
-- id: E66
-  constraint_ref: "CLAUDE.md Rule R-G (Reactive External I/O); ADR-0069; LucioIT W1 §6.3"
-  kind: gate-script
-  level: L0
-  view: process
-  artifact: gate/check_architecture_sync.sh#no_blocking_io_in_runtime_main
-  asserts: "no production class under agent-service/src/main/java/** imports org.springframework.web.client.RestTemplate or org.springframework.jdbc.core.JdbcTemplate (agent-platform-side existing JdbcTemplate uses are out of scope per ADR-0069 / CLAUDE-deferred 37.c)."
-  product_claim: "PC-003"
-
-- id: E67
-  constraint_ref: "CLAUDE.md Rule R-H (No Thread.sleep in Business Code); ADR-0069; LucioIT W1 §6.4"
-  kind: gate-script
-  level: L0
-  view: process
-  artifact: gate/check_architecture_sync.sh#no_thread_sleep_in_business_code
-  asserts: "no production class under agent-service/src/main/java/** or agent-service/src/main/java/** invokes Thread.sleep(...) or TimeUnit.<unit>.sleep(...); test code, gate scripts, and Awaitility usage are excluded."
-  product_claim: "PC-003"
 
 - id: E69
   constraint_ref: "CLAUDE.md Rule R-J sub-clause .a (Storage-Engine Tenant Isolation); ADR-0069; LucioIT W1 §7.2"

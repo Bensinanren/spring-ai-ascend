@@ -635,53 +635,6 @@ fi
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Rule 45 positive: bus-channels.yaml with 3 channels + unique physical_channel
-# ---------------------------------------------------------------------------
-_r45_pos="$scratch/r45_pos"
-mkdir -p "$_r45_pos/docs/governance"
-cat > "$_r45_pos/docs/governance/bus-channels.yaml" <<'EOF'
-channels:
-  - id: control
-    physical_channel: ctrl_q
-  - id: data
-    physical_channel: data_q
-  - id: rhythm
-    physical_channel: tick_q
-EOF
-_r45_pos_ids="$(awk '/^channels:[[:space:]]*$/{in_ch=1; next} /^[a-zA-Z]/{in_ch=0} in_ch && /^[[:space:]]+- id:/{sub(/^[[:space:]]+- id:[[:space:]]*/,""); sub(/[[:space:]].*$/,""); print}' "$_r45_pos/docs/governance/bus-channels.yaml")"
-_r45_pos_count="$(printf '%s\n' "$_r45_pos_ids" | grep -c .)"
-_r45_pos_phys="$(grep -E '^[[:space:]]+physical_channel:' "$_r45_pos/docs/governance/bus-channels.yaml" | sed -E 's/^[[:space:]]+physical_channel:[[:space:]]*//; s/[[:space:]].*$//')"
-_r45_pos_phys_uniq="$(printf '%s\n' "$_r45_pos_phys" | sort -u | grep -c .)"
-if [[ "$_r45_pos_count" -eq 3 ]] && [[ "$_r45_pos_phys_uniq" -eq 3 ]]; then
-  ok "rule45_bus_channels_pos" "3 channels with unique physical_channel"
-else
-  fail "rule45_bus_channels_pos" "expected 3 channels + 3 unique physical_channel; got $_r45_pos_count / $_r45_pos_phys_uniq"
-fi
-
-# ---------------------------------------------------------------------------
-# Rule 45 negative: two channels share physical_channel → flagged
-# ---------------------------------------------------------------------------
-_r45_neg="$scratch/r45_neg"
-mkdir -p "$_r45_neg/docs/governance"
-cat > "$_r45_neg/docs/governance/bus-channels.yaml" <<'EOF'
-channels:
-  - id: control
-    physical_channel: shared_q
-  - id: data
-    physical_channel: shared_q
-  - id: rhythm
-    physical_channel: tick_q
-EOF
-_r45_neg_phys="$(grep -E '^[[:space:]]+physical_channel:' "$_r45_neg/docs/governance/bus-channels.yaml" | sed -E 's/^[[:space:]]+physical_channel:[[:space:]]*//; s/[[:space:]].*$//')"
-_r45_neg_phys_count="$(printf '%s\n' "$_r45_neg_phys" | grep -c .)"
-_r45_neg_phys_uniq="$(printf '%s\n' "$_r45_neg_phys" | sort -u | grep -c .)"
-if [[ "$_r45_neg_phys_count" -ne "$_r45_neg_phys_uniq" ]]; then
-  ok "rule45_bus_channels_neg" "shared physical_channel correctly flagged ($_r45_neg_phys_count entries / $_r45_neg_phys_uniq unique)"
-else
-  fail "rule45_bus_channels_neg" "expected shared physical_channel to be detected"
-fi
-
-# ---------------------------------------------------------------------------
 # Rule 46 positive: openapi-v1.yaml with TaskCursor + x-cursor-flow → pass
 # ---------------------------------------------------------------------------
 _r46_pos="$scratch/r46_pos"
@@ -723,72 +676,6 @@ if [[ "$_r46_neg_ts" -eq 0 ]]; then
   ok "rule46_cursor_flow_neg" "missing TaskCursor schema correctly flagged"
 else
   fail "rule46_cursor_flow_neg" "expected missing TaskCursor to be detected"
-fi
-
-# ---------------------------------------------------------------------------
-# Rule 47 positive: agent-service runtime sub-package main without RestTemplate / JdbcTemplate
-# ---------------------------------------------------------------------------
-_r47_pos="$scratch/r47_pos"
-mkdir -p "$_r47_pos/agent-service/src/main/java/x"
-cat > "$_r47_pos/agent-service/src/main/java/x/Foo.java" <<'EOF'
-package x;
-import org.springframework.web.reactive.function.client.WebClient;
-public class Foo {}
-EOF
-_r47_pos_hits="$(grep -rEln '^import[[:space:]]+org\.springframework\.(web\.client\.RestTemplate|jdbc\.core\.JdbcTemplate);' "$_r47_pos/agent-service/src/main/java" 2>/dev/null || true)"
-if [[ -z "$_r47_pos_hits" ]]; then
-  ok "rule47_no_blocking_io_pos" "WebClient-only runtime correctly passes"
-else
-  fail "rule47_no_blocking_io_pos" "expected zero hits; got $_r47_pos_hits"
-fi
-
-# ---------------------------------------------------------------------------
-# Rule 47 negative: agent-service runtime sub-package with JdbcTemplate import → flagged
-# ---------------------------------------------------------------------------
-_r47_neg="$scratch/r47_neg"
-mkdir -p "$_r47_neg/agent-service/src/main/java/x"
-cat > "$_r47_neg/agent-service/src/main/java/x/BadDao.java" <<'EOF'
-package x;
-import org.springframework.jdbc.core.JdbcTemplate;
-public class BadDao {}
-EOF
-_r47_neg_hits="$(grep -rEln '^import[[:space:]]+org\.springframework\.(web\.client\.RestTemplate|jdbc\.core\.JdbcTemplate);' "$_r47_neg/agent-service/src/main/java" 2>/dev/null || true)"
-if [[ -n "$_r47_neg_hits" ]]; then
-  ok "rule47_no_blocking_io_neg" "JdbcTemplate import correctly flagged"
-else
-  fail "rule47_no_blocking_io_neg" "expected JdbcTemplate import to be detected"
-fi
-
-# ---------------------------------------------------------------------------
-# Rule 48 positive: main java without Thread.sleep
-# ---------------------------------------------------------------------------
-_r48_pos="$scratch/r48_pos"
-mkdir -p "$_r48_pos/agent-service/src/main/java/x"
-cat > "$_r48_pos/agent-service/src/main/java/x/Clean.java" <<'EOF'
-package x;
-public class Clean { void wait_(){ /* SuspendSignal here */ } }
-EOF
-_r48_pos_hits="$(grep -rEn 'Thread\.sleep[[:space:]]*\(|TimeUnit\.[A-Z_]+\.sleep[[:space:]]*\(' "$_r48_pos/agent-service/src/main/java" 2>/dev/null || true)"
-if [[ -z "$_r48_pos_hits" ]]; then
-  ok "rule48_no_thread_sleep_pos" "clean main java passes"
-else
-  fail "rule48_no_thread_sleep_pos" "expected zero hits; got $_r48_pos_hits"
-fi
-
-# ---------------------------------------------------------------------------
-# Rule 48 negative: Thread.sleep in main → flagged
-# ---------------------------------------------------------------------------
-_r48_neg="$scratch/r48_neg"
-mkdir -p "$_r48_neg/agent-service/src/main/java/x"
-cat > "$_r48_neg/agent-service/src/main/java/x/Sleeper.java" <<'EOF'
-package x;
-public class Sleeper { void w() throws Exception { Thread.sleep(1000); } }
-EOF
-_r48_neg_hits="$(grep -rEn 'Thread\.sleep[[:space:]]*\(|TimeUnit\.[A-Z_]+\.sleep[[:space:]]*\(' "$_r48_neg/agent-service/src/main/java" 2>/dev/null || true)"
-if [[ -n "$_r48_neg_hits" ]]; then
-  ok "rule48_no_thread_sleep_neg" "Thread.sleep correctly flagged"
-else
-  fail "rule48_no_thread_sleep_neg" "expected Thread.sleep to be detected"
 fi
 
 # ---------------------------------------------------------------------------

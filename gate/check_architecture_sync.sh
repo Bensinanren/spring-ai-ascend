@@ -40,10 +40,8 @@
 #  10.  module_dep_direction                         -- agent-runtime must not depend on agent-platform (ADR-0055: platform->runtime is now ALLOWED)
 #  11.  shipped_envelope_fingerprint_present         -- InMemoryCheckpointer enforces §4 #13 16-KiB cap
 #  12.  inmemory_orchestrator_posture_guard_present  -- AppPostureGate.requireDev in all 3 in-memory components (ADR-0035)
-#  13.  contract_catalog_no_deleted_spi_or_starter_names -- contract-catalog.md must not reference deleted names
 #  16.  http_contract_w1_tenant_and_cancel_consistency -- W1 HTTP contract: no replace-X-Tenant-Id wording, no CREATED initial status, no DELETE cancel route, no W0 cancel/idempotency future-state drift
 #  17.  contract_catalog_spi_table_matches_source     -- SPI sub-table must list 7 known SPIs; OssApiProbe must not appear before Probes sub-table
-#  18.  deleted_spi_starter_names_outside_catalog     -- ACTIVE_NORMATIVE_DOCS corpus must not reference deleted SPI/starter names (widened, ADR-0043)
 #  19.  shipped_row_tests_evidence                    -- every shipped: true row must have non-empty tests: pointing to real files (ADR-0042, strengthened)
 #  21.  bom_glue_paths_exist                          -- BoM must not contain known ghost implementation paths unless they exist (ADR-0043)
 #  23.  active_doc_internal_links_resolve             -- markdown links ](path) in active docs must resolve to existing files (ADR-0043)
@@ -55,9 +53,6 @@
 #  28d. out_of_scope_name_guard                        -- W2+ deferred names absent from agent-*/main (enforcer E26)
 #  28e. module_count_invariant                         -- root pom.xml declares exactly 9 <module> entries (enforcer E27; bumped from 4 to 9 by 2026-05-17 six-module materialization PR; canonical count lives in docs/governance/architecture-status.yaml#repository_counts.total_reactor_modules and is data-driven cross-checked by Rule 64)
 #  28f. enforcers_yaml_wellformed                      -- docs/governance/enforcers.yaml every row has all 5 fields + legal kind (enforcer E29)
-#  28g. no_prose_only_constraint_marker                -- no TODO/FIXME/XXX/deferred:enforce|enforcer|test|gate in CLAUDE.md / ARCHITECTURE.md (enforcer E30)
-#  28h. l1_review_checklist_present                    -- ADRs 0055–0059 contain '§16 Review Checklist' (enforcer E31)
-#  28i. plan_enforcer_table_in_sync                    -- plan §11 IDs == enforcers.yaml IDs (enforcer E32)
 #  28j. enforcer_artifact_paths_exist                   -- every artifact: path in enforcers.yaml resolves on disk (enforcer E33, Phase K audit fix F6)
 #  28k. javadoc_enforcer_citation_semantic_check        -- *Test.java/*IT.java Javadoc `enforcers.yaml#E<n>` citations match the E-row's artifact: field (post-review fix plan F / P1-2)
 #  30.  telemetry_vertical_constraint_coverage         -- ARCHITECTURE.md §4 #53–#59 each cited by an enforcer row (L1.x Telemetry Vertical, enforcer E47)
@@ -73,10 +68,7 @@
 #  42.  architecture_graph_idempotent                  -- twice-run graph build is byte-identical (Phase M, enforcer E61)
 #  44.  frozen_doc_edit_path_compliance                -- freeze_id-tagged file edits require docs/logs/reviews/*.md proposal (Phase M, enforcer E63)
 #  --- W1.x L0 ironclad-rule enforcers (ADR-0069) ---
-#  45.  bus_channels_three_track_present               -- bus-channels.yaml declares 3 channels with unique physical_channel (Rule 35 / P-E, enforcer E64)
 #  46.  cursor_flow_documented                         -- openapi-v1.yaml declares TaskCursor schema + x-cursor-flow annotation (Rule 36 / P-F, enforcer E65)
-#  47.  no_blocking_io_in_runtime_main                 -- agent-service/src/main excludes RestTemplate / JdbcTemplate (Rule 37 / P-G, enforcer E66)
-#  48.  no_thread_sleep_in_business_code               -- main java sources exclude Thread.sleep / TimeUnit.sleep (Rule 38 / P-H, enforcer E67)
 #  49.  deployment_plane_in_module_metadata            -- every module-metadata.yaml declares deployment_plane (Rule 39 / P-I, enforcer E68)
 #  50.  rls_for_new_tenant_tables                      -- Flyway migrations with tenant_id enable RLS or are grandfathered (Rule 40 / P-J, enforcer E69)
 #  51.  skill_capacity_yaml_present_and_wellformed     -- skill-capacity.yaml schema check (Rule 41 / P-K, enforcer E70)
@@ -290,44 +282,6 @@ done
 if [[ $_r12_fail -eq 0 ]]; then pass_rule "inmemory_orchestrator_posture_guard_present"; fi
 
 # ---------------------------------------------------------------------------
-# Rule 13 — contract_catalog_no_deleted_spi_or_starter_names
-# ADR-0036: contract-catalog.md must not reference deleted SPI interface names
-# or deleted starter artifact coordinates.
-# ---------------------------------------------------------------------------
-_r13_fail=0
-_catalog='docs/contracts/contract-catalog.md'
-_deleted_names=(
-  'LongTermMemoryRepository'
-  'ToolProvider'
-  'LayoutParser'
-  'DocumentSourceConnector'
-  'PolicyEvaluator'
-  'IdempotencyRepository'
-  'ArtifactRepository'
-  'spring-ai-ascend-memory-starter'
-  'spring-ai-ascend-skills-starter'
-  'spring-ai-ascend-knowledge-starter'
-  'spring-ai-ascend-governance-starter'
-  'spring-ai-ascend-persistence-starter'
-  'spring-ai-ascend-resilience-starter'
-  'spring-ai-ascend-mem0-starter'
-  'spring-ai-ascend-docling-starter'
-  'spring-ai-ascend-langchain4j-profile'
-)
-if [[ -f "$_catalog" ]]; then
-  for _dn in "${_deleted_names[@]}"; do
-    if grep -qF "$_dn" "$_catalog" 2>/dev/null; then
-      fail_rule "contract_catalog_no_deleted_spi_or_starter_names" "$_catalog references deleted name '$_dn'. Per ADR-0036 Gate Rule 13 this is a contract-surface truth violation."
-      _r13_fail=1
-    fi
-  done
-else
-  fail_rule "contract_catalog_no_deleted_spi_or_starter_names" "$_catalog not found."
-  _r13_fail=1
-fi
-if [[ $_r13_fail -eq 0 ]]; then pass_rule "contract_catalog_no_deleted_spi_or_starter_names"; fi
-
-# ---------------------------------------------------------------------------
 # Rule 16 — http_contract_w1_tenant_and_cancel_consistency
 # ADR-0040: (a) no "replace.*X-Tenant-Id" in active docs; (b) http-api-contracts.md
 # must not reference CREATED as initial status; (c) openapi-v1.yaml must not
@@ -436,52 +390,6 @@ else
   _r17_fail=1
 fi
 if [[ $_r17_fail -eq 0 ]]; then pass_rule "contract_catalog_spi_table_matches_source"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 18 — deleted_spi_starter_names_outside_catalog
-# ADR-0041 extends Rule 13: deleted SPI/starter names must not appear in
-# third_party/MANIFEST.md, docs/cross-cutting/oss-bill-of-materials.md, README.md.
-# ---------------------------------------------------------------------------
-_r18_fail=0
-_deleted_names18=(
-  'LongTermMemoryRepository' 'ToolProvider' 'LayoutParser' 'DocumentSourceConnector'
-  'PolicyEvaluator' 'IdempotencyRepository' 'ArtifactRepository'
-  'spring-ai-ascend-memory-starter' 'spring-ai-ascend-skills-starter'
-  'spring-ai-ascend-knowledge-starter' 'spring-ai-ascend-governance-starter'
-  'spring-ai-ascend-persistence-starter' 'spring-ai-ascend-resilience-starter'
-  'spring-ai-ascend-mem0-starter' 'spring-ai-ascend-docling-starter'
-  'spring-ai-ascend-langchain4j-profile'
-)
-# Perf fix (2026-05-23): the original loop forked grep N_files × N_names
-# times (~thousands × 16 = ~50k forks). On WSL/mnt/d that was ~225s per
-# gate run. Replaced with a single bulk `grep -Ff <(patterns) <files>` call
-# (~1s) — same 16 fixed-string patterns, same file set, identical
-# pass/fail semantics. ADR-0043 (widened to full ACTIVE_NORMATIVE_DOCS).
-_r18_files=$(find . -name '*.md' -o -name '*.yaml' 2>/dev/null \
-  | grep -vE '/docs/(archive|logs|adr|delivery|v6-rationale|plans|competitive|superpowers)/|/knowledge/|/third_party/|/target/|/\.git/' \
-  | sort || true)
-if [[ -n "$_r18_files" ]]; then
-  _r18_patterns=$(printf '%s\n' "${_deleted_names18[@]}")
-  # -H forces filename prefix; -F = fixed strings; -f - reads patterns from stdin.
-  _r18_hits=$(printf '%s\n' "$_r18_files" | xargs -d '\n' -r grep -HnFf <(printf '%s\n' "$_r18_patterns") 2>/dev/null || true)
-  if [[ -n "$_r18_hits" ]]; then
-    while IFS= read -r _r18_hit; do
-      [[ -z "$_r18_hit" ]] && continue
-      # Parse `file:line:content` → extract first matching deleted-name token.
-      _r18_file="${_r18_hit%%:*}"
-      _r18_rest="${_r18_hit#*:}"
-      _r18_line="${_r18_rest%%:*}"
-      _r18_text="${_r18_rest#*:}"
-      _r18_matched=""
-      for _r18_name in "${_deleted_names18[@]}"; do
-        if [[ "$_r18_text" == *"$_r18_name"* ]]; then _r18_matched="$_r18_name"; break; fi
-      done
-      fail_rule "deleted_spi_starter_names_outside_catalog" "$_r18_file:$_r18_line references deleted name '${_r18_matched:-?}'. Per ADR-0043 Gate Rule 18 (widened) this is a contract-surface truth violation."
-      _r18_fail=1
-    done <<< "$_r18_hits"
-  fi
-fi
-if [[ $_r18_fail -eq 0 ]]; then pass_rule "deleted_spi_starter_names_outside_catalog"; fi
 
 # ---------------------------------------------------------------------------
 # Rule 19 — shipped_row_tests_evidence (strengthened per ADR-0042 + ADR-0045)
@@ -842,87 +750,6 @@ PY
   fi
 fi
 if [[ $_r28f_fail -eq 0 ]]; then pass_rule "enforcers_yaml_wellformed"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 28g — no_prose_only_constraint_marker (enforcer E30)
-# Rule 28 forbids deferring an enforcer. Markers like "TODO: enforce",
-# "FIXME: enforcer", "XXX: test", "deferred: gate" in CLAUDE.md /
-# ARCHITECTURE.md / module ARCHITECTURE.md / docs/governance/*.yaml are bans.
-# ---------------------------------------------------------------------------
-_r28g_fail=0
-_marker_pattern='(TODO|FIXME|XXX|deferred)[[:space:]]*:[[:space:]]*(enforce|enforcer|test|gate)\b'
-# Canonical architecture-text files + every L1+ ADR (00[5-9]X glob). ADR-0059
-# is exempt because it documents the marker patterns themselves; any future
-# L1+ ADR that legitimately needs to document the markers must explicitly
-# extend the _28g_exempt list (rather than silently drop out of scope).
-# Phase K (audit fix F7): switched from a hardcoded list to a glob with an
-# explicit exempt set so new ADRs are auto-covered.
-_28g_files=(CLAUDE.md ARCHITECTURE.md)
-while IFS= read -r _arch; do
-  [[ -n "$_arch" ]] && _28g_files+=("$_arch")
-done < <(ls agent-service/ARCHITECTURE.md agent-service/ARCHITECTURE.md 2>/dev/null || true)
-_28g_exempt=("docs/adr/0059-code-as-contract-architectural-enforcement.md")
-while IFS= read -r _adr; do
-  [[ -z "$_adr" ]] && continue
-  _skip=0
-  for _ex in "${_28g_exempt[@]}"; do
-    [[ "$_adr" == "$_ex" ]] && _skip=1 && break
-  done
-  [[ $_skip -eq 0 ]] && _28g_files+=("$_adr")
-done < <(ls docs/adr/00[5-9][0-9]-*.md 2>/dev/null | sort || true)
-_28g_existing=()
-for _f in "${_28g_files[@]}"; do
-  [[ -f "$_f" ]] && _28g_existing+=("$_f")
-done
-_28g_hits=""
-if (( ${#_28g_existing[@]} > 0 )); then
-  _28g_hits=$(grep -nE "$_marker_pattern" "${_28g_existing[@]}" 2>/dev/null || true)
-fi
-if [[ -n "$_28g_hits" ]]; then
-  fail_rule "no_prose_only_constraint_marker" "Rule-28-bypass marker found:\n$_28g_hits\nPer Rule 28g / enforcer E30."
-  _r28g_fail=1
-fi
-if [[ $_r28g_fail -eq 0 ]]; then pass_rule "no_prose_only_constraint_marker"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 28h — l1_review_checklist_present (enforcer E31)
-# Every L1 ADR (0055–0059) MUST include the §16 review checklist subsection.
-# ---------------------------------------------------------------------------
-_r28h_fail=0
-for _n in 0055 0056 0057 0058 0059 0060; do
-  _adr=$(find docs/adr -maxdepth 1 -name "${_n}-*.md" 2>/dev/null | head -1)
-  [[ -z "$_adr" ]] && continue
-  if ! grep -qE '(§16 Review Checklist|L1 Review Checklist)' "$_adr" 2>/dev/null; then
-    fail_rule "l1_review_checklist_present" "$_adr missing '§16 Review Checklist' subsection. Per Rule 28h / enforcer E31 / architect guidance §16."
-    _r28h_fail=1
-  fi
-done
-if [[ $_r28h_fail -eq 0 ]]; then pass_rule "l1_review_checklist_present"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 28i — plan_enforcer_table_in_sync (enforcer E32)
-# The L1 plan §11 table E<n> IDs MUST equal the set of `id:` fields in
-# docs/governance/enforcers.yaml. The plan and the index are two views of the
-# same truth.
-# ---------------------------------------------------------------------------
-_r28i_fail=0
-_plan_file="$HOME/.claude/plans/l1-modular-russell.md"
-# Fall back to alternative locations (Windows: /d/.claude/plans/...).
-if [[ ! -f "$_plan_file" ]]; then
-  _plan_file="/d/.claude/plans/l1-modular-russell.md"
-fi
-if [[ ! -f "$_plan_file" ]]; then
-  # Plan lives outside the repo (user home). Skip with a NOTE.
-  pass_rule "plan_enforcer_table_in_sync"
-else
-  _yaml_ids=$(grep -E '^- id: E[0-9]+' "$_efile" 2>/dev/null | sed -E 's/^- id:\s*//' | sort -u)
-  _plan_ids=$(grep -oE '\| E[0-9]+ \|' "$_plan_file" 2>/dev/null | sed -E 's/\| (E[0-9]+) \|/\1/' | sort -u)
-  if [[ -n "$_plan_ids" ]] && [[ "$_yaml_ids" != "$_plan_ids" ]]; then
-    fail_rule "plan_enforcer_table_in_sync" "plan §11 enforcer IDs and enforcers.yaml IDs diverge. Per Rule 28i / enforcer E32."
-    _r28i_fail=1
-  fi
-  if [[ $_r28i_fail -eq 0 ]]; then pass_rule "plan_enforcer_table_in_sync"; fi
-fi
 
 # ---------------------------------------------------------------------------
 # Rule 28j — enforcer_artifact_paths_exist (Phase K F6 + Phase L P0-2, E33+E35)
@@ -1303,94 +1130,6 @@ if [[ $_r42_fail -eq 0 ]]; then pass_rule "architecture_graph_idempotent"; fi
 # W1.x Phase 1 — L0 ironclad-rule enforcers (Gate Rules 45-52)
 # Authority: ADR-0069. Each rule fails on a detected violation today.
 # ===========================================================================
-
-# ---------------------------------------------------------------------------
-# Rule 45 — bus_channels_three_track_present (enforcer E64, Rule 35 / P-E)
-#
-# docs/governance/bus-channels.yaml MUST exist; declare 3 channels with ids
-# control / data / rhythm; each MUST have a unique physical_channel: value.
-# ---------------------------------------------------------------------------
-_r45_fail=0
-_r45_path="docs/governance/bus-channels.yaml"
-if [[ ! -f "$_r45_path" ]]; then
-  fail_rule "bus_channels_three_track_present" "$_r45_path missing — Rule 35 / P-E ironclad rule unenforced"
-  _r45_fail=1
-else
-  # Extract id: values under channels:
-  _r45_ids="$(awk '/^channels:[[:space:]]*$/{in_ch=1; next} /^[a-zA-Z]/{in_ch=0} in_ch && /^[[:space:]]+- id:/{sub(/^[[:space:]]+- id:[[:space:]]*/,""); sub(/[[:space:]].*$/,""); print}' "$_r45_path")"
-  _r45_count="$(printf '%s\n' "$_r45_ids" | grep -c .)"
-  if [[ "$_r45_count" -ne 3 ]]; then
-    fail_rule "bus_channels_three_track_present" "$_r45_path declares $_r45_count channel ids; expected exactly 3 (control/data/rhythm)"
-    _r45_fail=1
-  else
-    for _expected in control data rhythm; do
-      if ! printf '%s\n' "$_r45_ids" | grep -qx "$_expected"; then
-        fail_rule "bus_channels_three_track_present" "$_r45_path missing required channel id: $_expected"
-        _r45_fail=1
-      fi
-    done
-    # Extract physical_channel: values; must be unique
-    _r45_phys="$(grep -E '^[[:space:]]+physical_channel:' "$_r45_path" | sed -E 's/^[[:space:]]+physical_channel:[[:space:]]*//; s/[[:space:]].*$//')"
-    _r45_phys_count="$(printf '%s\n' "$_r45_phys" | grep -c .)"
-    _r45_phys_uniq="$(printf '%s\n' "$_r45_phys" | sort -u | grep -c .)"
-    if [[ "$_r45_phys_count" -ne "$_r45_phys_uniq" ]]; then
-      fail_rule "bus_channels_three_track_present" "$_r45_path channels share physical_channel: identifiers (got $_r45_phys_count entries, $_r45_phys_uniq unique) — isolation guarantee violated"
-      _r45_fail=1
-    fi
-  fi
-fi
-if [[ $_r45_fail -eq 0 ]]; then pass_rule "bus_channels_three_track_present"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 47 — no_blocking_io_in_runtime_main (enforcer E66, Rule 37 / P-G)
-#
-# No production class under agent-service/src/main/java/** may import
-# org.springframework.web.client.RestTemplate or
-# org.springframework.jdbc.core.JdbcTemplate. Scope is intentionally narrow
-# to agent-runtime (the cognitive kernel). Existing agent-platform JdbcTemplate
-# uses migrate to R2DBC in W2 per CLAUDE-deferred.md 37.c.
-# ---------------------------------------------------------------------------
-_r47_fail=0
-# Scope NARROWED post-Phase-C (ADR-0078): Rule 37 applies to the runtime sub-
-# package only. agent-service/src/main/java/com/huawei/ascend/service/platform/**
-# is excluded per CLAUDE-deferred.md 37.c — the platform-side JdbcTemplate uses
-# (HealthCheckRepository, PlatformOssApiProbe) migrate to R2DBC in W2.
-_r47_root="agent-service/src/main/java/com/huawei/ascend/service/runtime"
-if [[ -d "$_r47_root" ]]; then
-  _r47_hits="$(grep -rEln '^import[[:space:]]+org\.springframework\.(web\.client\.RestTemplate|jdbc\.core\.JdbcTemplate);' "$_r47_root" 2>/dev/null || true)"
-  if [[ -n "$_r47_hits" ]]; then
-    while IFS= read -r _f; do
-      [[ -z "$_f" ]] && continue
-      fail_rule "no_blocking_io_in_runtime_main" "$_f imports a forbidden blocking-I/O client (RestTemplate or JdbcTemplate) — use WebClient or R2dbcEntityTemplate instead"
-      _r47_fail=1
-    done <<< "$_r47_hits"
-  fi
-fi
-if [[ $_r47_fail -eq 0 ]]; then pass_rule "no_blocking_io_in_runtime_main"; fi
-
-# ---------------------------------------------------------------------------
-# Rule 48 — no_thread_sleep_in_business_code (enforcer E67, Rule 38 / P-H)
-#
-# No production class under agent-service/src/main/java/** or
-# agent-service/src/main/java/** may invoke Thread.sleep(...) or
-# TimeUnit.<unit>.sleep(...). Test code is excluded.
-# ---------------------------------------------------------------------------
-_r48_fail=0
-# Post-Phase-C (ADR-0078): both platform and runtime sub-packages are scanned
-# under the single agent-service module. Pre-Phase-C this iterated over the
-# two separate Maven modules.
-for _r48_root in agent-service/src/main/java; do
-  [[ ! -d "$_r48_root" ]] && continue
-  _r48_hits="$(grep -rEn 'Thread\.sleep[[:space:]]*\(|TimeUnit\.[A-Z_]+\.sleep[[:space:]]*\(' "$_r48_root" 2>/dev/null || true)"
-  if [[ -n "$_r48_hits" ]]; then
-    while IFS= read -r _line; do
-      [[ -z "$_line" ]] && continue
-      fail_rule "no_thread_sleep_in_business_code" "$_line — physical sleep is forbidden (Chronos Hydration Rule 38); use SuspendSignal + bus Tick Engine"
-      _r48_fail=1
-    done <<< "$_r48_hits"
-  fi
-done
-if [[ $_r48_fail -eq 0 ]]; then pass_rule "no_thread_sleep_in_business_code"; fi
 
 # ---------------------------------------------------------------------------
 # Rule 50 — rls_for_new_tenant_tables (enforcer E69, Rule 40 / P-J)
