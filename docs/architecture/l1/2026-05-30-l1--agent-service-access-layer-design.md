@@ -4,8 +4,8 @@
 
 - 接收 A2A service 调用和 MQ 入站消息
 - 将原始请求归一为 `AccessIntent`
-- 通过 L1 `TaskHandler` 调用 L4 `TaskControlClient.runTask / resumeInput / cancelTask`
-- 基于 L3 队列 SPI 创建并持有面向用户回消息的队列实例
+- 通过 L1 `TaskHandler` 调用 L4 `TaskControlClient.runTask`
+- 基于 L3 队列接口创建并持有面向用户回消息的队列实例
 - 管理运行时连接、订阅和 `EgressBinding`
 - 对 L4/L5 暴露 `NotificationPort.notify(frame)`，接收用户可见消息帧
 - 通过 A2A / MQ 出站适配器把 `NotificationFrame` 写回外部调用方
@@ -17,8 +17,11 @@
 ```text
 service/
   access/
-    ProtocolGateway.java
-    spi/
+    gateway/
+      AccessGateway.java
+    config/
+      AccessLayerConfiguration.java
+    model/
       AccessIntent.java
       AccessAcceptedResponse.java
       AccessOperation.java
@@ -26,6 +29,7 @@ service/
       NotificationFrame.java
       NotificationType.java
       EgressBinding.java
+    port/
       TaskHandler.java
       NotificationPort.java
     mq/
@@ -33,7 +37,10 @@ service/
       MqEnvelope.java
       MqIngressAdapter.java
       MqEgressAdapter.java
+      MqOutputSink.java
     a2a/
+      A2aAccessController.java
+      A2aWellKnownAgentCardController.java
       A2aAccessService.java
       A2aAgentCardService.java
       A2aAgentCard.java
@@ -45,22 +52,30 @@ service/
       A2aIngressAdapter.java
       A2aAgentCardAdapter.java
       A2aEgressAdapter.java
+      A2aOutput.java
+      A2aOutputSink.java
+      A2aOutputHandle.java
+      A2aOutputRegistry.java
+      A2aPushNotificationClient.java
+      HttpA2aPushNotificationClient.java
+      DefaultA2aOutputSink.java
     egress/
       EgressAdapter.java
       EgressQueueRegistry.java
+      DefaultEgressQueueRegistry.java
+      DefaultNotificationPort.java
       EgressDispatcher.java
+      EgressDeliveryException.java
 ```
 
 ---
 
-## 3. 内部 SPI 接口
+## 3. 内部调用接口
 
 ```java
 // L1 内部任务提交入口，适配 L4 TaskControlClient
 public interface TaskHandler {
     CompletionStage<AccessAcceptedResponse> runTask(AccessIntent intent);
-    CompletionStage<AccessAcceptedResponse> resumeInput(AccessIntent intent);
-    CompletionStage<AccessAcceptedResponse> cancelTask(AccessIntent intent);
 }
 
 // L1 暴露给 L4/L5
@@ -71,12 +86,8 @@ public interface NotificationPort {
 
 | 方法 | 入参 | 返回值 | 描述 |
 |---|---|---|---|
-| `TaskHandler.runTask` | `AccessIntent intent` | `CompletionStage<AccessAcceptedResponse>` | 调用 L4 `TaskControlClient.runTask` 提交新任务。 |
-| `TaskHandler.resumeInput` | `AccessIntent intent` | `CompletionStage<AccessAcceptedResponse>` | 调用 L4 `TaskControlClient.resumeInput` 向等待中的任务补充输入。 |
-| `TaskHandler.cancelTask` | `AccessIntent intent` | `CompletionStage<AccessAcceptedResponse>` | 调用 L4 `TaskControlClient.cancelTask` 请求取消任务。 |
+| `TaskHandler.runTask` | `AccessIntent intent` | `CompletionStage<AccessAcceptedResponse>` | 调用 L4 `TaskControlClient.runTask`，由 L4 根据 `AccessIntent.operation` 判断提交、恢复、取消或其它操作语义。 |
 | `NotificationPort.notify` | `NotificationFrame frame` | `void` | L4/L5 调用该方法，把用户可见消息交给 L1 投递。 |
-
-备注：`TaskHandler` 是 L1 调用 L4 的边界。这里的方法名、入参和返回值必须和 L4 文档里的 `TaskHandler / TaskControlClient` 最终定义保持一致；如果 L4 侧仍使用 `handle(...)` 或其它统一入口名，L1 落代码时应直接对齐 L4，不在 L1 内部再强行转换出另一套 command/result 对象。
 
 ---
 
@@ -91,6 +102,7 @@ public interface EgressAdapter {
 public interface EgressQueueRegistry {
     Queue getOrCreate(EgressBinding binding);
     Optional<Queue> find(String tenantId, String sessionId, String taskId);
+    Optional<EgressBinding> findBinding(String tenantId, String sessionId, String taskId);
     void remove(String tenantId, String sessionId, String taskId);
 }
 
@@ -106,18 +118,21 @@ public final class EgressDispatcher {
 | `EgressAdapter.deliver` | `EgressBinding binding, NotificationFrame frame` | `void` | 将内部通知帧投递到具体外部通道。 |
 | `EgressQueueRegistry.getOrCreate` | `EgressBinding binding` | `Queue` | 按交付绑定获取或通过 L3 `QueueFactory.createQueue` 创建回消息队列。 |
 | `EgressQueueRegistry.find` | `tenantId/sessionId/taskId` | `Optional<Queue>` | 查询已有回消息队列。 |
+| `EgressQueueRegistry.findBinding` | `tenantId/sessionId/taskId` | `Optional<EgressBinding>` | 查询已有交付绑定，用于调试、观测或后续补充出站状态查询。 |
 | `EgressQueueRegistry.remove` | `tenantId/sessionId/taskId` | `void` | terminal 后清理队列。 |
 | `EgressDispatcher.start` | `EgressBinding binding` | `void` | 启动该绑定对应队列的消费循环。 |
 | `EgressDispatcher.stop` | `EgressBinding binding` | `void` | 停止该绑定对应队列的消费循环。 |
 
 `Queue` 表示 L3 定义的通用队列对象。L1 不重新定义队列能力，也不继承 L3 队列接口；L1 只是通过组合方式持有 L3 `QueueFactory.createQueue(...)` 创建出来的队列实例。`NotificationPort.notify(frame)` 通过 `QueuePublisher.push(frame)` 入队，`EgressDispatcher` 通过 `QueueConsumer.poll(...)` 消费，并依赖 `Map<ReplyChannel, EgressAdapter>` 选择具体出站适配器。
 
+`NotificationPort.notify(frame)` 按 `tenantId + sessionId + taskId` 从 `EgressQueueRegistry` 查询回消息队列。若队列不存在，第一版不自动创建队列，因为自动创建缺少 `replyChannel/deliveryMode/targetRef` 等交付信息；实现应记录投递失败并返回，或按工程约定抛出明确异常。`EgressQueueRegistry` 同时维护 `EgressBinding` 与 `Queue` 的内存索引，第一版不新增独立 `EgressBindingStore`。
+
 ---
 
 ## 5. 实现类关键方法
 
 ```java
-public final class ProtocolGateway {
+public final class AccessGateway {
     AccessIntent acceptA2a(A2aEnvelope envelope);
     AccessIntent acceptMq(MqEnvelope envelope);
     CompletionStage<AccessAcceptedResponse> dispatch(AccessIntent intent);
@@ -148,12 +163,12 @@ public final class A2aEgressAdapter implements EgressAdapter {
 
 | 实现类 | 方法 | 描述 |
 |---|---|---|
-| `ProtocolGateway` | `acceptA2a` | 接收 A2A 请求，执行校验和归一化。 |
-| `ProtocolGateway` | `acceptMq` | 接收 MQ 入站消息，执行校验和归一化。 |
-| `ProtocolGateway` | `dispatch` | 根据 `AccessIntent.operation` 调用 `TaskHandler.runTask / resumeInput / cancelTask`，并返回内部接收结果。 |
-| `ProtocolGateway` | `bindEgress` | 根据内部接收结果创建 `EgressBinding` 和 L3 回消息队列。 |
-| `A2aIngressAdapter` | `send/resume/cancel` | A2A 对外 service 实现，内部委托给 `ProtocolGateway`。 |
-| `MqIngressAdapter` | `enqueue` | MQ 入站队列实现，内部委托给 `ProtocolGateway`。 |
+| `AccessGateway` | `acceptA2a` | 接收 A2A 请求，执行校验和归一化。 |
+| `AccessGateway` | `acceptMq` | 接收 MQ 入站消息，执行校验和归一化。 |
+| `AccessGateway` | `dispatch` | 将 `AccessIntent` 交给 `TaskHandler.runTask`，并返回内部接收结果。 |
+| `AccessGateway` | `bindEgress` | 根据内部接收结果创建 `EgressBinding` 和 L3 回消息队列，并启动该 binding 对应的 `EgressDispatcher` 消费循环。 |
+| `A2aIngressAdapter` | `send/resume/cancel` | A2A 对外 service 实现，内部委托给 `AccessGateway`。 |
+| `MqIngressAdapter` | `enqueue` | MQ 入站队列实现，内部委托给 `AccessGateway`。 |
 | `MqEgressAdapter` | `channel` | 返回 `ReplyChannel.MQ`。 |
 | `MqEgressAdapter` | `deliver` | MQ 出站适配器，将通知帧写到 reply topic/queue。 |
 | `A2aEgressAdapter` | `channel` | 返回 `ReplyChannel.A2A`。 |
@@ -207,6 +222,7 @@ public record EgressBinding(
     String sessionId,
     String taskId,
     ReplyChannel replyChannel,
+    String deliveryMode,
     String targetRef,
     String correlationId
 ) {}
@@ -252,6 +268,7 @@ public record NotificationFrame(
 | `NotificationType` | `ERROR` | 内部执行失败或业务错误。 |
 | `EgressBinding` | `tenantId/sessionId/taskId` | 定位具体回消息队列和运行上下文。 |
 | `EgressBinding` | `replyChannel` | 交付通道类型。 |
+| `EgressBinding` | `deliveryMode` | 交付模式；A2A 场景取 `SYNC / STREAM / PUSH_NOTIFICATION`，MQ 场景可取 `MQ`。 |
 | `EgressBinding` | `targetRef` | 具体交付目标。 |
 | `EgressBinding` | `correlationId` | 外部请求关联标识。 |
 | `NotificationFrame` | `type` | 消息帧类型。 |
@@ -266,7 +283,7 @@ public record NotificationFrame(
 
 ```java
 // 入站
-A2A service / MQ ingress -> AccessIntent -> TaskHandler.runTask/resumeInput/cancelTask -> TaskControlClient -> AccessAcceptedResponse -> EgressBinding
+A2A service / MQ ingress -> AccessIntent -> TaskHandler.runTask -> TaskControlClient.runTask -> AccessAcceptedResponse -> EgressBinding
 
 // 出站：L4/L5 主动通知用户可见消息
 notify(frame) -> L3 Queue.push(NotificationFrame) -> EgressDispatcher -> Queue.poll(...) -> EgressAdapter(A2A / MQ)
@@ -274,7 +291,11 @@ notify(frame) -> L3 Queue.push(NotificationFrame) -> EgressDispatcher -> Queue.p
 
 L3 提供 `QueueFactory.createQueue(...)`、`QueuePublisher.push(...)`、`QueueConsumer.poll(...)`、`QueueManager.findQueueBySession(...)` 这组队列接口。L1 通过 L3 创建并持有回消息队列实例，但不重新定义队列接口，也不要求 L3 提供入队回调。L1 自己的 `EgressDispatcher` 负责消费队列，并按 `EgressBinding.replyChannel` 选择对应的 `EgressAdapter` 投递。
 
-`EgressBinding` 由 `ProtocolGateway` 在 L4 返回 `AccessAcceptedResponse` 后创建。`taskId` 由 L4 返回，L1 不负责创建 Task；L1 只使用 `tenantId + sessionId + taskId` 绑定 L3 回消息队列和外部回包目标。A2A 场景下，`targetRef` 来自 A2A reply spec 或运行时连接；MQ 场景下，`targetRef` 来自 MQ `replyTopic`。
+`EgressBinding` 由 `AccessGateway` 在 L4 返回 `AccessAcceptedResponse` 后创建。`taskId` 由 L4 返回，L1 不负责创建 Task；L1 只使用 `tenantId + sessionId + taskId` 绑定 L3 回消息队列和外部回包目标。A2A 场景下，`deliveryMode` 来自 `A2aReplySpec.mode`，`targetRef` 来自 `A2aReplySpec.target` 或运行时连接；MQ 场景下，`deliveryMode` 可取 `MQ`，`targetRef` 来自 MQ `replyTopic`。
+
+`AccessGateway.bindEgress(...)` 创建或获取回消息队列后，调用 `EgressDispatcher.start(binding)` 启动消费。`EgressDispatcher` 消费到 `NotificationFrame.terminal == true` 后，完成最后一次投递，然后调用 `EgressDispatcher.stop(binding)` 并通过 `EgressQueueRegistry.remove(tenantId, sessionId, taskId)` 清理该回消息队列索引。
+
+L1 不解释 `AccessIntent.operation` 的业务语义。`AccessGateway.dispatch(...)` 不按 `SUBMIT / RESUME / CANCEL / QUERY / SUBSCRIBE / CALLBACK` 写分支，只把完整 `AccessIntent` 透传给 `TaskHandler.runTask(...)`；具体如何处理由 L4 `TaskControlClient.runTask` 判断。
 
 ---
 
@@ -320,6 +341,29 @@ public interface A2aAccessService {
 | `resume` | `A2aEnvelope envelope` | `A2aAcceptedResponse` | A2A 恢复或回调结果入口；L1 归一为 `AccessIntent(RESUME/CALLBACK)`。 |
 | `cancel` | `A2aEnvelope envelope` | `A2aAcceptedResponse` | A2A 取消入口；L1 归一为 `AccessIntent(CANCEL)`。 |
 
+第一版 HTTP 暴露路径：
+
+| HTTP 方法 | 路径 | 请求体 | 响应体 | 描述 |
+|---|---|---|---|---|
+| `POST` | `/a2a/tasks/send` | `A2aEnvelope` | `A2aAcceptedResponse` | 新任务提交入口。 |
+| `POST` | `/a2a/tasks/resume` | `A2aEnvelope` | `A2aAcceptedResponse` | 恢复或回调结果入口。 |
+| `POST` | `/a2a/tasks/cancel` | `A2aEnvelope` | `A2aAcceptedResponse` | 取消入口。 |
+| `GET` | `/a2a/agent-card` | 无 | `A2aAgentCard` | 查询当前 Agent Card。 |
+| `GET` | `/.well-known/agent-card.json` | 无 | `A2aAgentCard` | 标准发现路径，返回同一个 Agent Card。 |
+| `GET` | `/a2a/tasks/{tenantId}/{sessionId}/{taskId}/outputs` | 无 | `List<A2aOutput>` | 查询同步或已缓存的 A2A 出站输出。 |
+| `GET` | `/a2a/tasks/{tenantId}/{sessionId}/{taskId}/stream` | 无 | SSE stream | 订阅流式 A2A 出站输出。 |
+
+HTTP 请求头第一版只要求：
+
+| 请求头 | 是否必填 | 描述 |
+|---|---|---|
+| `Content-Type: application/json` | 是 | A2A 请求体使用 JSON。 |
+| `Accept: application/json` | 否 | 期望返回 JSON。 |
+
+鉴权、租户网关头、签名头后续由平台接入层统一补齐；当前 L1 入口先从 `A2aEnvelope.context` 读取租户、用户、Agent、会话和幂等信息。
+
+`send/resume/cancel` 第一版都返回接收确认 `A2aAcceptedResponse`，不在方法返回值里承载完整最终结果。同步、流式和异步 push 的用户可见输出统一由 `NotificationPort.notify(frame)` 进入 L1 出站链路，再由 `A2aEgressAdapter` 按 `A2aReplyMode` 和 A2A 协议语义投递。
+
 ```java
 public record A2aEnvelope(
     A2aContext context,
@@ -343,7 +387,8 @@ public record A2aEnvelope(
     ) {}
 
     public record A2aReplySpec(
-        A2aReplyMode mode
+        A2aReplyMode mode,
+        String target
     ) {}
 }
 
@@ -377,8 +422,33 @@ A2A 外部请求体示例：
     "metadata": {}
   },
   "reply": {
-    "mode": "STREAM"
+    "mode": "STREAM",
+    "target": null
   }
+}
+```
+
+三种 A2A 回消息模式的处理：
+
+| `reply.mode` | `reply.target` | L1 行为 |
+|---|---|---|
+| `SYNC` | 可为空 | `A2aOutputSink` 将输出写入 `A2aOutputRegistry`，调用方可通过 `/outputs` 查询最终或已产生的输出。 |
+| `STREAM` | 可为空 | `A2aOutputSink` 将输出写入 `A2aOutputRegistry`，同时 `/stream` SSE 订阅者会收到增量 `A2aOutput`。 |
+| `PUSH_NOTIFICATION` | 必填，外部 HTTP 回调地址 | `A2aOutputSink` 将输出写入 `A2aOutputRegistry`，并通过 `A2aPushNotificationClient` HTTP POST 到 `target`。 |
+
+`target` 是 A2A 出站目标。`STREAM` 和 `SYNC` 当前使用 L1 内部输出 registry 承接，`PUSH_NOTIFICATION` 使用外部回调地址承接。L1 内部用 `EgressBinding.deliveryMode` 保存三种回消息模式，用 `EgressBinding.targetRef` 保存具体出站目标，避免把模式和目标混在同一个字段里。无论哪种模式，L4/L5 都只写 `NotificationPort.notify(frame)`，不直接感知 A2A 出站细节。
+
+A2A 接收确认响应示例：
+
+```json
+{
+  "tenantId": "tenant-001",
+  "userId": "user-001",
+  "agentId": "travel-agent",
+  "sessionId": "session-123",
+  "taskId": "task-001",
+  "accepted": true,
+  "message": "Accepted"
 }
 ```
 
@@ -596,7 +666,11 @@ AccessIntent(
     sessionId = envelope.headers.sessionId,
     query = envelope.body.query,
     idempotencyKey = envelope.headers.idempotencyKey,
-    payload = envelope.body.payload
+    payload = Map.of(
+        "payload", envelope.body.payload,
+        "replyTopic", envelope.headers.replyTopic,
+        "correlationId", envelope.headers.correlationId
+    )
 )
 ```
 
@@ -632,12 +706,14 @@ AccessIntent(
 | L4/L5 只通过 `NotificationPort.notify(frame)` 回消息 | L4/L5 不关心 A2A / MQ 出站细节，也不直接操作 L3 队列。 |
 | `NotificationFrame.terminal` 负责表达结束帧 | `NotificationType` 只表达消息语义，是否结束由 `terminal` 单独表示。 |
 | A2A 出站必须做协议映射 | `NotificationFrame` 不能直接暴露给 A2A 客户端，必须映射为 `TaskStatus / Message / Artifact / error / terminal` 等 A2A 语义。 |
+| `AccessOperation` 必须透传给 L4 | L1 不解释操作语义，`AccessGateway.dispatch` 统一调用 `TaskHandler.runTask(intent)`。 |
+| `NotificationPort.notify` 不自动创建队列 | 队列创建依赖 `EgressBinding` 的交付信息；缺失队列时应记录投递失败或抛出明确异常。 |
 
 ### 10.2 当前不需要继续增加的抽象
 
 | 不增加的抽象 | 原因 |
 |---|---|
-| 统一入站 `AccessAdapter` SPI | A2A service 和 MQ 队列的调用模型不同，强行统一会让入口更绕；当前用 `A2aIngressAdapter` 和 `MqIngressAdapter` 更清晰。 |
+| 统一入站 `AccessAdapter` 抽象 | A2A service 和 MQ 队列的调用模型不同，强行统一会让入口更绕；当前用 `A2aIngressAdapter` 和 `MqIngressAdapter` 更清晰。 |
 | 独立 A2A 出站映射类 | 当前映射复杂度还可以放在 `A2aEgressAdapter.toA2aOutput(frame)`；后续 A2A 输出规则明显变复杂时再拆。 |
 | L1 自定义队列接口或继承 L3 队列 | 队列能力由 L3 统一提供，L1 只组合持有 `Queue`，避免重复定义队列语义。 |
 | L3 入队回调机制 | L1 可以由 `EgressDispatcher` 主动消费队列，不要求 L3 在每次入队时触发回调。 |
@@ -646,17 +722,18 @@ AccessIntent(
 
 ### 10.3 代码落地时的最小实现顺序
 
-1. 先实现 `spi` 包下的 POJO 和端口接口。
+1. 先实现 `model` 包下的 POJO/枚举，以及 `port` 包下的内部调用端口。
 2. 再实现 `A2aIngressAdapter`，保证 A2A 请求可以归一为 `AccessIntent`。
-3. 再实现 `TaskHandler`，直接用 `AccessIntent` 调用 L4 `TaskControlClient.runTask / resumeInput / cancelTask`。
-4. 再实现 `ProtocolGateway.dispatch`，根据 `AccessIntent.operation` 调用 `TaskHandler` 并接收 `AccessAcceptedResponse`。
-5. 再实现 `EgressQueueRegistry`，通过 L3 `QueueFactory.createQueue(...)` 创建和索引 `Queue`。
-6. 再实现 `NotificationPort.notify(frame)`，通过 `QueuePublisher.push(frame)` 写入 L3 队列。
-7. 最后实现 `EgressDispatcher`、`A2aEgressAdapter` 和 `MqEgressAdapter`，通过 `QueueConsumer.poll(...)` 完成出站交付。
+3. 再实现 `TaskHandler`，直接用 `AccessIntent` 调用 L4 `TaskControlClient.runTask`。
+4. 再实现 `AccessGateway.dispatch`，将 `AccessIntent` 交给 `TaskHandler.runTask` 并接收 `AccessAcceptedResponse`。
+5. 再实现 `EgressQueueRegistry`，通过 L3 `QueueFactory.createQueue(...)` 创建和索引 `Queue`，并维护 `EgressBinding` 与队列的内存映射。
+6. 再实现 `AccessGateway.bindEgress`，创建/获取队列后启动 `EgressDispatcher.start(binding)`。
+7. 再实现 `NotificationPort.notify(frame)`，按 `tenantId + sessionId + taskId` 查找队列，并通过 `QueuePublisher.push(frame)` 写入 L3 队列。
+8. 最后实现 `EgressDispatcher`、`A2aEgressAdapter` 和 `MqEgressAdapter`，通过 `QueueConsumer.poll(...)` 完成出站交付，并在 terminal 后停止消费和清理队列索引。
 
 ### 10.4 L3 队列接口对齐
 
-L1 当前只假设 L3 提供 `Queue`、`QueueFactory`、`QueuePublisher`、`QueueConsumer` 和 `QueueManager`。后续写代码时，`EgressQueueRegistry` 只适配这组 L3 SPI；其它 L1 对象和接口不应该因为 L3 底层是内存队列、Redis、开源 MQ 或其它实现而变化。
+L1 当前只假设 L3 提供 `Queue`、`QueueFactory`、`QueuePublisher`、`QueueConsumer` 和 `QueueManager`。后续写代码时，`EgressQueueRegistry` 只适配这组 L3 队列接口；其它 L1 对象和接口不应该因为 L3 底层是内存队列、Redis、开源 MQ 或其它实现而变化。
 
 ---
 
@@ -664,15 +741,15 @@ L1 当前只假设 L3 提供 `Queue`、`QueueFactory`、`QueuePublisher`、`Queu
 
 | 文件 | 职责 |
 |---|---|
-| `AccessIntent.java` | L1 归一后的内部请求对象，屏蔽 A2A / MQ 原始协议差异。 |
-| `AccessAcceptedResponse.java` | L4 接收 `AccessIntent` 后返回给 L1 的内部接收结果，包含 task 标识。 |
-| `AccessOperation.java` | 定义 `SUBMIT / RESUME / CANCEL / QUERY / SUBSCRIBE / CALLBACK` 等入口操作。 |
-| `ReplyChannel.java` | 定义用户回消息通道类型，例如 A2A 响应、MQ reply、推送通道。 |
-| `NotificationFrame.java` | L4/L5 返回给用户的统一消息帧，包含内部通知语义、载荷和 terminal 标记。 |
-| `NotificationType.java` | 定义内部通知语义枚举，当前包含 `ACK / TOOL_RESULT / LLM_RESULT / ERROR`。 |
-| `EgressBinding.java` | L1 内部交付路由，记录消息应投递到哪个外部目标。 |
-| `TaskHandler.java` | L1 内部任务处理入口，签名对齐 L4 `AccessIntent / AccessAcceptedResponse`，并调用 `TaskControlClient`。 |
-| `NotificationPort.java` | L1 暴露给 L4/L5 的通知端口；内部层通过它把用户消息交回 L1。 |
+| `model/AccessIntent.java` | L1 归一后的内部请求对象，屏蔽 A2A / MQ 原始协议差异。 |
+| `model/AccessAcceptedResponse.java` | L4 接收 `AccessIntent` 后返回给 L1 的内部接收结果，包含 task 标识。 |
+| `model/AccessOperation.java` | 定义 `SUBMIT / RESUME / CANCEL / QUERY / SUBSCRIBE / CALLBACK` 等入口操作。 |
+| `model/ReplyChannel.java` | 定义用户回消息通道类型，例如 A2A 响应、MQ reply、推送通道。 |
+| `model/NotificationFrame.java` | L4/L5 返回给用户的统一消息帧，包含内部通知语义、载荷和 terminal 标记。 |
+| `model/NotificationType.java` | 定义内部通知语义枚举，当前包含 `ACK / TOOL_RESULT / LLM_RESULT / ERROR`。 |
+| `model/EgressBinding.java` | L1 内部交付路由，记录消息应投递到哪个外部目标。 |
+| `port/TaskHandler.java` | L1 内部任务处理入口，签名对齐 L4 `AccessIntent / AccessAcceptedResponse`，并调用 `TaskControlClient`。 |
+| `port/NotificationPort.java` | L1 暴露给 L4/L5 的通知端口；内部层通过它把用户消息交回 L1。 |
 | `MqIngressQueue.java` | L1 对外暴露的 MQ 入站队列接口。 |
 | `MqEnvelope.java` | MQ 外部入口消息信封，内部包含 `MqHeaders` 和 `MqBody`。 |
 | `MqIngressAdapter.java` | MQ 入站适配器，把 `MqEnvelope` 转换为 `AccessIntent`。 |
@@ -688,10 +765,24 @@ L1 当前只假设 L3 提供 `Queue`、`QueueFactory`、`QueuePublisher`、`Queu
 | `A2aAgentCardAdapter.java` | A2A Agent Card 查询适配器，返回当前 Agent 的对外能力声明。 |
 | `EgressAdapter.java` | 出站适配器 SPI，统一 A2A / MQ 等回消息通道的投递接口。 |
 | `EgressQueueRegistry.java` | 按 `tenantId + sessionId + taskId` 管理和查找 L3 回消息队列实例。 |
+| `DefaultEgressQueueRegistry.java` | `EgressQueueRegistry` 默认实现，维护 `EgressBinding` 与回消息队列的内存索引。 |
 | `EgressDispatcher.java` | 消费 L3 回消息队列，并根据 `EgressBinding.replyChannel` 选择 `EgressAdapter`。 |
+| `DefaultNotificationPort.java` | `NotificationPort` 默认实现，按 `tenantId + sessionId + taskId` 查找队列并写入 `NotificationFrame`。 |
+| `EgressDeliveryException.java` | L1 出站投递失败异常，用于表达缺少队列、通道适配器或队列内容类型错误。 |
 | `MqEgressAdapter.java` | `EgressAdapter` 的 MQ 实现，把 `NotificationFrame` 写到 MQ reply topic/queue。 |
+| `MqOutputSink.java` | MQ 出站真实发送端口，后续由具体 MQ 客户端实现。 |
+| `A2aAccessController.java` | A2A HTTP 控制器，暴露任务提交、恢复、取消、Agent Card 查询、输出查询和 SSE 订阅入口。 |
+| `A2aWellKnownAgentCardController.java` | A2A 标准发现控制器，暴露 `/.well-known/agent-card.json`。 |
 | `A2aEgressAdapter.java` | `EgressAdapter` 的 A2A 实现，把 `NotificationFrame` 写回 A2A 响应或 A2A 侧订阅通道。 |
-| `ProtocolGateway.java` | L1 主入口编排器，协调入站归一、egress binding 建立和 L4 调用。 |
+| `A2aOutput.java` | A2A 出站统一输出对象，承载 TaskStatus、Message、Artifact 或 error 映射结果。 |
+| `A2aOutputSink.java` | A2A 出站发送端口，由默认实现统一承接 `SYNC / STREAM / PUSH_NOTIFICATION`。 |
+| `A2aOutputHandle.java` | A2A 出站输出索引键，按 `tenantId + sessionId + taskId` 定位输出。 |
+| `A2aOutputRegistry.java` | A2A 出站输出注册表，支持同步查询和 SSE 订阅。 |
+| `A2aPushNotificationClient.java` | A2A push notification 发送端口。 |
+| `HttpA2aPushNotificationClient.java` | 基于 HTTP POST 的 A2A push notification 默认实现。 |
+| `DefaultA2aOutputSink.java` | A2A 出站默认实现，按 `A2aReplyMode` 分发到查询缓存、SSE 订阅或 HTTP push。 |
+| `gateway/AccessGateway.java` | L1 主入口编排器，协调入站归一、egress binding 建立和 L4 调用。 |
+| `config/AccessLayerConfiguration.java` | L1 Spring 装配类，注册 access gateway、ingress adapter、notification port、egress dispatcher 和临时队列工厂；依赖 `TaskHandler` 的入口 Bean 在 L4 提供后才装配。 |
 
 ---
 
@@ -702,12 +793,12 @@ L1 当前只假设 L3 提供 `Queue`、`QueueFactory`、`QueuePublisher`、`Queu
 | 外部 A2A 入口 | `service/access/a2a/A2aAccessService.java` + `A2aIngressAdapter.java` | 只负责接收 `A2aEnvelope` 并转换为内部 `AccessIntent`。 |
 | A2A 能力发现 | `service/access/a2a/A2aAgentCardService.java` + `A2aAgentCardAdapter.java` | 只返回对外能力和调用约束，不进入业务执行流程。 |
 | 外部 MQ 入口 | `service/access/mq/MqIngressQueue.java` + `MqIngressAdapter.java` | 只负责接收 `MqEnvelope` 并转换为内部 `AccessIntent`。 |
-| 内部归一化请求 | `service/access/spi/AccessIntent.java` | A2A / MQ 入口最终都必须生成同一个对象。 |
-| 内部接收结果 | `service/access/spi/AccessAcceptedResponse.java` | L4 返回 task 标识后，L1 基于它创建 `EgressBinding`。 |
-| L4 控制入口 | `service/access/spi/TaskHandler.java` | L1 通过该入口调用 `TaskControlClient`，方法签名对齐 L4 `AccessIntent / AccessAcceptedResponse`。 |
-| 用户回消息入口 | `service/access/spi/NotificationPort.java` | L4/L5 只通过该端口把消息交还给 L1。 |
+| 内部归一化请求 | `service/access/model/AccessIntent.java` | A2A / MQ 入口最终都必须生成同一个对象。 |
+| 内部接收结果 | `service/access/model/AccessAcceptedResponse.java` | L4 返回 task 标识后，L1 基于它创建 `EgressBinding`。 |
+| L4 控制入口 | `service/access/port/TaskHandler.java` | L1 通过该入口调用 `TaskControlClient`，方法签名对齐 L4 `AccessIntent / AccessAcceptedResponse`。 |
+| 用户回消息入口 | `service/access/port/NotificationPort.java` | L4/L5 只通过该端口把消息交还给 L1。 |
 | 回消息队列 | L3 `Queue` | 由 L3 定义和创建，L1 通过 `EgressQueueRegistry` 持有和索引，外部不能直接访问。 |
-| 回消息路由 | `service/access/spi/EgressBinding.java` | 记录消息写回 A2A / MQ 的目标。 |
+| 回消息路由 | `service/access/model/EgressBinding.java` | 记录消息写回 A2A / MQ 的目标。 |
 | 出站适配 SPI | `service/access/egress/EgressAdapter.java` | 统一出站投递接口，供 `EgressDispatcher` 按 `ReplyChannel` 选择实现。 |
 | A2A 出站适配 | `service/access/a2a/A2aEgressAdapter.java` | 实现 `EgressAdapter`，根据 `EgressBinding` 把 `NotificationFrame` 投递到 A2A 通道。 |
 | A2A 出站映射 | `service/access/a2a/A2aEgressAdapter.java` | 负责把内部通知帧转换为 A2A 协议语义。后续如果映射复杂，再拆出独立 mapper。 |

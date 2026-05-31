@@ -14,8 +14,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  * <p>{@link ConfigurationPropertiesScan} picks up every {@code @ConfigurationProperties}
  * record under {@code com.huawei.ascend.service.platform..}.
  */
-@SpringBootApplication
-@ConfigurationPropertiesScan("com.huawei.ascend.service.platform")
+@SpringBootApplication(scanBasePackages = "com.huawei.ascend.service")
+@ConfigurationPropertiesScan("com.huawei.ascend.service")
 public class PlatformApplication {
 
     public static void main(String[] args) {
