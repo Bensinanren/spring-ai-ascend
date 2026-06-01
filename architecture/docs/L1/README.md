@@ -24,27 +24,26 @@ Read this directory for "what is this module designed to do?" Read the surfaces 
 
 | Module | L1 entry | Plane | Status |
 |---|---|---|---|
-| `agent-bus` | [`agent-bus.md`](agent-bus/README.md) | Bus & State Hub | active |
-| `agent-client` | [`agent-client.md`](agent-client/README.md) | Edge Access | skeleton (W3+) |
-| `agent-evolve` | [`agent-evolve.md`](agent-evolve/README.md) | Evolution | skeleton (W3+) |
-| `agent-execution-engine` | [`agent-execution-engine.md`](agent-execution-engine/README.md) | Compute & Control | active (SPI + registry) |
-| `agent-middleware` | [`agent-middleware.md`](agent-middleware/README.md) | Compute & Control | active (SPI) |
+| `agent-bus` | [`agent-bus/`](agent-bus/README.md) | Bus & State Hub | active |
+| `agent-client` | [`agent-client/`](agent-client/README.md) | Edge Access | skeleton (W3+) |
+| `agent-evolve` | [`agent-evolve/`](agent-evolve/README.md) | Evolution | skeleton (W3+) |
+| `agent-execution-engine` | [`agent-execution-engine/`](agent-execution-engine/README.md) | Compute & Control | active (SPI + registry) |
+| `agent-middleware` | [`agent-middleware/`](agent-middleware/README.md) | Compute & Control | active (SPI) |
 | `agent-service` | [`agent-service/`](agent-service/) | Compute & Control | active (rc55 4+1 per-view) |
 | `spring-ai-ascend-graphmemory-starter` | [`graphmemory-starter.md`](graphmemory-starter/README.md) | Bus & State Hub | active (in-memory ref impl) |
 | `spring-ai-ascend-dependencies` | (no L1 design — BoM) | (build-time) | active |
 
 ## Per-module entry convention
 
-- **Single `<module>.md` file** — modules whose L1 design is small enough for one narrative file (5 modules + graphmemory-starter). The file declares `level: L1, view: <primary-view>` in front-matter; if the module's design touches multiple views, list them under `covers_views:`.
-- **`<module>/` directory** with per-view files — modules whose L1 design has graduated to a full 4+1 (only `agent-service` today; rc55 W3-W5 + post-merge audit Wave 3). Files inside: `README.md` (index) + `logical.md` + `process.md` + `physical.md` + `development.md` + `scenarios.md` + `spi-appendix.md` + `ARCHITECTURE.md` (shipped-state companion) + optional `features/` subdirectory.
+- **`<module>/` directory** — the current canonical shape for L1 module design. Mature modules may contain the full 4+1 file set; smaller modules may keep most content in `README.md` and `ARCHITECTURE.md`.
 
-A module is free to expand from a single `.md` to a per-view directory when its L1 design matures; the expansion is its own commit and the path change updates `module-metadata.yaml#architecture_doc`.
+A module is free to expand its directory with additional per-view files when its L1 design matures; the expansion is its own commit and the path change updates `module-metadata.yaml#architecture_doc` when needed.
 
 ## Adding a new module L1 design
 
 1. Add the Maven module under repo root with a populated `<module>/module-metadata.yaml`.
-2. Create `architecture/docs/L1/<module>.md` (or directory if 4+1 is required from day one). Declare `level: L1, view: ..., status: ...` front-matter.
-3. Update `<module>/module-metadata.yaml#architecture_doc:` to point at the new file (or `<module>/README.md` for directory shape).
+2. Create `architecture/docs/L1/<module>/README.md` plus `ARCHITECTURE.md` or per-view files as needed. Declare `level: L1, view: ..., status: ...` front-matter.
+3. Update `<module>/module-metadata.yaml#architecture_doc:` to point at `architecture/docs/L1/<module>/README.md` unless a module-specific companion file is intentionally more appropriate.
 4. Add a row to this index above.
 5. Add a `container` declaration to [`../../workspace.dsl`](../../workspace.dsl) with `saa.id MOD-<MODULE-UPPER>`.
 6. Re-emit `architecture/generated/modules.dsl` via `AllFragmentsCli`; verify the workspace gate PASS.

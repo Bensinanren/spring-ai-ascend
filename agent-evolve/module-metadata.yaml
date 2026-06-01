@@ -8,7 +8,7 @@ kind: domain             # platform | domain | starter | bom | sample
 version: 0.0.1-SNAPSHOT
 semver_compatibility: experimental
 description: "Evolution plane — Java-side adapter skeleton for the Python ML pipeline. EvolutionExport discriminator + telemetry-export contract live here once Java integration lands. Bulk implementation deferred indefinitely per ADR-0075 and CLAUDE-deferred.md."
-architecture_doc: architecture/docs/L1/agent-evolve.md
+architecture_doc: architecture/docs/L1/agent-evolve/README.md
 dfx_doc: docs/dfx/agent-evolve.yaml
 spi_packages:
   - com.huawei.ascend.evolve.spi             # placeholder; populated when Java adapter activates per ADR-0075

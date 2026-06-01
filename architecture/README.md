@@ -78,13 +78,13 @@ architecture/
   docs/                          # L1 narrative + L2 designs (HUMAN-readable; imported via !docs)
     L1/
       README.md                  # L1 module index
-      agent-bus.md               # narrative (1 file per module — single-narrative shape)
-      agent-client.md
-      agent-evolve.md
-      agent-execution-engine.md
-      agent-middleware.md
-      graphmemory-starter.md
-      agent-service/             # per-view 4+1 directory shape (graduated from single .md)
+      agent-bus/                 # canonical L1 module directory
+      agent-client/
+      agent-evolve/
+      agent-execution-engine/
+      agent-middleware/
+      graphmemory-starter/
+      agent-service/             # full per-view 4+1 directory shape
         README.md, architecture/docs/L0/ARCHITECTURE.md, logical.md, process.md, physical.md,
         development.md, scenarios.md, spi-appendix.md, features/, diagrams/
     L2/                          # deep technical designs
@@ -165,8 +165,8 @@ bash gate/check_architecture_workspace.sh
 |---|---|---|
 | Add a new **capability** | `architecture/features/capabilities.dsl` — add an `element "X" "Capability" "..." "SAA Capability"` with required `saa.*` properties | re-emit fragments + validate; gate verifies the saa.id is unique |
 | Add a new **function point** | `architecture/features/function-points.dsl` (the function point) + `architecture/features/verification.dsl` (the test edge) | same as above; ADR-link the function point via `saa.sourceAdr` |
-| Add a new **module** | (1) add Maven module + populate `<module>/module-metadata.yaml`; (2) add a `container` declaration to `workspace.dsl`; (3) create `architecture/docs/L1/<module>.md` (or `<module>/` directory); (4) repoint `module-metadata.yaml#architecture_doc` | re-emit `generated/modules.dsl`; gate verifies the module appears |
-| Add a new **L1 design view** for a module | If the module is on the single-narrative `<module>.md` shape, either extend that file OR graduate to a `<module>/` directory with per-view files | Update `architecture/docs/L1/README.md` to reflect the shape change |
+| Add a new **module** | (1) add Maven module + populate `<module>/module-metadata.yaml`; (2) add a `container` declaration to `workspace.dsl`; (3) create `architecture/docs/L1/<module>/README.md`; (4) repoint `module-metadata.yaml#architecture_doc` | re-emit `generated/modules.dsl`; gate verifies the module appears |
+| Add a new **L1 design view** for a module | Add the view file under `architecture/docs/L1/<module>/` and link it from the module README | Update `architecture/docs/L1/README.md` if the module shape changes materially |
 
 ## Lifecycle
 

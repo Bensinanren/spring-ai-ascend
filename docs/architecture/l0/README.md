@@ -2,42 +2,40 @@
 level: L0
 view: governance
 status: draft
+authority: "draft/proposal area only; canonical L0 is architecture/docs/L0/ARCHITECTURE.md"
+document_role: proposal_collection
+source_of_truth: false
+canonical_l0: ../../../architecture/docs/L0/ARCHITECTURE.md
 ---
 
-# L0 架构树
+# Draft L0 Delivery Views
 
-## 目的
+This directory contains draft delivery views and proposal material. It is not
+the canonical L0 root. The accepted L0 architecture is
+[`../../../architecture/docs/L0/ARCHITECTURE.md`](../../../architecture/docs/L0/ARCHITECTURE.md).
 
-本目录是 `docs/architecture/` 下的架构树根节点。L0 管理系统级架构事实；L1 服务架构和 L2 专题设计必须挂在本目录下，形成可追踪的父子关系。
+## Directory Roles
 
-```text
-l0/
-  00-overview/              # 系统概览、术语、原则
-  01-capabilities/          # 系统能力
-  04-modules/               # L0 模块职责和交付设计包
-  06-state/                 # 系统级状态归属
-  05-contracts/             # 跨服务 / 跨模块契约草案
-  02-scenarios/             # 系统级业务场景和技术子场景
-  07-invariants/            # 系统级架构不变量
-  08-harness/               # 系统级或跨模块 harness
-  09-verification/          # 系统级验证矩阵
-  10-governance/            # A2D、评审、变更和目录治理
-  l1/<service>/             # 服务级 L1 4+1 架构
-  l1/<service>/l2/<topic>/  # 服务内 L2 专题设计
-```
+| Path | Draft Role | Promotion Target |
+|---|---|---|
+| `00-overview/` | Draft overview and glossary material. | `architecture/docs/L0/` or accepted product/governance docs. |
+| `01-capabilities/` | Draft capability mapping. | `architecture/features/` and canonical L0/L1 prose. |
+| `02-scenarios/` | Draft business and technical scenarios. | `architecture/docs/L0/`, `architecture/docs/L1/`, or accepted harness specs. |
+| `03-adrs/` | Draft decision notes. | `docs/adr/` after formal acceptance. |
+| `04-modules/` | Draft module responsibility packets. | `architecture/docs/L1/<module>/` after acceptance. |
+| `05-contracts/` | Draft ICD and machine-readable contract sketches. | `docs/contracts/` plus catalog/ADR/test binding. |
+| `06-state/` | Draft state ownership analysis. | Canonical L0/L1 state sections. |
+| `07-invariants/` | Draft invariants. | Canonical L0/L1 constraints or governance rules. |
+| `08-harness/` | Draft harness specs. | Accepted harness or test documentation. |
+| `09-verification/` | Draft verification matrix. | Canonical verification DSL, tests, or governance ledgers. |
+| `10-governance/` | Draft A2D process material. | `docs/governance/` only after acceptance. |
+| `l1/` | Historical/draft L1 copies. | `architecture/docs/L1/<module>/` after triage; otherwise archive. |
 
-## 层级规则
+## Reading Rule
 
-- L0 可以定义服务边界、跨服务契约、系统状态归属、系统不变量和全局验证要求。
-- L1 服务架构必须细化 L0，但不能改写 L0；每个 L1 服务目录必须说明它继承的 L0 边界。
-- L2 专题设计必须挂在父级 L1 服务目录的 `l2/<topic>/` 下，细化该服务的某个视图、边界合同或关键机制。
-- `04-modules/<module>/` 保留为交付设计包和开发切片入口，不作为 L1 4+1 架构的权威位置。
+Read this directory only after the canonical architecture path has been read.
+When this directory conflicts with `architecture/`, `docs/contracts/`,
+`docs/adr/`, or `docs/governance/`, the canonical source wins.
 
-## 入口
-
-| 类型 | 位置 |
-|---|---|
-| L0 文档地图 | [../README.md](../README.md) |
-| L0 目录 catalog | [10-governance/document-artifact-catalog.md](10-governance/document-artifact-catalog.md) |
-| A2D 工作模型 | [10-governance/a2d-working-model.md](10-governance/a2d-working-model.md) |
-| `agent-service` L1 4+1 | [l1/agent-service/README.md](l1/agent-service/README.md) |
+No new accepted L1 or L2 material should be authored here. New accepted L1 lives
+under `architecture/docs/L1/`; accepted L2 lives under `architecture/docs/L2/`.
