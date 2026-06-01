@@ -1,0 +1,2 @@
+# Secrets and local config — never commit the resolved apiconfig.
+apiconfig.json
