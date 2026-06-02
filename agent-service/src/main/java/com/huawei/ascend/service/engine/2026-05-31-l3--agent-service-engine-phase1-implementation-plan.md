@@ -16,7 +16,7 @@
 - inputs 用 `Map.of("query",text,"conversation_id",id)`
 - 包路径：`com.openjiuwen.core.singleagent.ReActAgent` / `.singleagent.agents.ReActAgentConfig` / `.singleagent.schema.AgentCard` / `.runner.Runner` / `.foundation.llm.Model` / `.foundation.llm.schema.ModelRequestConfig`
 
-**LLM 配置（用户提供，example 用）:** provider=`openai`，api-base=`http://localhost:4000/v1`，api-key=`sk-x00550472`，model=`gpt-5.4-mini`，ssl-verify=`false`。
+**LLM 配置（用户提供，example 用）:** provider=`openai`，api-base=`http://localhost:4000/v1`，api-key=`sk-REPLACE_ME`，model=`gpt-5.4-mini`，ssl-verify=`false`。
 
 ---
 
@@ -1373,7 +1373,7 @@ class OpenJiuwenEchoAgentSmokeIT {
 先导出真实配置（用户提供）：
 ```bash
 export OJW_MODEL_PROVIDER=openai OJW_API_BASE=http://localhost:4000/v1 \
-       OJW_API_KEY=sk-x00550472 OJW_MODEL_NAME=gpt-5.4-mini OJW_SSL_VERIFY=false
+       OJW_API_KEY=sk-REPLACE_ME OJW_MODEL_NAME=gpt-5.4-mini OJW_SSL_VERIFY=false
 ```
 Run:
 ```bash

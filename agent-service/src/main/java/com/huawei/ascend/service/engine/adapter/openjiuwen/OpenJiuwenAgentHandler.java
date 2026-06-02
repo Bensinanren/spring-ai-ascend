@@ -1,41 +1,38 @@
 package com.huawei.ascend.service.engine.adapter.openjiuwen;
 
-import com.huawei.ascend.service.engine.event.EngineExecutionEvent;
-import com.huawei.ascend.service.engine.event.EngineFailedEvent;
-import com.huawei.ascend.service.engine.event.EngineStartedEvent;
 import com.huawei.ascend.service.engine.handler.AgentExecutionContext;
 import com.huawei.ascend.service.engine.model.EngineExecutionScope;
+import com.huawei.ascend.service.engine.spi.AgentResultAdapter;
 import com.huawei.ascend.service.engine.spi.AgentHandler;
 import com.openjiuwen.core.runner.Runner;
-import com.openjiuwen.core.singleagent.ReActAgent;
-import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Generic openJiuwen {@link AgentHandler} (design §10.1). It is the only engine
- * code that touches the framework's {@code Runner}: it builds the agent via the
- * {@link OpenJiuwenAgentFactory} seam, runs it synchronously, and maps the
- * result to a terminal event per §10.4. The concrete agent (prompt/tools/model)
- * is supplied by the developer's factory (layer ③).
+ * Base class for openJiuwen {@link AgentHandler} implementations. The concrete
+ * handler owns how it builds and invokes its openJiuwen agent; this class only
+ * provides the runtime-facing id, health default, and input/result mapping
+ * helpers shared by openJiuwen handlers.
  */
-public class OpenJiuwenAgentHandler implements AgentHandler {
+public abstract class OpenJiuwenAgentHandler implements AgentHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(OpenJiuwenAgentHandler.class);
 
     private final String agentId;
-    private final OpenJiuwenAgentFactory agentFactory;
     private final OpenJiuwenMessageConverter messageConverter;
     private final OpenJiuwenResultMapper resultMapper;
 
-    public OpenJiuwenAgentHandler(String agentId, OpenJiuwenAgentFactory agentFactory, OpenJiuwenMessageConverter messageConverter) {
-        this(agentId, agentFactory, messageConverter,
-                new OpenJiuwenResultMapper(() -> UUID.randomUUID().toString(), Instant::now));
+    protected OpenJiuwenAgentHandler(String agentId) {
+        this(agentId, new OpenJiuwenMessageConverter());
     }
 
-    OpenJiuwenAgentHandler(String agentId, OpenJiuwenAgentFactory agentFactory, OpenJiuwenMessageConverter messageConverter,
-                           OpenJiuwenResultMapper resultMapper) {
+    protected OpenJiuwenAgentHandler(String agentId, OpenJiuwenMessageConverter messageConverter) {
+        this(agentId, messageConverter, new OpenJiuwenResultMapper());
+    }
+
+    OpenJiuwenAgentHandler(String agentId, OpenJiuwenMessageConverter messageConverter, OpenJiuwenResultMapper resultMapper) {
         this.agentId = agentId;
-        this.agentFactory = agentFactory;
         this.messageConverter = messageConverter;
         this.resultMapper = resultMapper;
     }
@@ -47,30 +44,40 @@ public class OpenJiuwenAgentHandler implements AgentHandler {
 
     @Override
     public boolean isHealthy() {
-        return agentFactory != null;
+        return true;
+    }
+
+    protected Object toOpenJiuwenInput(AgentExecutionContext context) {
+        LOGGER.info("openjiuwen input convert tenantId={} sessionId={} taskId={} agentId={} inputType={} messages={}",
+                context.getScope().tenantId(),
+                context.getScope().sessionId(),
+                context.getScope().taskId(),
+                context.getScope().agentId(),
+                context.getInput().inputType(),
+                context.getInput().messages().size());
+        return messageConverter.toOpenJiuwenInput(context);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Stream<EngineExecutionEvent> execute(AgentExecutionContext context) {
-        EngineExecutionScope scope = context.getScope();
-        EngineStartedEvent started = new EngineStartedEvent(newId(), scope, Instant.now());
-        EngineExecutionEvent terminal;
-        try {
-            ReActAgent agent = agentFactory.create(context);
-            Object input = messageConverter.toOpenJiuwenInput(context);
-            Map<String, Object> result = (Map<String, Object>) Runner.runAgent(agent, input, null, null);
-            terminal = resultMapper.map(scope, result);
-        } catch (Exception e) {
-            terminal = new EngineFailedEvent(newId(), scope, Instant.now(),
-                    OpenJiuwenResultMapper.ERROR_CODE, String.valueOf(e.getMessage()));
-        } finally {
-            safeRelease(scope);
-        }
-        return Stream.of(started, terminal);
+    public AgentResultAdapter resultAdapter() {
+        return rawResults -> rawResults.map(this::mapRawResult);
     }
 
-    private void safeRelease(EngineExecutionScope scope) {
+    @SuppressWarnings("unchecked")
+    private com.huawei.ascend.service.engine.spi.AgentExecutionResult mapRawResult(Object rawResult) {
+        LOGGER.info("openjiuwen raw result received type={}",
+                rawResult == null ? "null" : rawResult.getClass().getName());
+        if (rawResult instanceof Map<?, ?> map) {
+            return resultMapper.map((Map<String, Object>) map);
+        }
+        return resultMapper.map(Map.of("result_type", "answer", "output", String.valueOf(rawResult)));
+    }
+
+    protected void safeRelease(AgentExecutionContext context) {
+        safeRelease(context.getScope());
+    }
+
+    protected void safeRelease(EngineExecutionScope scope) {
         try {
             Runner.release(scope.taskId());
         } catch (Exception ignored) {
@@ -78,7 +85,19 @@ public class OpenJiuwenAgentHandler implements AgentHandler {
         }
     }
 
-    private String newId() {
-        return UUID.randomUUID().toString();
+    protected static String errorMessage(Throwable error) {
+        StringBuilder message = new StringBuilder();
+        Throwable cursor = error;
+        while (cursor != null) {
+            String part = cursor.getMessage();
+            if (part != null && !part.isBlank()) {
+                if (!message.isEmpty()) {
+                    message.append(": ");
+                }
+                message.append(part);
+            }
+            cursor = cursor.getCause();
+        }
+        return message.isEmpty() ? error.getClass().getName() : message.toString();
     }
 }

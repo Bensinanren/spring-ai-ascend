@@ -50,6 +50,7 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -60,36 +61,43 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-jdbc</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-flyway</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>
       <scope>runtime</scope>
+      <optional>true</optional>
     </dependency>
 
     <!-- Security: OAuth2 resource server (JWT). -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <!-- Resilience4j: spring-boot integration + circuit breaker (the latter for tests was in agent-runtime). -->
     <dependency>
       <groupId>io.github.resilience4j</groupId>
       <artifactId>resilience4j-spring-boot3</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <!-- Caching (in-process). -->
@@ -106,24 +114,28 @@
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-vault-config</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <!-- OpenAPI / Swagger UI. -->
     <dependency>
       <groupId>org.springdoc</groupId>
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <!-- Observability: Micrometer + Prometheus. -->
     <dependency>
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-prometheus</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <!-- Logback JSON. -->
     <dependency>
       <groupId>net.logstash.logback</groupId>
       <artifactId>logstash-logback-encoder</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <!-- ====== Runtime-side (from former agent-runtime) ====== -->
@@ -132,14 +144,17 @@
     <dependency>
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-model-anthropic</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-model-openai</artifactId>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <!-- MCP Java SDK. -->
@@ -232,6 +247,7 @@
       <groupId>com.openjiuwen</groupId>
       <artifactId>agent-core-java</artifactId>
       <version>0.1.7</version>
+      <optional>true</optional>
     </dependency>
   </dependencies>
 

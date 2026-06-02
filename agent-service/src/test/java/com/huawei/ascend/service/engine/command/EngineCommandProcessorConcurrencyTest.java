@@ -6,21 +6,17 @@ import com.huawei.ascend.service.engine.api.DefaultEngineDispatchApi;
 import com.huawei.ascend.service.engine.api.EnqueueEngineExecutionRequest;
 import com.huawei.ascend.service.engine.dispatch.DefaultAgentHandlerRegistry;
 import com.huawei.ascend.service.engine.dispatch.EngineDispatcher;
-import com.huawei.ascend.service.engine.event.EngineCompletedEvent;
-import com.huawei.ascend.service.engine.event.EngineExecutionEvent;
-import com.huawei.ascend.service.engine.event.EngineStartedEvent;
 import com.huawei.ascend.service.engine.handler.AgentExecutionContext;
 import com.huawei.ascend.service.engine.model.EngineExecutionScope;
 import com.huawei.ascend.service.engine.model.EngineInput;
-import com.huawei.ascend.service.engine.model.EngineOutput;
+import com.huawei.ascend.service.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.service.engine.spi.AgentHandler;
+import com.huawei.ascend.service.engine.spi.AgentResultAdapter;
 import com.huawei.ascend.service.engine.support.RecordingAccessLayerClient;
 import com.huawei.ascend.service.engine.support.RecordingTaskControlClient;
 import com.huawei.ascend.service.queue.QueueManager;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -79,7 +75,7 @@ class EngineCommandProcessorConcurrencyTest {
         }
 
         @Override
-        public Stream<EngineExecutionEvent> execute(AgentExecutionContext context) {
+        public Stream<?> execute(AgentExecutionContext context) {
             active.incrementAndGet();
             bothStarted.countDown();
             try {
@@ -93,10 +89,16 @@ class EngineCommandProcessorConcurrencyTest {
                 active.decrementAndGet();
                 bothFinished.countDown();
             }
-            return Stream.of(
-                    new EngineStartedEvent(id(), context.getScope(), Instant.now()),
-                    new EngineCompletedEvent(
-                            id(), context.getScope(), Instant.now(), new EngineOutput("done", true)));
+            return Stream.of(Map.of("result_type", "answer", "output", "done"));
+        }
+
+        @Override
+        public AgentResultAdapter resultAdapter() {
+            return rawResults -> rawResults.map(rawResult -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> result = (Map<String, Object>) rawResult;
+                return AgentExecutionResult.completed(String.valueOf(result.get("output")));
+            });
         }
 
         boolean awaitBothStarted() throws InterruptedException {
@@ -112,8 +114,5 @@ class EngineCommandProcessorConcurrencyTest {
             return bothFinished.await(5, TimeUnit.SECONDS);
         }
 
-        private static String id() {
-            return UUID.randomUUID().toString();
-        }
     }
 }

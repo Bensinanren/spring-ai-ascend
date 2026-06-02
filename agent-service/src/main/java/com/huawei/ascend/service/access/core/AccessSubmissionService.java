@@ -21,12 +21,16 @@ import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.TaskResult;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Submits normalized access requests into task control and binds the session
  * reply channel before dispatch.
  */
 public final class AccessSubmissionService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AccessSubmissionService.class);
 
     private final TaskControlClient taskControlClient;
     private final SessionManager sessionManager;
@@ -48,6 +52,12 @@ public final class AccessSubmissionService {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(reply, "reply");
         AgentRequest resolved = resolveSession(request);
+        LOGGER.info("access resolved session tenantId={} userId={} agentId={} requestedSessionId={} resolvedSessionId={}",
+                request.tenantId(),
+                request.userId(),
+                request.agentId(),
+                request.sessionId(),
+                resolved.sessionId());
         bindEgress(resolved, reply);
         return taskControlClient.run(new RunCommand(resolved))
                 .thenApply(result -> toAccepted(resolved, result));
@@ -79,6 +89,12 @@ public final class AccessSubmissionService {
         EgressBinding binding = EgressBindingFactory.from(request, reply);
         egressQueueRegistry.getOrCreate(binding);
         egressDispatcher.start(binding);
+        LOGGER.info("access egress bound tenantId={} sessionId={} agentId={} channel={} streaming={}",
+                binding.tenantId(),
+                binding.sessionId(),
+                request.agentId(),
+                binding.replyChannel(),
+                reply.a2aStreaming());
     }
 
     private AgentRequest resolveSession(AgentRequest request) {

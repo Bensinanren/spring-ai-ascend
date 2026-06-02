@@ -7,11 +7,15 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Current in-memory InternalEventQueue implementation backed by JDK primitives.
  */
 public final class InMemoryInternalEventQueue<T> implements InternalEventQueue<T> {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(InMemoryInternalEventQueue.class);
 
     private final String queueId;
     private final Sinks.Many<T> sink;
@@ -38,14 +42,20 @@ public final class InMemoryInternalEventQueue<T> implements InternalEventQueue<T
         size.incrementAndGet();
         Sinks.EmitResult result = sink.tryEmitNext(value);
         if (result == Sinks.EmitResult.OK) {
+            LOGGER.info("queue offer queueId={} payloadType={} size={}",
+                    queueId, value.getClass().getSimpleName(), size.get());
             return;
         }
         if (result == Sinks.EmitResult.FAIL_NON_SERIALIZED) {
             sink.emitNext(value, Sinks.EmitFailureHandler.busyLooping(Duration.ofMillis(100)));
+            LOGGER.info("queue offer queueId={} payloadType={} size={} retry=nonSerialized",
+                    queueId, value.getClass().getSimpleName(), size.get());
             return;
         }
         size.decrementAndGet();
         if (result == Sinks.EmitResult.FAIL_ZERO_SUBSCRIBER) {
+            LOGGER.warn("queue offer dropped queueId={} payloadType={} reason=zeroSubscriber",
+                    queueId, value.getClass().getSimpleName());
             return;
         }
         throw new IllegalStateException("queue offer failed for " + queueId + ": " + result);
@@ -57,7 +67,12 @@ public final class InMemoryInternalEventQueue<T> implements InternalEventQueue<T
             throw new IllegalStateException("queue supports a single consumer: " + queueId);
         }
         return sink.asFlux()
-                .doOnNext(value -> size.decrementAndGet());
+                .doOnSubscribe(subscription -> LOGGER.info("queue subscribed queueId={}", queueId))
+                .doOnNext(value -> {
+                    int remaining = size.decrementAndGet();
+                    LOGGER.info("queue consume queueId={} payloadType={} remaining={}",
+                            queueId, value.getClass().getSimpleName(), remaining);
+                });
     }
 
     @Override

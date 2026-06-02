@@ -12,6 +12,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.TaskArtifactUpdateEvent;
 import org.a2aproject.sdk.spec.TaskState;
@@ -20,6 +22,8 @@ import org.a2aproject.sdk.spec.TaskStatusUpdateEvent;
 import org.a2aproject.sdk.spec.TextPart;
 
 public final class A2aEgressAdapter implements EgressAdapter {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(A2aEgressAdapter.class);
 
     private final A2aOutputSink outputSink;
     private final ConcurrentHashMap<String, AtomicLong> sequences = new ConcurrentHashMap<>();
@@ -35,6 +39,15 @@ public final class A2aEgressAdapter implements EgressAdapter {
 
     @Override
     public void deliver(EgressBinding binding, NotificationFrame frame) {
+        LOGGER.info("a2a egress deliver tenantId={} sessionId={} taskId={} type={} status={} terminal={} outputMessages={} errorPresent={}",
+                frame.tenantId(),
+                frame.sessionId(),
+                frame.taskId(),
+                frame.type(),
+                frame.status(),
+                frame.terminal(),
+                frame.output().size(),
+                frame.error() != null);
         outputSink.send(binding, toA2aOutput(binding, frame));
         if (frame.terminal()) {
             sequences.remove(sequenceKey(binding));
@@ -57,6 +70,13 @@ public final class A2aEgressAdapter implements EgressAdapter {
             metadata.put("artifactId", artifactId(binding, frame));
         }
         org.a2aproject.sdk.spec.StreamingEventKind event = toStreamingEvent(binding, frame, kind, metadata);
+        LOGGER.info("a2a egress mapped tenantId={} sessionId={} taskId={} kind={} terminal={} outputTextLength={}",
+                frame.tenantId(),
+                frame.sessionId(),
+                frame.taskId(),
+                kind,
+                frame.terminal(),
+                outputText(frame).length());
         return new A2aOutput(
                 kind,
                 frame.taskId(),
@@ -161,5 +181,4 @@ public final class A2aEgressAdapter implements EgressAdapter {
         return value == null || value.isBlank() ? UUID.randomUUID().toString() : value;
     }
 }
-
 

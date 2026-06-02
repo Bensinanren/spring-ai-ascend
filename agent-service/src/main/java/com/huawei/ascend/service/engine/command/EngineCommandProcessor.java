@@ -4,6 +4,8 @@ import com.huawei.ascend.service.engine.dispatch.EngineDispatcher;
 import com.huawei.ascend.service.engine.event.EngineCommandEvent;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 
 /**
@@ -11,6 +13,8 @@ import reactor.core.Disposable;
  * execution pool.
  */
 public class EngineCommandProcessor {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(EngineCommandProcessor.class);
 
     private final EngineCommandGateway commandGateway;
     private final EngineDispatcher dispatcher;
@@ -24,11 +28,26 @@ public class EngineCommandProcessor {
     }
 
     public void start() {
+        LOGGER.info("engine command processor starting");
         subscription = commandGateway.commands().subscribe(this::onCommand);
     }
 
     private void onCommand(EngineCommandEvent command) {
-        executor.execute(() -> dispatcher.dispatch(command));
+        LOGGER.info("engine command received commandType={} tenantId={} sessionId={} taskId={} agentId={}",
+                command.getCommandType(),
+                command.getScope().tenantId(),
+                command.getScope().sessionId(),
+                command.getScope().taskId(),
+                command.getScope().agentId());
+        executor.execute(() -> {
+            LOGGER.info("engine command executing commandType={} tenantId={} sessionId={} taskId={} agentId={}",
+                    command.getCommandType(),
+                    command.getScope().tenantId(),
+                    command.getScope().sessionId(),
+                    command.getScope().taskId(),
+                    command.getScope().agentId());
+            dispatcher.dispatch(command);
+        });
     }
 
     public void stop() {

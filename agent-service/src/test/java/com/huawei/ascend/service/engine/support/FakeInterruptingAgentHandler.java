@@ -1,17 +1,11 @@
 package com.huawei.ascend.service.engine.support;
 
-import com.huawei.ascend.service.engine.event.EngineCompletedEvent;
-import com.huawei.ascend.service.engine.event.EngineExecutionEvent;
-import com.huawei.ascend.service.engine.event.EngineInterruptedEvent;
-import com.huawei.ascend.service.engine.event.EngineOutputEvent;
-import com.huawei.ascend.service.engine.event.EngineStartedEvent;
 import com.huawei.ascend.service.engine.handler.AgentExecutionContext;
-import com.huawei.ascend.service.engine.model.EngineExecutionScope;
-import com.huawei.ascend.service.engine.model.EngineOutput;
 import com.huawei.ascend.service.engine.model.InterruptType;
+import com.huawei.ascend.service.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.service.engine.spi.AgentHandler;
-import java.time.Instant;
-import java.util.UUID;
+import com.huawei.ascend.service.engine.spi.AgentResultAdapter;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -40,22 +34,37 @@ public class FakeInterruptingAgentHandler implements AgentHandler {
     }
 
     @Override
-    public Stream<EngineExecutionEvent> execute(AgentExecutionContext context) {
-        EngineExecutionScope scope = context.getScope();
-        EngineStartedEvent started = new EngineStartedEvent(id(), scope, Instant.now());
+    public Stream<?> execute(AgentExecutionContext context) {
         if (!resumed) {
             resumed = true;
-            EngineInterruptedEvent interrupted = new EngineInterruptedEvent(
-                    id(), scope, Instant.now(), InterruptType.HUMAN_INPUT, "Need your confirmation");
-            return Stream.of(started, interrupted);
+            return Stream.of(Map.of(
+                    "result_type", "interrupt",
+                    "interrupt_type", InterruptType.HUMAN_INPUT,
+                    "prompt", "Need your confirmation"));
         }
-        EngineOutputEvent output = new EngineOutputEvent(id(), scope, Instant.now(), new EngineOutput("done", false));
-        EngineCompletedEvent completed = new EngineCompletedEvent(
-                id(), scope, Instant.now(), new EngineOutput("final answer", true));
-        return Stream.of(started, output, completed);
+        return Stream.of(
+                Map.of("result_type", "output", "output", "done"),
+                Map.of("result_type", "answer", "output", "final answer"));
     }
 
-    private String id() {
-        return UUID.randomUUID().toString();
+    @Override
+    public AgentResultAdapter resultAdapter() {
+        return rawResults -> rawResults.map(FakeInterruptingAgentHandler::adaptRawResult);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static AgentExecutionResult adaptRawResult(Object rawResult) {
+        Map<String, Object> result = (Map<String, Object>) rawResult;
+        String resultType = String.valueOf(result.get("result_type"));
+        if ("interrupt".equals(resultType)) {
+            return AgentExecutionResult.interrupted(
+                    (InterruptType) result.get("interrupt_type"),
+                    String.valueOf(result.get("prompt")));
+        }
+        String output = String.valueOf(result.get("output"));
+        if ("answer".equals(resultType)) {
+            return AgentExecutionResult.completed(output);
+        }
+        return AgentExecutionResult.output(output);
     }
 }

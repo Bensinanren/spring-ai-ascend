@@ -23,8 +23,12 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TaskControlService implements TaskControlClient {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TaskControlService.class);
 
     private final TaskQueueRegistry taskQueues;
     private final Supplier<EngineDispatchApi> engineDispatchApi;
@@ -143,6 +147,14 @@ public class TaskControlService implements TaskControlClient {
                 resume = resumeOnly && task.getState() == TaskState.WAITING;
             }
             String message = resume ? "resume prepared" : "execution prepared";
+            LOGGER.info("task prepared tenantId={} sessionId={} taskId={} agentId={} resume={} state={} inputMessages={}",
+                    task.getTenantId(),
+                    task.getSessionId(),
+                    task.getTaskId(),
+                    task.getAgentId(),
+                    resume,
+                    task.getState(),
+                    request.input().size());
             return new PreparedTaskResult(result(task, true, message), resume);
         }
     }
@@ -181,18 +193,37 @@ public class TaskControlService implements TaskControlClient {
         try {
             EngineExecutionScope scope = scopeFor(task, userId(request.userId()));
             EngineInput input = engineInput(request.input(), resume ? "RESUME_SIGNAL" : "USER_MESSAGE");
+            LOGGER.info("task dispatch engine tenantId={} sessionId={} taskId={} agentId={} resume={} inputType={} inputMessages={}",
+                    scope.tenantId(),
+                    scope.sessionId(),
+                    scope.taskId(),
+                    scope.agentId(),
+                    resume,
+                    input.inputType(),
+                    input.messages().size());
             status = resume
                     ? engineDispatchApi().enqueueResume(new EnqueueEngineResumeRequest(scope, input))
                     : engineDispatchApi().enqueueExecution(new EnqueueEngineExecutionRequest(scope, input));
         } catch (RuntimeException e) {
+            LOGGER.warn("task dispatch failed tenantId={} sessionId={} taskId={} agentId={} errorClass={} message={}",
+                    task.getTenantId(),
+                    task.getSessionId(),
+                    task.getTaskId(),
+                    task.getAgentId(),
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
             TaskFailureCode code = task.getAgentId() == null || task.getAgentId().isBlank()
                     ? TaskFailureCode.AGENT_ID_INVALID
                     : TaskFailureCode.ENGINE_DISPATCH_REJECTED;
             return failDispatch(task, code, e.getMessage());
         }
         if (status == EnqueueEngineStatus.FAILED) {
+            LOGGER.warn("task dispatch rejected tenantId={} sessionId={} taskId={} agentId={}",
+                    task.getTenantId(), task.getSessionId(), task.getTaskId(), task.getAgentId());
             return failDispatch(task, TaskFailureCode.ENGINE_DISPATCH_REJECTED, "engine rejected dispatch");
         }
+        LOGGER.info("task dispatch enqueued tenantId={} sessionId={} taskId={} agentId={} status={}",
+                task.getTenantId(), task.getSessionId(), task.getTaskId(), task.getAgentId(), status);
         return currentResult(task, true, resume ? "resume enqueued" : "execution enqueued");
     }
 
@@ -220,6 +251,14 @@ public class TaskControlService implements TaskControlClient {
                     || failureCode != task.getFailureCode() || detail != task.getDetail()) {
                 task.transitionTo(nextState, waitingReason, failureCode, detail, clock.instant());
             }
+            LOGGER.info("task marked tenantId={} sessionId={} taskId={} nextState={} waitingReason={} failureCode={} acceptedMessage={}",
+                    command.tenantId(),
+                    command.sessionId(),
+                    command.taskId(),
+                    nextState,
+                    waitingReason,
+                    failureCode,
+                    message);
             return result(task, true, message);
         }
     }

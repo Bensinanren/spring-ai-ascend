@@ -15,7 +15,6 @@ import com.huawei.ascend.service.queue.QueueManager;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -24,11 +23,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Wires the engine's core collaborators as beans (design §15). The dispatcher
- * and subscriber are only created once the outbound clients
- * ({@link TaskControlClient}, {@link AccessLayerClient}) are available — those
- * are provided by the task-control and access-layer modules, not the engine
- * itself, so the engine staying dormant when they are absent is intentional.
+ * Wires the engine's core collaborators as Spring beans. Task-control and
+ * access-layer clients are provided by the service bootstrap configuration so
+ * the full agent-service runtime starts through one auto-configuration path.
  */
 @Configuration
 @EnableConfigurationProperties(EngineProperties.class)
@@ -73,7 +70,6 @@ public class EngineAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean({TaskControlClient.class, AccessLayerClient.class})
     public EngineDispatcher engineDispatcher(AgentHandlerRegistry registry,
                                              TaskControlClient taskControlClient,
                                              AccessLayerClient accessLayerClient) {
@@ -82,7 +78,6 @@ public class EngineAutoConfiguration {
 
     @Bean(initMethod = "start", destroyMethod = "stop")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(EngineDispatcher.class)
     public EngineCommandProcessor engineCommandProcessor(
             EngineCommandGateway gateway,
             EngineDispatcher dispatcher,

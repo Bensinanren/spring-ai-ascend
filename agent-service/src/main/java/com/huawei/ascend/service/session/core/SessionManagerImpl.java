@@ -13,8 +13,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class SessionManagerImpl implements SessionManager {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SessionManagerImpl.class);
 
     private final SessionStore sessionStore;
     private final Clock clock;
@@ -43,10 +47,14 @@ public final class SessionManagerImpl implements SessionManager {
         SessionKey key = new SessionKey(tenantId, resolvedSessionId);
         Optional<Session> existing = sessionStore.find(key);
         if (existing.isPresent()) {
+            LOGGER.info("session touch tenantId={} userId={} agentId={} sessionId={} inputMessages={}",
+                    tenantId, userId, agentId, resolvedSessionId, safeCurrentUserInput.size());
             return touch(key, safeCurrentUserInput);
         }
         Instant now = clock.instant();
         Instant expiresAt = ttl == null ? null : now.plus(ttl);
+        LOGGER.info("session create tenantId={} userId={} agentId={} sessionId={} inputMessages={}",
+                tenantId, userId, agentId, resolvedSessionId, safeCurrentUserInput.size());
         return sessionStore.save(new Session(
                 tenantId,
                 userId,

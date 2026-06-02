@@ -3,10 +3,13 @@ package com.huawei.ascend.service.access.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.huawei.ascend.service.access.protocol.a2a.A2aAccessService;
+import com.huawei.ascend.service.access.protocol.a2a.A2aAccessProperties;
 import com.huawei.ascend.service.access.protocol.a2a.A2aEgressAdapter;
+import com.huawei.ascend.service.access.protocol.a2a.A2aJsonRpcController;
 import com.huawei.ascend.service.access.protocol.a2a.A2aOutputRegistry;
 import com.huawei.ascend.service.access.protocol.a2a.A2aIngressAdapter;
 import com.huawei.ascend.service.access.protocol.a2a.A2aOutputSink;
+import com.huawei.ascend.service.access.protocol.a2a.A2aWellKnownAgentCardController;
 import com.huawei.ascend.service.access.protocol.a2a.DefaultA2aOutputSink;
 import com.huawei.ascend.service.access.egress.DefaultEgressQueueRegistry;
 import com.huawei.ascend.service.access.egress.DefaultNotificationPort;
@@ -33,10 +36,12 @@ import org.a2aproject.sdk.spec.AgentProvider;
 import org.a2aproject.sdk.spec.TransportProtocol;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(A2aAccessProperties.class)
 public class AccessLayerConfiguration {
 
     @Bean
@@ -56,16 +61,22 @@ public class AccessLayerConfiguration {
         return AgentCard.builder()
                 .name("spring-ai-ascend-agent")
                 .description("A2A access layer for spring-ai-ascend agent service.")
-                .url("/a2a/")
+                .url("/a2a")
                 .version("0.1.0")
                 .provider(new AgentProvider("spring-ai-ascend", "http://localhost:8080"))
                 .capabilities(capabilities)
                 .defaultInputModes(List.of("text"))
                 .defaultOutputModes(List.of("text", "artifact"))
                 .skills(List.of())
-                .supportedInterfaces(List.of(new AgentInterface(TransportProtocol.JSONRPC.asString(), "/a2a/")))
+                .supportedInterfaces(List.of(new AgentInterface(TransportProtocol.JSONRPC.asString(), "/a2a")))
                 .preferredTransport(TransportProtocol.JSONRPC.asString())
                 .build();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    A2aWellKnownAgentCardController a2aWellKnownAgentCardController(AgentCard agentCard) {
+        return new A2aWellKnownAgentCardController(agentCard);
     }
 
     @Bean
@@ -121,21 +132,29 @@ public class AccessLayerConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(AccessSubmissionService.class)
     @ConditionalOnMissingBean
     AccessGateway accessGateway(AccessSubmissionService submissionService) {
         return new AccessGateway(submissionService);
     }
 
     @Bean
-    @ConditionalOnBean(AccessGateway.class)
     @ConditionalOnMissingBean(A2aAccessService.class)
     A2aAccessService a2aAccessService(AccessGateway accessGateway) {
         return new A2aIngressAdapter(accessGateway);
     }
 
     @Bean
-    @ConditionalOnBean(AccessGateway.class)
+    @ConditionalOnBean(A2aAccessService.class)
+    @ConditionalOnMissingBean
+    A2aJsonRpcController a2aJsonRpcController(
+            A2aAccessService accessService,
+            A2aOutputRegistry outputRegistry,
+            ObjectMapper objectMapper,
+            A2aAccessProperties properties) {
+        return new A2aJsonRpcController(accessService, outputRegistry, objectMapper, properties);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(AsyncIngressPort.class)
     AsyncIngressPort asyncIngressPort(AccessGateway accessGateway) {
         return new AsyncIngressAdapter(accessGateway);

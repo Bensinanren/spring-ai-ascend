@@ -9,19 +9,15 @@ import com.huawei.ascend.service.access.protocol.a2a.A2aOutput;
 import com.huawei.ascend.service.access.protocol.a2a.A2aOutputHandle;
 import com.huawei.ascend.service.access.protocol.a2a.A2aOutputRegistry;
 import com.huawei.ascend.service.engine.config.EngineAutoConfiguration;
-import com.huawei.ascend.service.engine.event.EngineCompletedEvent;
-import com.huawei.ascend.service.engine.event.EngineExecutionEvent;
-import com.huawei.ascend.service.engine.event.EngineOutputEvent;
-import com.huawei.ascend.service.engine.event.EngineStartedEvent;
 import com.huawei.ascend.service.engine.handler.AgentExecutionContext;
-import com.huawei.ascend.service.engine.model.EngineOutput;
+import com.huawei.ascend.service.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.service.engine.spi.AgentHandler;
+import com.huawei.ascend.service.engine.spi.AgentResultAdapter;
 import com.huawei.ascend.service.queue.config.QueueAutoConfiguration;
 import com.huawei.ascend.service.session.api.SessionManager;
 import com.huawei.ascend.service.session.config.SessionManageConfiguration;
 import com.huawei.ascend.service.taskcontrol.config.TaskControlAutoConfiguration;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -191,20 +187,17 @@ class AgentServiceEndToEndIT {
         }
 
         @Override
-        public Stream<EngineExecutionEvent> execute(AgentExecutionContext context) {
+        public Stream<?> execute(AgentExecutionContext context) {
             String userText = context.getInput() == null || context.getInput().messages().isEmpty()
                     ? "" : context.getInput().messages().get(0).text();
-            EngineStartedEvent started =
-                    new EngineStartedEvent(id(), context.getScope(), Instant.now());
-            EngineOutputEvent output = new EngineOutputEvent(
-                    id(), context.getScope(), Instant.now(), new EngineOutput("echo: " + userText, false));
-            EngineCompletedEvent completed = new EngineCompletedEvent(
-                    id(), context.getScope(), Instant.now(), new EngineOutput("echo: " + userText, true));
-            return Stream.of(started, output, completed);
+            return Stream.of(
+                    java.util.Map.of("result_type", "output", "output", "echo: " + userText),
+                    java.util.Map.of("result_type", "answer", "output", "echo: " + userText));
         }
 
-        private static String id() {
-            return UUID.randomUUID().toString();
+        @Override
+        public AgentResultAdapter resultAdapter() {
+            return AgentServiceEndToEndIT::adaptRawResults;
         }
     }
 
@@ -222,8 +215,25 @@ class AgentServiceEndToEndIT {
         }
 
         @Override
-        public Stream<EngineExecutionEvent> execute(AgentExecutionContext context) {
+        public Stream<?> execute(AgentExecutionContext context) {
             throw new IllegalStateException("boom");
         }
+
+        @Override
+        public AgentResultAdapter resultAdapter() {
+            return AgentServiceEndToEndIT::adaptRawResults;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Stream<AgentExecutionResult> adaptRawResults(Stream<?> rawResults) {
+        return rawResults.map(rawResult -> {
+            java.util.Map<String, Object> result = (java.util.Map<String, Object>) rawResult;
+            String output = String.valueOf(result.get("output"));
+            if ("answer".equals(result.get("result_type"))) {
+                return AgentExecutionResult.completed(output);
+            }
+            return AgentExecutionResult.output(output);
+        });
     }
 }

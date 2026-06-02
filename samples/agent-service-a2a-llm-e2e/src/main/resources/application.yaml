@@ -1,0 +1,7 @@
+debug: false
+
+agent-service:
+  access:
+    a2a:
+      default-tenant-id: sample-tenant
+      default-agent-id: openjiuwen-react-agent

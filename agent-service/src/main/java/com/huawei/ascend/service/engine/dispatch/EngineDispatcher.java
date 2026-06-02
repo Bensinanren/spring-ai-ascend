@@ -13,11 +13,14 @@ import com.huawei.ascend.service.engine.handler.AgentExecutionContext;
 import com.huawei.ascend.service.engine.model.EngineExecutionScope;
 import com.huawei.ascend.service.engine.model.InterruptType;
 import com.huawei.ascend.service.engine.port.AccessLayerClient;
+import com.huawei.ascend.service.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.service.engine.spi.AgentHandler;
 import com.huawei.ascend.service.engine.port.TaskControlClient;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Pulls the {@code AgentHandler} for a command, runs it, and routes each emitted
@@ -25,6 +28,8 @@ import java.util.stream.Stream;
  * output mapping in engine model design §13.
  */
 public class EngineDispatcher {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(EngineDispatcher.class);
 
     private final AgentHandlerRegistry registry;
     private final TaskControlClient taskControlClient;
@@ -50,15 +55,42 @@ public class EngineDispatcher {
     private void runHandler(EngineCommandEvent command) {
         AgentHandler handler = registry.findByAgentId(command.getScope().agentId());
         AgentExecutionContext context = new AgentExecutionContext(command.getScope(), command.getInput());
-        try (Stream<EngineExecutionEvent> events = handler.execute(context)) {
-            events.forEach(this::route);
+        LOGGER.info("engine handler start tenantId={} sessionId={} taskId={} agentId={} handler={} inputType={} inputMessages={}",
+                command.getScope().tenantId(),
+                command.getScope().sessionId(),
+                command.getScope().taskId(),
+                command.getScope().agentId(),
+                handler.getClass().getName(),
+                command.getInput().inputType(),
+                command.getInput().messages().size());
+        route(new EngineStartedEvent(newId(), command.getScope(), Instant.now()));
+        try (Stream<?> rawResults = handler.execute(context);
+                Stream<AgentExecutionResult> results = handler.resultAdapter().adapt(rawResults)) {
+            results.peek(result -> LOGGER.info("engine handler result tenantId={} sessionId={} taskId={} agentId={} resultType={} outputLength={}",
+                            command.getScope().tenantId(),
+                            command.getScope().sessionId(),
+                            command.getScope().taskId(),
+                            command.getScope().agentId(),
+                            result.type(),
+                            result.output() == null || result.output().getContent() == null
+                                    ? 0
+                                    : result.output().getContent().length()))
+                    .map(result -> toEvent(command.getScope(), result))
+                    .forEach(this::route);
         } catch (RuntimeException ex) {
+            LOGGER.warn("engine handler failed tenantId={} sessionId={} taskId={} agentId={} errorClass={} message={}",
+                    command.getScope().tenantId(),
+                    command.getScope().sessionId(),
+                    command.getScope().taskId(),
+                    command.getScope().agentId(),
+                    ex.getClass().getSimpleName(),
+                    ex.getMessage());
             // A handler that throws (rather than emitting a failure event) must
             // still produce a terminal outcome, or the caller waits forever and
             // the reply channel leaks. Translate it into a failure event routed
             // to both the task-control and access layers.
             EngineFailedEvent failed = new EngineFailedEvent(
-                    UUID.randomUUID().toString(),
+                    newId(),
                     command.getScope(),
                     Instant.now(),
                     ex.getClass().getSimpleName(),
@@ -67,15 +99,31 @@ public class EngineDispatcher {
         }
     }
 
+    private EngineExecutionEvent toEvent(EngineExecutionScope scope, AgentExecutionResult result) {
+        return switch (result.type()) {
+            case OUTPUT -> new EngineOutputEvent(newId(), scope, Instant.now(), result.output());
+            case COMPLETED -> new EngineCompletedEvent(newId(), scope, Instant.now(), result.output());
+            case FAILED -> new EngineFailedEvent(newId(), scope, Instant.now(), result.errorCode(), result.errorMessage());
+            case INTERRUPTED -> new EngineInterruptedEvent(newId(), scope, Instant.now(),
+                    result.interruptType(), result.prompt());
+        };
+    }
+
     private void cancel(EngineCommandEvent command) {
         EngineExecutionScope scope = command.getScope();
         EngineCancelledEvent event = new EngineCancelledEvent(
-                UUID.randomUUID().toString(), scope, Instant.now(), "Cancelled by request");
+                newId(), scope, Instant.now(), "Cancelled by request");
         taskControlClient.markCancelled(scope, event);
     }
 
     private void route(EngineExecutionEvent event) {
         EngineExecutionScope scope = event.getScope();
+        LOGGER.info("engine route event={} tenantId={} sessionId={} taskId={} agentId={}",
+                event.getClass().getSimpleName(),
+                scope.tenantId(),
+                scope.sessionId(),
+                scope.taskId(),
+                scope.agentId());
         if (event instanceof EngineStartedEvent) {
             taskControlClient.markRunning(scope);
         } else if (event instanceof EngineOutputEvent e) {
@@ -97,5 +145,9 @@ public class EngineDispatcher {
             // Agent-to-agent routing is handled from Phase 3 onward.
             throw new UnsupportedOperationException("EngineAgentCallEvent routing not implemented in Phase 1");
         }
+    }
+
+    private static String newId() {
+        return UUID.randomUUID().toString();
     }
 }

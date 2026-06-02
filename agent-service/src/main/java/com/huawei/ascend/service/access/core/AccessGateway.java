@@ -12,8 +12,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class AccessGateway {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AccessGateway.class);
 
     private final AccessSubmissionService submissionService;
 
@@ -48,6 +52,14 @@ public final class AccessGateway {
     }
 
     private CompletionStage<AccessAcceptedResponse> run(AgentRequest request, ReplyContext reply) {
+        LOGGER.info("access submit tenantId={} userId={} agentId={} sessionId={} inputMessages={} replyChannel={} streaming={}",
+                request.tenantId(),
+                request.userId(),
+                request.agentId(),
+                request.sessionId(),
+                request.input().size(),
+                reply.replyTopic() == null ? "A2A" : "ASYNC",
+                reply.a2aStreaming());
         return submissionService.run(request, reply);
     }
 
@@ -57,8 +69,8 @@ public final class AccessGateway {
         HashMap<String, Object> metadata = new HashMap<>();
         metadata.put("parts", message == null ? List.of() : message.parts());
         metadata.put("metadata", message == null ? Map.of() : message.metadata());
-        metadata.put("contextId", context.contextId());
-        metadata.put("correlationId", context.correlationId());
+        putIfPresent(metadata, "contextId", context.contextId());
+        putIfPresent(metadata, "correlationId", context.correlationId());
         if (message != null) {
             metadata.putAll(message.metadata());
         }
@@ -76,7 +88,7 @@ public final class AccessGateway {
         HashMap<String, Object> metadata = new HashMap<>();
         metadata.put("payload", envelope.body().payload());
         metadata.put("replyTopic", envelope.headers().replyTopic());
-        metadata.put("correlationId", envelope.headers().correlationId());
+        putIfPresent(metadata, "correlationId", envelope.headers().correlationId());
         return new AgentRequest(
                 envelope.headers().tenantId(),
                 envelope.headers().userId(),
@@ -105,7 +117,7 @@ public final class AccessGateway {
         A2aEnvelope.A2aMessage message = envelope.message();
         attributes.put("parts", message == null ? List.of() : message.parts());
         attributes.put("metadata", message == null ? Map.of() : message.metadata());
-        attributes.put("contextId", envelope.context().contextId());
+        putIfPresent(attributes, "contextId", envelope.context().contextId());
         return ReplyContext.a2a(
                 streaming,
                 envelope.context().correlationId(),
@@ -136,5 +148,11 @@ public final class AccessGateway {
             return fallback;
         }
         return java.util.UUID.randomUUID().toString();
+    }
+
+    private static void putIfPresent(Map<String, Object> metadata, String key, Object value) {
+        if (value != null) {
+            metadata.put(key, value);
+        }
     }
 }

@@ -6,8 +6,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class QueueManager {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(QueueManager.class);
 
     private final ConcurrentMap<String, QueueEntry<?>> queuesById = new ConcurrentHashMap<>();
 
@@ -15,6 +19,7 @@ public class QueueManager {
         Objects.requireNonNull(payloadType, "payloadType");
         QueueEntry<?> entry = queuesById.compute(requireNonBlank(queueId, "queueId"), (id, existing) -> {
             if (existing == null) {
+                LOGGER.info("queue create queueId={} payloadType={}", id, payloadType.getSimpleName());
                 return new QueueEntry<>(payloadType, new InMemoryInternalEventQueue<>(id));
             }
             if (!existing.payloadType().equals(payloadType)) {

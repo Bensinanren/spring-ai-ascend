@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -11,33 +11,38 @@
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
-  <artifactId>openjiuwen-echo-agent-sample</artifactId>
+  <artifactId>agent-service-a2a-llm-e2e-sample</artifactId>
   <packaging>jar</packaging>
-  <name>spring-ai-ascend openjiuwen echo agent sample</name>
+  <name>spring-ai-ascend agent-service A2A LLM E2E sample</name>
   <description>
-    Sample agent app (engine model design layer ③) exercising the engine's
-    openJiuwen adapter against a real LLM endpoint. Intentionally NOT listed in
-    the root reactor; build it explicitly with -f when you want to run it.
+    End-to-end sample that starts an agent-service runtime hosting a real
+    openJiuwen ReActAgent, calls it only through the A2A JSON-RPC HTTP
+    endpoint, and verifies a real OpenAI-compatible LLM response.
   </description>
 
   <properties>
-    <!-- Sample / documentation artefact: skip the strict build gates the
-         mainline modules enforce. -->
     <enforcer.skip>true</enforcer.skip>
   </properties>
 
   <dependencies>
-    <!-- ② engine: the AgentHandler seam + openJiuwen adapter base. -->
     <dependency>
       <groupId>com.huawei.ascend</groupId>
       <artifactId>agent-service</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- ① framework: openJiuwen agent-core-java (0.1.7 = latest on Maven Central). -->
     <dependency>
       <groupId>com.openjiuwen</groupId>
       <artifactId>agent-core-java</artifactId>
       <version>0.1.7</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>4.33.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -45,4 +50,14 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.6.2</version>
+      </plugin>
+    </plugins>
+  </build>
 </project>
