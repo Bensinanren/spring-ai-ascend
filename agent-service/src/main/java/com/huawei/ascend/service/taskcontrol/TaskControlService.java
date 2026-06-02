@@ -33,7 +33,7 @@ public class TaskControlService implements TaskControlClient {
     private final Supplier<EngineDispatchApi> engineDispatchApi;
     private final Clock clock;
     private final ConcurrentMap<SessionKey, Object> sessionLocks = new ConcurrentHashMap<>();
-    private final ConcurrentMap<IdempotencyKey, Object> idempotencyResults = new ConcurrentHashMap<>();
+    private final ConcurrentMap<IdempotencyKey, TaskResult> idempotencyResults = new ConcurrentHashMap<>();
     private final Object queueCreationLock = new Object();
 
     public TaskControlService(QueueManager queueManager, EngineDispatchApi engineDispatchApi) {
@@ -53,47 +53,14 @@ public class TaskControlService implements TaskControlClient {
     @Override
     public CompletionStage<TaskResult> run(RunCommand command) {
         Objects.requireNonNull(command, "command");
-        PreparedTaskResult prepared = prepareRun(command).toCompletableFuture().join();
-        TaskResult result = dispatchPrepared(new DispatchPreparedCommand(
-                prepared.taskId(), command.request(), prepared.dispatchMode())).toCompletableFuture().join();
+        TaskResult result = submit("RUN", null, command.request(), false);
         return CompletableFuture.completedStage(result);
     }
 
     @Override
     public CompletionStage<TaskResult> resume(ResumeCommand command) {
         Objects.requireNonNull(command, "command");
-        PreparedTaskResult prepared = prepareResume(command).toCompletableFuture().join();
-        TaskResult result = dispatchPrepared(new DispatchPreparedCommand(
-                prepared.taskId(), command.request(), prepared.dispatchMode())).toCompletableFuture().join();
-        return CompletableFuture.completedStage(result);
-    }
-
-    @Override
-    public CompletionStage<PreparedTaskResult> prepareRun(RunCommand command) {
-        Objects.requireNonNull(command, "command");
-        PreparedTaskResult result = idempotencyKey("RUN", null, command.request())
-                .map(key -> computePrepared(key, () -> prepare(command.request(), false)))
-                .orElseGet(() -> prepare(command.request(), false));
-        return CompletableFuture.completedStage(result);
-    }
-
-    @Override
-    public CompletionStage<PreparedTaskResult> prepareResume(ResumeCommand command) {
-        Objects.requireNonNull(command, "command");
-        PreparedTaskResult result = idempotencyKey("RESUME_INPUT", command.taskId(), command.request())
-                .map(key -> computePrepared(key, () -> prepare(command.request(), command.taskId(), true)))
-                .orElseGet(() -> prepare(command.request(), command.taskId(), true));
-        return CompletableFuture.completedStage(result);
-    }
-
-    @Override
-    public CompletionStage<TaskResult> dispatchPrepared(DispatchPreparedCommand command) {
-        Objects.requireNonNull(command, "command");
-        boolean resume = command.dispatchMode() == DispatchMode.RESUME;
-        TaskResult result = idempotencyKey(resume ? "RESUME_INPUT_DISPATCH" : "RUN_DISPATCH",
-                command.taskId(), command.request())
-                .map(key -> computeTaskResult(key, () -> dispatchPrepared(command.taskId(), command.request(), resume)))
-                .orElseGet(() -> dispatchPrepared(command.taskId(), command.request(), resume));
+        TaskResult result = submit("RESUME_INPUT", command.taskId(), command.request(), true);
         return CompletableFuture.completedStage(result);
     }
 
@@ -152,8 +119,18 @@ public class TaskControlService implements TaskControlClient {
         return internalEventQueue(tenantId, sessionId).snapshot();
     }
 
-    private PreparedTaskResult prepare(AgentRequest request, boolean resumeOnly) {
-        return prepare(request, null, resumeOnly);
+    private TaskResult submit(String action, String taskId, AgentRequest request, boolean resumeOnly) {
+        Optional<IdempotencyKey> key = idempotencyKey(action, taskId, request);
+        if (key.isEmpty()) {
+            return prepareAndDispatch(request, taskId, resumeOnly);
+        }
+        return idempotencyResults.computeIfAbsent(key.get(),
+                ignored -> prepareAndDispatch(request, taskId, resumeOnly));
+    }
+
+    private TaskResult prepareAndDispatch(AgentRequest request, String taskId, boolean resumeOnly) {
+        PreparedTaskResult prepared = prepare(request, taskId, resumeOnly);
+        return dispatchPrepared(prepared.task().taskId(), request, prepared.resume());
     }
 
     private PreparedTaskResult prepare(AgentRequest request, String taskId, boolean resumeOnly) {
@@ -170,9 +147,8 @@ public class TaskControlService implements TaskControlClient {
                 task = selected.orElseGet(() -> createTask(request));
                 resume = resumeOnly && task.getState() == TaskState.WAITING;
             }
-            DispatchMode dispatchMode = resume ? DispatchMode.RESUME : DispatchMode.RUN;
             String message = resume ? "resume prepared" : "execution prepared";
-            return new PreparedTaskResult(result(task, true, message), dispatchMode);
+            return new PreparedTaskResult(result(task, true, message), resume);
         }
     }
 
@@ -370,14 +346,6 @@ public class TaskControlService implements TaskControlClient {
                 request.agentId(), action, request.idempotencyKey()));
     }
 
-    private PreparedTaskResult computePrepared(IdempotencyKey key, Supplier<PreparedTaskResult> supplier) {
-        return (PreparedTaskResult) idempotencyResults.computeIfAbsent(key, ignored -> supplier.get());
-    }
-
-    private TaskResult computeTaskResult(IdempotencyKey key, Supplier<TaskResult> supplier) {
-        return (TaskResult) idempotencyResults.computeIfAbsent(key, ignored -> supplier.get());
-    }
-
     private static String requireNonBlank(String value, String name) {
         Objects.requireNonNull(value, name);
         if (value.isBlank()) {
@@ -399,5 +367,11 @@ public class TaskControlService implements TaskControlClient {
             String agentId,
             String action,
             String idempotencyKey) {
+    }
+
+    private record PreparedTaskResult(TaskResult task, boolean resume) {
+        private PreparedTaskResult {
+            task = Objects.requireNonNull(task, "task");
+        }
     }
 }

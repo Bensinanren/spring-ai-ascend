@@ -11,7 +11,6 @@ import com.huawei.ascend.service.access.model.ReplyContext;
 import com.huawei.ascend.service.schema.AgentRequest;
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient;
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.CancelCommand;
-import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.DispatchPreparedCommand;
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.ResumeCommand;
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.RunCommand;
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.TaskResult;
@@ -22,9 +21,9 @@ import java.util.concurrent.CompletionStage;
 /**
  * Inbound glue from L1 access into task-centric control.
  *
- * <p>Task control owns task identity. This bridge prepares the task first,
- * binds the L1 reply channel with the returned task id, then dispatches the
- * prepared task so synchronous runtime output has a queue to target.
+ * <p>Task control owns task identity. Access owns the reply channel, so this
+ * bridge binds egress by session before submitting a single run/resume command
+ * to task control.
  */
 public final class AccessTaskHandler implements TaskHandler {
 
@@ -45,12 +44,8 @@ public final class AccessTaskHandler implements TaskHandler {
     public CompletionStage<AccessAcceptedResponse> run(AgentRequest request, ReplyContext reply) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(reply, "reply");
-        return taskControlClient.prepareRun(new RunCommand(request))
-                .thenCompose(prepared -> {
-                    bindEgress(request, reply, prepared.taskId());
-                    return taskControlClient.dispatchPrepared(
-                            new DispatchPreparedCommand(prepared.taskId(), request, prepared.dispatchMode()));
-                })
+        bindEgress(request, reply);
+        return taskControlClient.run(new RunCommand(request))
                 .thenApply(result -> toAccepted(request, result));
     }
 
@@ -58,12 +53,8 @@ public final class AccessTaskHandler implements TaskHandler {
     public CompletionStage<AccessAcceptedResponse> resume(AgentRequest request, ReplyContext reply) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(reply, "reply");
-        return taskControlClient.prepareResume(new ResumeCommand(null, request))
-                .thenCompose(prepared -> {
-                    bindEgress(request, reply, prepared.taskId());
-                    return taskControlClient.dispatchPrepared(new DispatchPreparedCommand(
-                            prepared.taskId(), request, prepared.dispatchMode()));
-                })
+        bindEgress(request, reply);
+        return taskControlClient.resume(new ResumeCommand(null, request))
                 .thenApply(result -> toAccepted(request, result));
     }
 
@@ -81,8 +72,8 @@ public final class AccessTaskHandler implements TaskHandler {
         return taskControlClient.cancel(cancelCommand).thenApply(result -> toAccepted(command, result));
     }
 
-    private void bindEgress(AgentRequest request, ReplyContext reply, String taskId) {
-        EgressBinding binding = EgressBindingFactory.from(request, reply, taskId);
+    private void bindEgress(AgentRequest request, ReplyContext reply) {
+        EgressBinding binding = EgressBindingFactory.from(request, reply);
         egressQueueRegistry.getOrCreate(binding);
         egressDispatcher.start(binding);
     }

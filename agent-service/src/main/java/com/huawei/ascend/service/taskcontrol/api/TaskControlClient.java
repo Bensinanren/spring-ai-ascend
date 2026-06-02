@@ -23,12 +23,6 @@ public interface TaskControlClient {
 
     CompletionStage<TaskResult> resume(ResumeCommand command);
 
-    CompletionStage<PreparedTaskResult> prepareRun(RunCommand command);
-
-    CompletionStage<PreparedTaskResult> prepareResume(ResumeCommand command);
-
-    CompletionStage<TaskResult> dispatchPrepared(DispatchPreparedCommand command);
-
     CompletionStage<TaskResult> cancel(CancelCommand command);
 
     /**
@@ -70,19 +64,6 @@ public interface TaskControlClient {
     record ResumeCommand(String taskId, AgentRequest request) {
         public ResumeCommand {
             request = Objects.requireNonNull(request, "request");
-        }
-    }
-
-    enum DispatchMode {
-        RUN,
-        RESUME
-    }
-
-    record DispatchPreparedCommand(String taskId, AgentRequest request, DispatchMode dispatchMode) {
-        public DispatchPreparedCommand {
-            taskId = requireNonBlank(taskId, "taskId");
-            request = Objects.requireNonNull(request, "request");
-            dispatchMode = Objects.requireNonNull(dispatchMode, "dispatchMode");
         }
     }
 
@@ -141,17 +122,6 @@ public interface TaskControlClient {
             if (revision < 1L) {
                 throw new IllegalArgumentException("revision must be positive");
             }
-        }
-    }
-
-    record PreparedTaskResult(TaskResult task, DispatchMode dispatchMode) {
-        public PreparedTaskResult {
-            task = Objects.requireNonNull(task, "task");
-            dispatchMode = Objects.requireNonNull(dispatchMode, "dispatchMode");
-        }
-
-        public String taskId() {
-            return task.taskId();
         }
     }
 

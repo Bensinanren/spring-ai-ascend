@@ -15,16 +15,15 @@ public final class EgressBindingFactory {
     private EgressBindingFactory() {
     }
 
-    public static EgressBinding from(AgentRequest request, ReplyContext reply, String taskId) {
+    public static EgressBinding from(AgentRequest request, ReplyContext reply) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(reply, "reply");
-        Objects.requireNonNull(taskId, "taskId");
         ReplyChannel replyChannel = resolveReplyChannel(reply);
         String deliveryMode = resolveDeliveryMode(reply, replyChannel);
         return new EgressBinding(
                 request.tenantId(),
                 request.sessionId(),
-                taskId,
+                reply.replyId(),
                 replyChannel,
                 deliveryMode,
                 resolveTargetRef(reply, replyChannel),

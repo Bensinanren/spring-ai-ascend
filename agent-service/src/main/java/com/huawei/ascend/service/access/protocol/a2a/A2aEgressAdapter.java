@@ -52,6 +52,9 @@ public final class A2aEgressAdapter implements EgressAdapter {
         metadata.put("runStatus", frame.status().wire());
         metadata.put("sequence", nextSequence(binding, frame));
         metadata.put("protocol", "A2A");
+        if (binding != null) {
+            metadata.put("replyId", binding.replyId());
+        }
         String kind = outputKind(frame);
         if ("Artifact".equals(kind)) {
             metadata.put("artifactId", artifactId(binding, frame));
@@ -150,12 +153,11 @@ public final class A2aEgressAdapter implements EgressAdapter {
     private String artifactId(EgressBinding binding, NotificationFrame frame) {
         String tenantId = binding == null ? frame.tenantId() : binding.tenantId();
         String sessionId = binding == null ? frame.sessionId() : binding.sessionId();
-        String taskId = binding == null ? frame.taskId() : binding.taskId();
-        return "artifact-%s-%s-%s".formatted(nullToId(tenantId), nullToId(sessionId), nullToId(taskId));
+        return "artifact-%s-%s-%s".formatted(nullToId(tenantId), nullToId(sessionId), nullToId(frame.taskId()));
     }
 
     private String sequenceKey(EgressBinding binding) {
-        return "%s:%s:%s".formatted(binding.tenantId(), binding.sessionId(), binding.taskId());
+        return "%s:%s:%s".formatted(binding.tenantId(), binding.sessionId(), binding.replyId());
     }
 
     private String nullToId(String value) {
