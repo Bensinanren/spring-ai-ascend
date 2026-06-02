@@ -103,6 +103,26 @@ class TaskControlServiceWhiteboxTest {
     }
 
     @Test
+    void idempotencyKeyDoesNotCollapseDifferentResumeTargets() {
+        TaskControlClient.TaskResult first = run("agent", "first", null);
+        service.markRunning(mark(first.taskId(), 1L, null, null, null)).toCompletableFuture().join();
+        service.markWaiting(mark(first.taskId(), 2L, WaitingReason.USER_INPUT, null, "need-first"))
+                .toCompletableFuture().join();
+
+        TaskControlClient.TaskResult second = run("agent", "second", null);
+        service.markRunning(mark(second.taskId(), 1L, null, null, null)).toCompletableFuture().join();
+        service.markWaiting(mark(second.taskId(), 2L, WaitingReason.USER_INPUT, null, "need-second"))
+                .toCompletableFuture().join();
+
+        TaskControlClient.TaskResult firstResume = resume(first.taskId(), "agent", "answer-first", "same-resume-key");
+        TaskControlClient.TaskResult secondResume = resume(second.taskId(), "agent", "answer-second", "same-resume-key");
+
+        assertThat(firstResume.taskId()).isEqualTo(first.taskId());
+        assertThat(secondResume.taskId()).isEqualTo(second.taskId());
+        assertThat(engine.resumes).hasSize(2);
+    }
+
+    @Test
     void rejectedEngineDispatchMarksTaskFailed() {
         engine.status = EnqueueEngineStatus.FAILED;
 

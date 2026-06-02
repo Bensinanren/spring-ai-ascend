@@ -343,7 +343,7 @@ public class TaskControlService implements TaskControlClient {
             return Optional.empty();
         }
         return Optional.of(new IdempotencyKey(request.tenantId(), request.sessionId(),
-                request.agentId(), action, request.idempotencyKey()));
+                taskId, request.agentId(), action, request.idempotencyKey()));
     }
 
     private static String requireNonBlank(String value, String name) {
@@ -364,6 +364,7 @@ public class TaskControlService implements TaskControlClient {
     private record IdempotencyKey(
             String tenantId,
             String sessionId,
+            String taskId,
             String agentId,
             String action,
             String idempotencyKey) {
