@@ -225,7 +225,12 @@ genModule_agent_evolve -> efEvolutionExport "module contains engineering frame" 
     }
 }
 
-// ---- spring-ai-ascend-graphmemory-starter (bus_state plane) ----
+// ---- graphmemory auto-config ----
+// spring-ai-ascend-graphmemory-starter is NOT a governed reactor module (absent
+// from the root pom + has no module-metadata.yaml), so it emits no genModule_*
+// node. This structural frame is therefore homed under agent-service, which owns
+// the GraphMemoryRepository SPI the starter auto-wires; saa.owner below preserves
+// the starter as the frame's logical origin.
 
 efGraphmemoryAutoconfig = element "Graph Memory Auto-Config Frame" "EngineeringFrame" "Spring Boot starter auto-configuration wiring GraphMemoryRepository SPI to backend adapter (disabled by default)" "SAA EngineeringFrame" {
     properties {
@@ -239,7 +244,7 @@ efGraphmemoryAutoconfig = element "Graph Memory Auto-Config Frame" "EngineeringF
         "saa.structuralAxis" "true"
     }
 }
-genModule_spring_ai_ascend_graphmemory_starter -> efGraphmemoryAutoconfig "module contains engineering frame" "SAA Relationship" {
+genModule_agent_service -> efGraphmemoryAutoconfig "module contains engineering frame" "SAA Relationship" {
     properties {
         "saa.rel" "contains"
     }
