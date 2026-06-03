@@ -24,10 +24,10 @@ dependency:
 This document organizes L0 architecture facts through 4+1 views. It is the
 architecture fact view system, not the version scope scenario backlog.
 
-The scenarios view here contains representative architecture stress scenarios
-that validate architectural shape. Version-scoped business scenarios and feature
-use cases should live in the version scope system and reference this document
-when they rely on architecture constraints.
+The scenarios view here contains technical verification scenarios that validate
+architectural shape. Version-scoped business activity scenarios, feature use
+cases, and delivery tasks live in the version scope system and reference this
+document when they rely on architecture constraints.
 
 ## View Map
 
@@ -37,7 +37,7 @@ when they rely on architecture constraints.
 | Development | Which modules and source boundaries may exist? | module metadata, generated modules DSL, L1 docs. |
 | Process | How does runtime control move through the system? | runtime path, suspend/resume, A2A, callback, telemetry. |
 | Physical | Where do components run and what trust/data boundaries exist? | deployment variants, posture, tenant, bus channels, data paths. |
-| Scenarios | Which representative flows stress the architecture? | BA scenarios and technical scenarios after promotion. |
+| Scenarios | Which representative technical flows stress the architecture? | Technical verification scenarios after promotion. |
 
 ## Logical View
 
@@ -140,14 +140,15 @@ Trust boundaries include:
 
 ## Scenarios View
 
-The L0 scenarios view is limited to architecture-shaping scenarios. The current
-draft candidates from `docs/architecture/l0/02-scenarios/` are:
+The L0 scenarios view is limited to architecture-shaping technical verification
+scenarios. Business activity scenarios such as BA-001, BA-002, and BA-003 belong
+under `version-scope/` as release scope and development tracking material.
+
+The current technical draft candidates from
+`docs/architecture/l0/02-scenarios/technical/` are:
 
 | Scenario | Architecture Role | Status |
 |---|---|---|
-| BA-001 Agent Handles Business Request | End-to-end request, context, tool, model, observability, and developer evidence. | candidate_promote |
-| BA-002 Human Approval Tool Call | Suspend/resume, S2C callback, approval, audit, and tool governance. | candidate_promote |
-| BA-003 Multi-Agent Delegation | Parent/child execution, same-instance coordination, A2A/federation boundary, and Task tree. | candidate_promote |
 | S1 Create Task | Entry, idempotency, tenant, initial lifecycle state. | candidate_promote |
 | S2 Execute Agent Step | Engine dispatch and terminal or intermediate execution result. | candidate_promote |
 | S3 Build Context Package | Session, memory, retrieval, and context projection. | candidate_promote |
@@ -156,8 +157,8 @@ draft candidates from `docs/architecture/l0/02-scenarios/` are:
 | S6 Child Task / Federation | Multi-agent collaboration, federation, join, and cross-boundary control. | candidate_promote |
 
 These scenarios should not be treated as accepted runtime authority until
-conflicts in `governance.md` are resolved and the scenarios are promoted through
-the architecture or version scope system.
+conflicts in `governance.md` are resolved and the technical scenarios are
+promoted through the architecture fact system.
 
 ## View Outputs
 

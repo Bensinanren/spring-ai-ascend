@@ -83,7 +83,7 @@ module contributors to integrate agents without platform-team intervention.
 | Context through context boundary | Context packages are produced through service/middleware context and memory/retrieval surfaces, not hidden engine logic. |
 | Business state externality | Business systems own business facts; platform records references, traces, and controlled results. |
 | Suspend instead of hold | Long waits use service-owned suspend/resume, cursor, callback, or cross-boundary rhythm signals rather than retained physical resources. |
-| Trace context propagation | Cross-module execution propagates tenant, trace, and runtime identity. |
+| Trace context propagation | Cross-module execution propagates tenant, trace, Task identity, runtime identity, and necessary client invocation references. |
 | Side-effect safety | Irreversible side effects require idempotency or duplicate protection plus audit. |
 | Child work visibility | Child execution is correlated under the parent Task tree or explicit cross-workflow handoff. |
 | Control/data/stream separation | Platform Gateway governance, Service Task API, service realtime streams, `agent-bus` governance, narrow event/control channels, and object-reference data paths remain separate. |
@@ -96,6 +96,9 @@ module contributors to integrate agents without platform-team intervention.
 - In-process polyglot is treated differently from out-of-process sidecars.
 - Vertical examples in historical documents are not product identity unless
   accepted architecture decisions make them so.
+- L0 documents must not define concrete database tables, keys, topics, method
+  signatures, timeout values, retry counts, or equivalent implementation
+  constants. Those belong in contract, L1/L2, code, or operations artifacts.
 
 ## Module Constraints
 
@@ -146,6 +149,10 @@ module contributors to integrate agents without platform-team intervention.
 - Every core scenario should define expected trace/event/audit evidence.
 - LLM generation spans must carry model, token, cost, and latency evidence when
   runtime binding exists.
+- Platform cost attribution covers LLM usage, model route, and platform runtime
+  cost evidence. Customer-owned internal tool cost and business-system cost
+  remain customer/business concerns unless a separate accepted contract delegates
+  reporting to the platform.
 - Replay surfaces must be tenant-scoped and fail closed on mismatch.
 - MCP-only replay remains the current L0 telemetry replay direction unless an
   accepted ADR changes it.

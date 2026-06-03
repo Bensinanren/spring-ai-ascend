@@ -51,7 +51,7 @@ facts until represented by implementation, tests, metadata, or contracts.
 
 | State | Meaning |
 |---|---|
-| `pending_triage` | Needs comparison against architecture authority. |
+| `pending_triage` | Needs comparison against current architecture facts and code facts. |
 | `candidate_promote` | Useful material that can be rewritten into canonical architecture or scope docs. |
 | `conflict` | Cannot be promoted until resolved. |
 | `archive_candidate` | Useful history, not a future implementation source. |
@@ -63,7 +63,8 @@ facts until represented by implementation, tests, metadata, or contracts.
 | L0 overview and glossary facts | `architecture/L0-Top-Level-Design/overview.md` or `glossary.md`. |
 | Module and state boundaries | `architecture/L0-Top-Level-Design/boundaries.md` or L1 module docs. |
 | Cross-cutting constraints and invariants | `architecture/L0-Top-Level-Design/constraints.md` or governance rules. |
-| BA scenarios and technical scenarios | Version scope system, with selected architecture stress scenarios promoted into `views.md`. |
+| BA business activity scenarios | Version scope system for release scope and development tracking. |
+| Technical scenarios | Selected architecture stress scenarios promoted into `views.md`. |
 | Capabilities and feature/use-case mapping | Architecture fact documents for accepted facts, version scope docs for release commitment. |
 | Harness and verification matrix | Test docs, code facts, or version acceptance plan. |
 | Contract and interface sketches | Accepted contract catalog and contract documentation, not this L0 package. |
@@ -108,6 +109,25 @@ New accepted architecture facts should be traceable to:
 If this chain is incomplete, mark the item as missing traceability and do not
 call it fully accepted.
 
+## Principle Delivery Mapping
+
+| ID | Principle | L0 Location | Expected Evidence |
+|---|---|---|---|
+| PR-001 | Business / Platform Decoupling | `constraints.md`, `boundaries.md` | Static architecture check or architecture review. |
+| PR-002 | Capability Before Module | `boundaries.md` | Capability-to-module mapping review. |
+| PR-003 | Single State Owner | `boundaries.md` state matrix | State-machine test, static check, or architecture review. |
+| PR-004 | Contract-first Interaction | `README.md`, `governance.md` | Accepted contract or explicit contract-gap record. |
+| PR-005 | Scenario-first Verification | `views.md`, `version-scope/` | Technical scenario test or version-scope acceptance tracking. |
+| PR-006 | Harness-first Development | `constraints.md`, `governance.md` | Harness, fixture, contract test, failure injection, or explicit unverified status. |
+| PR-007 | Design-only Honesty | `constraints.md`, `glossary.md` | Review checklist and status labels. |
+| PR-008 | Runtime-owned Governance | `constraints.md`, `boundaries.md` | Runtime governance scenario, static check, or manual review. |
+| PR-009 | Cursor / Suspend Instead of Hold | `constraints.md`, `boundaries.md` | State-machine or suspend/resume scenario test. |
+| PR-010 | Trace and Audit Everywhere | `constraints.md` | Golden trace, audit assertion, or manual evidence review. |
+| PR-011 | Explicit Capability Placement | `overview.md`, `glossary.md` | Capability placement contract, scenario test, or security review. |
+| PR-012 | Platform LLM Cost Governance | `constraints.md`, `glossary.md` | Metrics assertion or governance review. |
+| PR-013 | Boundary-mediated A2A | `boundaries.md`, `constraints.md` | Technical S6 evidence or architecture review. |
+| PR-014 | Control / Data / Stream Separation | `overview.md`, `views.md`, `constraints.md` | Scenario assertion or architecture review. |
+
 ## Conflict Register
 
 No open L0 conflicts remain after the current consolidation pass. New conflicts
@@ -117,9 +137,10 @@ should be added here only when they require an L0 architecture decision.
 
 | ID | Missing Point | Impact | Proposed Next Action |
 |---|---|---|---|
-| L0-GAP-002 | Formal version scope system location and skeleton. | BA scenarios, feature use cases, function points, harnesses, and delivery slices remain mixed with architecture facts. | Create separate version scope document tree and move scope-facing drafts there. |
-| L0-GAP-003 | Promotion decision for BA-001/BA-002/BA-003 and S1-S6. | Scenarios are useful but not accepted architecture or version scope yet. | Classify each as architecture stress scenario, version scope scenario, or archive. |
+| L0-GAP-002 | Version scope ownership and acceptance discipline. | `version-scope/` exists, but BA scenarios, feature use cases, function points, harnesses, and delivery slices still need consistent ownership and acceptance rules. | Continue moving scope-facing drafts into `version-scope/` and link only architecture constraints back to L0. |
+| L0-GAP-003 | Promotion decision for S1-S6 technical scenarios. | Technical scenarios are useful but not accepted architecture verification facts yet. | Classify each as architecture stress scenario or archive, then promote accepted technical scenarios into `views.md` and verification evidence. |
 | L0-GAP-004 | Capability Placement accepted contract and verification chain. | C-Side/S-Side, local capability, weak department, and federated modes remain under-specified. | Promote CAP-12 semantics into architecture features plus accepted contract docs and tests. |
+| L0-GAP-004A | Capability-to-module mapping. | Capability-first design is accepted, but accepted capability aggregates do not yet have a complete mapping to L0/L1 owners and verification edges. | Create or promote a capability-to-module map and keep capability aggregates from becoming modules by accident. |
 | L0-GAP-005 | Harness-first verification mapping. | Draft verification matrix is not wired into code facts or CI gates. | Map accepted invariants/scenarios to tests, harness docs, or verification evidence. |
 | L0-GAP-006 | Trustworthy/DFX home. | AI risk, trust boundary, and evidence material remains candidate_promote and may drift. | Decide whether to split into L2 trustworthy architecture, governance, and DFX evidence. |
 | L0-GAP-007 | Contract catalog promotion of old ICD/YAML drafts. | Draft contracts cannot drive runtime behavior. | Review each ICD/YAML and move accepted items to the contract system. |
@@ -137,7 +158,8 @@ should be added here only when they require an L0 architecture decision.
   the archived file as current authority.
 - This consolidation does not promote contract schemas.
 - This consolidation does not resolve L1 merge conflicts.
-- This consolidation does not create the version scope system yet.
+- This consolidation does not complete version scope ownership, acceptance, or
+  delivery tracking rules.
 
 ## Review Checklist
 
