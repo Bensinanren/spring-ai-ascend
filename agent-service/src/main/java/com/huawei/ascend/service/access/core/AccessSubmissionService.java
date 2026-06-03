@@ -1,12 +1,7 @@
 package com.huawei.ascend.service.access.core;
 
-import com.huawei.ascend.service.access.egress.EgressBindingFactory;
-import com.huawei.ascend.service.access.egress.EgressDispatcher;
-import com.huawei.ascend.service.access.egress.EgressQueueRegistry;
 import com.huawei.ascend.service.access.model.AccessAcceptedResponse;
 import com.huawei.ascend.service.access.model.AccessCancelCommand;
-import com.huawei.ascend.service.access.model.EgressBinding;
-import com.huawei.ascend.service.access.model.ReplyContext;
 import com.huawei.ascend.service.schema.AgentRequest;
 import com.huawei.ascend.service.schema.Message;
 import com.huawei.ascend.service.schema.Role;
@@ -17,7 +12,6 @@ import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.CancelCommand
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.ResumeCommand;
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.RunCommand;
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient.TaskResult;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
@@ -25,8 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Submits normalized access requests into task control and binds the session
- * reply channel before dispatch.
+ * Resolves access sessions before submitting normalized requests into task control.
  */
 public final class AccessSubmissionService {
 
@@ -34,23 +27,16 @@ public final class AccessSubmissionService {
 
     private final TaskControlClient taskControlClient;
     private final SessionManager sessionManager;
-    private final EgressQueueRegistry egressQueueRegistry;
-    private final EgressDispatcher egressDispatcher;
 
     public AccessSubmissionService(
             TaskControlClient taskControlClient,
-            SessionManager sessionManager,
-            EgressQueueRegistry egressQueueRegistry,
-            EgressDispatcher egressDispatcher) {
+            SessionManager sessionManager) {
         this.taskControlClient = Objects.requireNonNull(taskControlClient, "taskControlClient");
         this.sessionManager = Objects.requireNonNull(sessionManager, "sessionManager");
-        this.egressQueueRegistry = Objects.requireNonNull(egressQueueRegistry, "egressQueueRegistry");
-        this.egressDispatcher = Objects.requireNonNull(egressDispatcher, "egressDispatcher");
     }
 
-    public CompletionStage<AccessAcceptedResponse> run(AgentRequest request, ReplyContext reply) {
+    public CompletionStage<AccessAcceptedResponse> run(AgentRequest request) {
         Objects.requireNonNull(request, "request");
-        Objects.requireNonNull(reply, "reply");
         long startedNanos = System.nanoTime();
         AgentRequest resolved = resolveSession(request);
         LOGGER.info("access resolved session tenantId={} userId={} agentId={} requestedSessionId={} resolvedSessionId={}",
@@ -59,7 +45,6 @@ public final class AccessSubmissionService {
                 request.agentId(),
                 request.sessionId(),
                 resolved.sessionId());
-        bindEgress(resolved, reply);
         return taskControlClient.run(new RunCommand(resolved))
                 .thenApply(result -> {
                     LOGGER.info("trace stage=access-run tenantId={} userId={} agentId={} sessionId={} taskId={} accepted={} durationMs={}",
@@ -74,12 +59,10 @@ public final class AccessSubmissionService {
                 });
     }
 
-    public CompletionStage<AccessAcceptedResponse> resume(AgentRequest request, ReplyContext reply) {
+    public CompletionStage<AccessAcceptedResponse> resume(AgentRequest request) {
         Objects.requireNonNull(request, "request");
-        Objects.requireNonNull(reply, "reply");
         long startedNanos = System.nanoTime();
         AgentRequest resolved = resolveSession(request);
-        bindEgress(resolved, reply);
         return taskControlClient.resume(new ResumeCommand(null, resolved))
                 .thenApply(result -> {
                     LOGGER.info("trace stage=access-resume tenantId={} userId={} agentId={} sessionId={} taskId={} accepted={} durationMs={}",
@@ -116,18 +99,6 @@ public final class AccessSubmissionService {
                     elapsedMs(startedNanos));
             return toAccepted(command, result);
         });
-    }
-
-    private void bindEgress(AgentRequest request, ReplyContext reply) {
-        EgressBinding binding = EgressBindingFactory.from(request, reply);
-        egressQueueRegistry.getOrCreate(binding);
-        egressDispatcher.start(binding);
-        LOGGER.info("access egress bound tenantId={} sessionId={} agentId={} channel={} streaming={}",
-                binding.tenantId(),
-                binding.sessionId(),
-                request.agentId(),
-                binding.replyChannel(),
-                reply.a2aStreaming());
     }
 
     private AgentRequest resolveSession(AgentRequest request) {

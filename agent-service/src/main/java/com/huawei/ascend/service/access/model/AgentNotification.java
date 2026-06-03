@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public record NotificationFrame(
+public record AgentNotification(
         String tenantId,
         String sessionId,
         String taskId,
@@ -17,7 +17,7 @@ public record NotificationFrame(
         Map<String, Object> metadata,
         boolean terminal) {
 
-    public NotificationFrame {
+    public AgentNotification {
         Objects.requireNonNull(tenantId, "tenantId");
         Objects.requireNonNull(sessionId, "sessionId");
         Objects.requireNonNull(taskId, "taskId");
@@ -34,5 +34,3 @@ public record NotificationFrame(
         }
     }
 }
-
-

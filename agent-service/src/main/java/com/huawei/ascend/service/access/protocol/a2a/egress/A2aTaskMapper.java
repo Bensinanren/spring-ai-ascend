@@ -1,5 +1,7 @@
-package com.huawei.ascend.service.access.protocol.a2a;
+package com.huawei.ascend.service.access.protocol.a2a.egress;
 
+import com.huawei.ascend.service.access.protocol.a2a.model.A2aAcceptedResponse;
+import com.huawei.ascend.service.access.protocol.a2a.model.A2aTaskQueryParams;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,12 +16,12 @@ import org.a2aproject.sdk.spec.TaskStatus;
 import org.a2aproject.sdk.spec.TaskStatusUpdateEvent;
 import org.a2aproject.sdk.spec.TextPart;
 
-final class A2aTaskMapper {
+public final class A2aTaskMapper {
 
     private A2aTaskMapper() {
     }
 
-    static Task toTask(A2aTaskQueryParams query, List<A2aOutput> outputs) {
+    public static Task toTask(A2aTaskQueryParams query, List<A2aOutput> outputs) {
         List<Artifact> artifacts = new ArrayList<>();
         List<Message> history = new ArrayList<>();
         TaskStatus status = new TaskStatus(TaskState.TASK_STATE_SUBMITTED);
@@ -49,7 +51,7 @@ final class A2aTaskMapper {
                 .build();
     }
 
-    static Task canceledTask(A2aAcceptedResponse accepted) {
+    public static Task canceledTask(A2aAcceptedResponse accepted) {
         Message message = agentMessage(
                 accepted.sessionId(),
                 accepted.taskId(),
@@ -67,7 +69,7 @@ final class A2aTaskMapper {
                 .build();
     }
 
-    static Message agentMessage(String contextId, String taskId, String text, Map<String, Object> metadata) {
+    public static Message agentMessage(String contextId, String taskId, String text, Map<String, Object> metadata) {
         List<Part<?>> parts = List.of(new TextPart(text));
         return Message.builder()
                 .role(Message.Role.ROLE_AGENT)

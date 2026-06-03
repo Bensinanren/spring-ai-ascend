@@ -1,16 +1,29 @@
-package com.huawei.ascend.service.access.protocol.a2a;
+package com.huawei.ascend.service.access.protocol.a2a.jsonrpc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.io.IOException;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.huawei.ascend.service.access.core.AccessSubmissionService;
+import com.huawei.ascend.service.access.model.AccessAcceptedResponse;
+import com.huawei.ascend.service.access.model.AccessCancelCommand;
+import com.huawei.ascend.service.access.protocol.a2a.A2aAccessProperties;
+import com.huawei.ascend.service.access.protocol.a2a.egress.A2aOutput;
+import com.huawei.ascend.service.access.protocol.a2a.egress.A2aOutputHandle;
+import com.huawei.ascend.service.access.protocol.a2a.egress.A2aOutputRegistry;
+import com.huawei.ascend.service.access.protocol.a2a.egress.A2aTaskMapper;
+import com.huawei.ascend.service.access.protocol.a2a.model.A2aAcceptedResponse;
+import com.huawei.ascend.service.access.protocol.a2a.model.A2aTaskQueryParams;
+import com.huawei.ascend.service.schema.AgentRequest;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.a2aproject.sdk.grpc.utils.ProtoUtils;
 import org.a2aproject.sdk.jsonrpc.common.json.JsonUtil;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.A2AErrorResponse;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.CancelTaskRequest;
@@ -21,27 +34,13 @@ import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageRequest;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageResponse;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageRequest;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageResponse;
-import org.a2aproject.sdk.grpc.utils.ProtoUtils;
 import org.a2aproject.sdk.spec.InternalError;
 import org.a2aproject.sdk.spec.InvalidRequestError;
 import org.a2aproject.sdk.spec.JSONParseError;
 import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.StreamingEventKind;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-@RestController
-@RequestMapping({"/a2a", "/a2a/"})
-public final class A2aJsonRpcController {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(A2aJsonRpcController.class);
+public final class A2aJsonRpcHandler {
 
     private static final String METHOD_SEND_MESSAGE = "SendMessage";
     private static final String METHOD_SEND_STREAMING_MESSAGE = "SendStreamingMessage";
@@ -52,157 +51,134 @@ public final class A2aJsonRpcController {
     private static final String METHOD_TASKS_GET = "tasks/get";
     private static final String METHOD_TASKS_CANCEL = "tasks/cancel";
 
-    private final A2aAccessService accessService;
+    private final AccessSubmissionService submissionService;
     private final A2aOutputRegistry outputRegistry;
     private final ObjectMapper objectMapper;
     private final A2aAccessProperties properties;
 
-    public A2aJsonRpcController(
-            A2aAccessService accessService,
+    public A2aJsonRpcHandler(
+            AccessSubmissionService submissionService,
             A2aOutputRegistry outputRegistry,
             ObjectMapper objectMapper,
             A2aAccessProperties properties) {
-        this.accessService = Objects.requireNonNull(accessService, "accessService");
+        this.submissionService = Objects.requireNonNull(submissionService, "submissionService");
         this.outputRegistry = Objects.requireNonNull(outputRegistry, "outputRegistry");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.properties = Objects.requireNonNull(properties, "properties");
     }
 
-    @PostMapping(
-            consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.TEXT_EVENT_STREAM_VALUE})
-    public Object handle(@RequestBody String body) {
-        JsonNode root;
-        try {
-            root = objectMapper.readTree(body);
-        } catch (JsonProcessingException ex) {
-            return jsonResponse(new A2AErrorResponse(null, new JSONParseError("Invalid JSON-RPC body")));
+    public Object handle(String body) {
+        JsonNode root = readRoot(body);
+        if (root == null) {
+            return new A2AErrorResponse(null, new JSONParseError("Invalid JSON-RPC body"));
         }
         Object id = jsonRpcId(root);
         String methodName = text(root.get("method"));
         if (methodName == null || methodName.isBlank()) {
-            return jsonResponse(new A2AErrorResponse(id, new InvalidRequestError("Missing JSON-RPC method")));
+            return new A2AErrorResponse(id, new InvalidRequestError("Missing JSON-RPC method"));
         }
         if (!"2.0".equals(text(root.get("jsonrpc")))) {
-            return jsonResponse(new A2AErrorResponse(id, new InvalidRequestError("JSON-RPC version must be 2.0")));
+            return new A2AErrorResponse(id, new InvalidRequestError("JSON-RPC version must be 2.0"));
         }
         try {
             if (METHOD_SEND_MESSAGE.equals(methodName) || METHOD_MESSAGE_SEND.equals(methodName)) {
-                validateLegacyMethod(body, methodName, METHOD_SEND_MESSAGE, SendMessageRequest.class);
-                return jsonResponse(handleSend(id, root.get("params")));
-            }
-            if (METHOD_SEND_STREAMING_MESSAGE.equals(methodName) || METHOD_MESSAGE_STREAM.equals(methodName)) {
-                validateLegacyMethod(body, methodName, METHOD_SEND_STREAMING_MESSAGE, SendStreamingMessageRequest.class);
-                return handleStream(id, root.get("params"));
+                validateCanonicalMethod(body, methodName, METHOD_SEND_MESSAGE, SendMessageRequest.class);
+                return handleSend(id, root.get("params"));
             }
             if (METHOD_GET_TASK.equals(methodName) || METHOD_TASKS_GET.equals(methodName)) {
-                validateLegacyMethod(body, methodName, METHOD_GET_TASK, GetTaskRequest.class);
-                return jsonResponse(handleGetTask(id, root.get("params")));
+                validateCanonicalMethod(body, methodName, METHOD_GET_TASK, GetTaskRequest.class);
+                return handleGetTask(id, root.get("params"));
             }
             if (METHOD_CANCEL_TASK.equals(methodName) || METHOD_TASKS_CANCEL.equals(methodName)) {
-                validateLegacyMethod(body, methodName, METHOD_CANCEL_TASK, CancelTaskRequest.class);
-                return jsonResponse(handleCancel(id, root.get("params")));
+                validateCanonicalMethod(body, methodName, METHOD_CANCEL_TASK, CancelTaskRequest.class);
+                return handleCancel(id, root.get("params"));
             }
-            return jsonResponse(new A2AErrorResponse(
-                    id, new InvalidRequestError("Unsupported A2A JSON-RPC method: " + methodName)));
+            if (METHOD_SEND_STREAMING_MESSAGE.equals(methodName) || METHOD_MESSAGE_STREAM.equals(methodName)) {
+                return new A2AErrorResponse(
+                        id, new InvalidRequestError("SendStreamingMessage is only supported by HTTP/SSE transport"));
+            }
+            return new A2AErrorResponse(id, new InvalidRequestError("Unsupported A2A JSON-RPC method: " + methodName));
         } catch (org.a2aproject.sdk.jsonrpc.common.json.JsonProcessingException ex) {
-            return jsonResponse(new A2AErrorResponse(id, new InvalidRequestError(ex.getMessage())));
+            return new A2AErrorResponse(id, new InvalidRequestError(ex.getMessage()));
         }
     }
 
-    private void validateLegacyMethod(String body, String methodName, String legacyMethod, Class<?> requestType)
+    public String handleToJson(String body) {
+        return toJson(handle(body));
+    }
+
+    public A2aJsonRpcStreamExchange openStream(String body) {
+        JsonNode root = readRoot(body);
+        if (root == null) {
+            throw new IllegalArgumentException("Invalid JSON-RPC body");
+        }
+        Object id = jsonRpcId(root);
+        String methodName = text(root.get("method"));
+        if (!METHOD_SEND_STREAMING_MESSAGE.equals(methodName) && !METHOD_MESSAGE_STREAM.equals(methodName)) {
+            throw new IllegalArgumentException("JSON-RPC method must be SendStreamingMessage");
+        }
+        if (!"2.0".equals(text(root.get("jsonrpc")))) {
+            throw new IllegalArgumentException("JSON-RPC version must be 2.0");
+        }
+        validateStreamingRequest(body, methodName);
+        A2aAcceptedResponse accepted = submit(toAgentRequest(root.get("params")));
+        return new A2aJsonRpcStreamExchange(
+                id,
+                new SendStreamingMessageResponse(id, toAcceptedMessage(accepted)),
+                outputHandle(accepted));
+    }
+
+    public String toJson(Object response) {
+        try {
+            JsonNode json = objectMapper.valueToTree(response);
+            if (normalizeStreamingResponseResult(response, json)) {
+                removeNullFields(json);
+            } else {
+                normalizeA2aWireValues(json);
+            }
+            return objectMapper.writeValueAsString(json);
+        } catch (JsonProcessingException | InvalidProtocolBufferException ex) {
+            throw new IllegalStateException("Failed to serialize A2A JSON-RPC response", ex);
+        }
+    }
+
+    private JsonNode readRoot(String body) {
+        try {
+            return objectMapper.readTree(body);
+        } catch (JsonProcessingException ex) {
+            return null;
+        }
+    }
+
+    private Object jsonRpcId(JsonNode root) {
+        JsonNode id = root == null ? null : root.get("id");
+        if (id == null || id.isNull()) {
+            return null;
+        }
+        if (id.isNumber()) {
+            return id.numberValue();
+        }
+        if (id.isBoolean()) {
+            return id.booleanValue();
+        }
+        return id.asText();
+    }
+
+    private void validateCanonicalMethod(String body, String methodName, String canonicalMethod, Class<?> requestType)
             throws org.a2aproject.sdk.jsonrpc.common.json.JsonProcessingException {
-        if (legacyMethod.equals(methodName)) {
+        if (canonicalMethod.equals(methodName)) {
             JsonUtil.fromJson(body, requestType);
         }
     }
 
-    private SendMessageResponse handleSend(Object id, JsonNode params) {
-        try {
-            A2aAcceptedResponse accepted = accessService.send(toEnvelope(params));
-            return new SendMessageResponse(id, toAcceptedMessage(accepted));
-        } catch (IllegalArgumentException ex) {
-            return new SendMessageResponse(id, new InvalidRequestError(ex.getMessage()));
-        } catch (RuntimeException ex) {
-            LOGGER.warn("A2A send failed", ex);
-            return new SendMessageResponse(id, new InternalError(ex.getMessage()));
+    private void validateStreamingRequest(String body, String methodName) {
+        if (!METHOD_SEND_STREAMING_MESSAGE.equals(methodName)) {
+            return;
         }
-    }
-
-    private SseEmitter handleStream(Object id, JsonNode params) {
-        SseEmitter emitter = new SseEmitter(0L);
-        A2aAcceptedResponse accepted;
         try {
-            A2aEnvelope envelope = toEnvelope(params);
-            LOGGER.info("a2a stream accepted input tenantId={} userId={} agentId={} sessionId={} contextId={} textLength={}",
-                    envelope.context().tenantId(),
-                    envelope.context().userId(),
-                    envelope.context().agentId(),
-                    envelope.context().sessionId(),
-                    envelope.context().contextId(),
-                    envelope.message() == null || envelope.message().text() == null
-                            ? 0
-                            : envelope.message().text().length());
-            accepted = accessService.stream(envelope);
-            send(emitter, new SendStreamingMessageResponse(id, toAcceptedMessage(accepted)), "jsonrpc");
-        } catch (IllegalArgumentException ex) {
-            LOGGER.warn("a2a stream rejected: {}", ex.getMessage());
-            send(emitter, new SendStreamingMessageResponse(id, new InvalidRequestError(ex.getMessage())), "error");
-            emitter.complete();
-            return emitter;
-        } catch (RuntimeException ex) {
-            LOGGER.warn("A2A stream failed", ex);
-            send(emitter, new SendStreamingMessageResponse(id, new InternalError(ex.getMessage())), "error");
-            emitter.complete();
-            return emitter;
-        }
-
-        A2aOutputHandle handle = new A2aOutputHandle(
-                accepted.tenantId(),
-                accepted.sessionId(),
-                accepted.taskId());
-        Runnable unsubscribe = outputRegistry.subscribe(handle, output -> {
-            LOGGER.info("a2a stream emits tenantId={} sessionId={} taskId={} kind={} terminal={} metadata={}",
-                    accepted.tenantId(),
-                    accepted.sessionId(),
-                    accepted.taskId(),
-                    output.kind(),
-                    output.terminal(),
-                    output.metadata());
-            send(emitter, new SendStreamingMessageResponse(id, output.event()), "jsonrpc");
-            if (output.terminal()) {
-                emitter.complete();
-            }
-        });
-        emitter.onCompletion(unsubscribe);
-        emitter.onTimeout(unsubscribe);
-        emitter.onError(ignored -> unsubscribe.run());
-        return emitter;
-    }
-
-    private GetTaskResponse handleGetTask(Object id, JsonNode params) {
-        try {
-            A2aTaskQueryParams query = toTaskQuery(params);
-            A2aOutputHandle handle = new A2aOutputHandle(query.tenantId(), query.sessionId(), query.taskId());
-            List<A2aOutput> outputs = outputRegistry.list(handle);
-            return new GetTaskResponse(id, A2aTaskMapper.toTask(query, outputs));
-        } catch (IllegalArgumentException ex) {
-            return new GetTaskResponse(id, new InvalidRequestError(ex.getMessage()));
-        } catch (RuntimeException ex) {
-            LOGGER.warn("A2A get task failed", ex);
-            return new GetTaskResponse(id, new InternalError(ex.getMessage()));
-        }
-    }
-
-    private CancelTaskResponse handleCancel(Object id, JsonNode params) {
-        try {
-            A2aAcceptedResponse accepted = accessService.cancel(toCancelEnvelope(params));
-            return new CancelTaskResponse(id, A2aTaskMapper.canceledTask(accepted));
-        } catch (IllegalArgumentException ex) {
-            return new CancelTaskResponse(id, new InvalidRequestError(ex.getMessage()));
-        } catch (RuntimeException ex) {
-            LOGGER.warn("A2A cancel failed", ex);
-            return new CancelTaskResponse(id, new InternalError(ex.getMessage()));
+            JsonUtil.fromJson(body, SendStreamingMessageRequest.class);
+        } catch (org.a2aproject.sdk.jsonrpc.common.json.JsonProcessingException ex) {
+            throw new IllegalArgumentException(ex.getMessage(), ex);
         }
     }
 
@@ -218,82 +194,135 @@ public final class A2aJsonRpcController {
                         "accepted", accepted.accepted()));
     }
 
-    private A2aEnvelope toEnvelope(JsonNode params) {
+    private A2aOutputHandle outputHandle(A2aAcceptedResponse accepted) {
+        return new A2aOutputHandle(accepted.tenantId(), accepted.sessionId());
+    }
+
+    private SendMessageResponse handleSend(Object id, JsonNode params) {
+        try {
+            A2aAcceptedResponse accepted = submit(toAgentRequest(params));
+            return new SendMessageResponse(id, toAcceptedMessage(accepted));
+        } catch (IllegalArgumentException ex) {
+            return new SendMessageResponse(id, new InvalidRequestError(ex.getMessage()));
+        } catch (RuntimeException ex) {
+            return new SendMessageResponse(id, new InternalError(ex.getMessage()));
+        }
+    }
+
+    private GetTaskResponse handleGetTask(Object id, JsonNode params) {
+        try {
+            A2aTaskQueryParams query = toTaskQuery(params);
+            A2aOutputHandle handle = new A2aOutputHandle(query.tenantId(), query.sessionId());
+            List<A2aOutput> outputs = outputRegistry.list(handle);
+            return new GetTaskResponse(id, A2aTaskMapper.toTask(query, outputs));
+        } catch (IllegalArgumentException ex) {
+            return new GetTaskResponse(id, new InvalidRequestError(ex.getMessage()));
+        } catch (RuntimeException ex) {
+            return new GetTaskResponse(id, new InternalError(ex.getMessage()));
+        }
+    }
+
+    private CancelTaskResponse handleCancel(Object id, JsonNode params) {
+        try {
+            A2aAcceptedResponse accepted = cancel(toCancelCommand(params));
+            return new CancelTaskResponse(id, A2aTaskMapper.canceledTask(accepted));
+        } catch (IllegalArgumentException ex) {
+            return new CancelTaskResponse(id, new InvalidRequestError(ex.getMessage()));
+        } catch (RuntimeException ex) {
+            return new CancelTaskResponse(id, new InternalError(ex.getMessage()));
+        }
+    }
+
+    private A2aAcceptedResponse submit(AgentRequest request) {
+        return toA2aAcceptedResponse(submissionService.run(request).toCompletableFuture().join());
+    }
+
+    private A2aAcceptedResponse cancel(AccessCancelCommand command) {
+        return toA2aAcceptedResponse(submissionService.cancel(command).toCompletableFuture().join());
+    }
+
+    private static A2aAcceptedResponse toA2aAcceptedResponse(AccessAcceptedResponse response) {
+        return new A2aAcceptedResponse(
+                response.tenantId(),
+                response.userId(),
+                response.agentId(),
+                response.sessionId(),
+                response.taskId(),
+                response.accepted(),
+                response.message());
+    }
+
+    private AgentRequest toAgentRequest(JsonNode params) {
         if (params == null || params.isNull()) {
             throw new IllegalArgumentException("Missing JSON-RPC params");
         }
         JsonNode message = required(params, "message");
-        JsonNode metadata = object(message.get("metadata"));
+        JsonNode paramsMetadata = object(params.get("metadata"));
+        JsonNode messageMetadata = object(message.get("metadata"));
+        Map<String, Object> paramsMetadataMap = metadataMap(paramsMetadata);
+        Map<String, Object> messageMetadataMap = metadataMap(messageMetadata);
+        HashMap<String, Object> mergedMetadata = new HashMap<>(paramsMetadataMap);
+        mergedMetadata.putAll(messageMetadataMap);
+        JsonNode metadata = objectMapper.valueToTree(mergedMetadata);
         String contextId = text(message.get("contextId"));
         String sessionId = firstText(metadata.get("sessionId"), message.get("contextId"));
-        return new A2aEnvelope(
-                new A2aEnvelope.A2aContext(
-                        requiredTextOrDefault(
-                                firstText(params.get("tenant"), metadata.get("tenantId")),
-                                properties.getDefaultTenantId(),
-                                "A2A params.tenant"),
-                        requiredText(metadata, "userId"),
-                        requiredTextOrDefault(
-                                text(metadata.get("agentId")),
-                                properties.getDefaultAgentId(),
-                                "A2A metadata.agentId"),
-                        sessionId,
-                        contextId,
-                        text(metadata.get("idempotencyKey")),
-                        text(metadata.get("correlationId"))),
-                new A2aEnvelope.A2aMessage(
-                        messageText(message),
-                        parts(message.get("parts")),
-                        metadataMap(metadata)),
-                pushNotificationConfig(params));
+        validatePushNotificationConfig(params);
+
+        HashMap<String, Object> requestMetadata = new HashMap<>();
+        requestMetadata.put("parts", parts(message.get("parts")));
+        requestMetadata.put("paramsMetadata", paramsMetadataMap);
+        requestMetadata.put("messageMetadata", messageMetadataMap);
+        requestMetadata.put("metadata", mergedMetadata);
+        putIfPresent(requestMetadata, "contextId", contextId);
+        putIfPresent(requestMetadata, "correlationId", text(metadata.get("correlationId")));
+        requestMetadata.putAll(mergedMetadata);
+        return new AgentRequest(
+                requiredTextOrDefault(
+                        firstText(params.get("tenant"), metadata.get("tenantId")),
+                        properties.getDefaultTenantId(),
+                        "A2A params.tenant"),
+                requiredText(metadata, "userId"),
+                requiredTextOrDefault(text(metadata.get("agentId")),
+                        properties.getDefaultAgentId(),
+                        "A2A metadata.agentId"),
+                optionalSessionId(sessionId),
+                List.of(com.huawei.ascend.service.schema.Message.user(messageText(message))),
+                text(metadata.get("idempotencyKey")),
+                requestMetadata);
     }
 
-    private A2aEnvelope toCancelEnvelope(JsonNode params) {
+    private AccessCancelCommand toCancelCommand(JsonNode params) {
         if (params == null || params.isNull()) {
             throw new IllegalArgumentException("Missing JSON-RPC params");
         }
         JsonNode metadata = object(params.get("metadata"));
         String taskId = firstText(params.get("id"), params.get("taskId"));
-        return new A2aEnvelope(
-                new A2aEnvelope.A2aContext(
-                        requiredTextOrDefault(
-                                text(metadata.get("tenantId")),
-                                properties.getDefaultTenantId(),
-                                "A2A metadata.tenantId"),
-                        requiredText(metadata, "userId"),
-                        requiredTextOrDefault(
-                                text(metadata.get("agentId")),
-                                properties.getDefaultAgentId(),
-                                "A2A metadata.agentId"),
-                        firstText(metadata.get("sessionId"), metadata.get("contextId")),
-                        text(metadata.get("contextId")),
-                        text(metadata.get("idempotencyKey")),
-                        text(metadata.get("correlationId"))),
-                new A2aEnvelope.A2aMessage(
-                        null,
-                        List.of(),
-                        Map.of("taskId", taskId == null ? "" : taskId)),
-                null);
+        return new AccessCancelCommand(
+                requiredTextOrDefault(
+                        text(metadata.get("tenantId")),
+                        properties.getDefaultTenantId(),
+                        "A2A metadata.tenantId"),
+                requiredText(metadata, "userId"),
+                requiredTextOrDefault(
+                        text(metadata.get("agentId")),
+                        properties.getDefaultAgentId(),
+                        "A2A metadata.agentId"),
+                normalizeSessionId(firstText(metadata.get("sessionId"), metadata.get("contextId")),
+                        text(metadata.get("contextId"))),
+                taskId,
+                null,
+                Map.of("taskId", taskId == null ? "" : taskId));
     }
 
-    private A2aEnvelope.A2aPushNotificationConfig pushNotificationConfig(JsonNode params) {
+    private void validatePushNotificationConfig(JsonNode params) {
         JsonNode config = params.path("configuration").path("taskPushNotificationConfig");
         if (config == null || config.isMissingNode() || config.isNull()) {
-            return null;
+            return;
         }
         String url = text(config.get("url"));
         if (url == null || url.isBlank()) {
             throw new IllegalArgumentException("Missing A2A taskPushNotificationConfig.url");
         }
-        JsonNode authentication = object(config.get("authentication"));
-        return new A2aEnvelope.A2aPushNotificationConfig(
-                text(config.get("id")),
-                text(config.get("taskId")),
-                url,
-                text(config.get("token")),
-                text(authentication.get("scheme")),
-                text(authentication.get("credentials")),
-                text(config.get("tenant")));
     }
 
     private A2aTaskQueryParams toTaskQuery(JsonNode params) {
@@ -308,20 +337,6 @@ public final class A2aJsonRpcController {
                         "A2A metadata.tenantId"),
                 requiredText(metadata, "sessionId"),
                 firstText(params.get("id"), params.get("taskId")));
-    }
-
-    private Object jsonRpcId(JsonNode root) {
-        JsonNode id = root == null ? null : root.get("id");
-        if (id == null || id.isNull()) {
-            return null;
-        }
-        if (id.isNumber()) {
-            return id.numberValue();
-        }
-        if (id.isBoolean()) {
-            return id.booleanValue();
-        }
-        return id.asText();
     }
 
     private static JsonNode required(JsonNode node, String field) {
@@ -365,6 +380,20 @@ public final class A2aJsonRpcController {
         return node == null || node.isNull() ? null : node.asText();
     }
 
+    private static String optionalSessionId(String sessionId) {
+        return sessionId == null || sessionId.isBlank() ? null : sessionId;
+    }
+
+    private static String normalizeSessionId(String sessionId, String fallback) {
+        if (sessionId != null && !sessionId.isBlank()) {
+            return sessionId;
+        }
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
+        return java.util.UUID.randomUUID().toString();
+    }
+
     private String messageText(JsonNode message) {
         JsonNode parts = message.get("parts");
         if (parts == null || !parts.isArray()) {
@@ -399,36 +428,14 @@ public final class A2aJsonRpcController {
         return objectMapper.convertValue(metadata, Map.class);
     }
 
-    private void send(SseEmitter emitter, Object response, String eventName) {
-        try {
-            emitter.send(SseEmitter.event().name(eventName).data(toJson(response)));
-        } catch (IOException ex) {
-            emitter.completeWithError(ex);
-        }
-    }
-
-    private ResponseEntity<String> jsonResponse(Object response) {
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(toJson(response));
-    }
-
-    private String toJson(Object response) {
-        try {
-            JsonNode json = objectMapper.valueToTree(response);
-            if (normalizeStreamingResponseResult(response, json)) {
-                removeNullFields(json);
-            } else {
-                normalizeA2aWireValues(json);
-            }
-            return objectMapper.writeValueAsString(json);
-        } catch (JsonProcessingException | com.google.protobuf.InvalidProtocolBufferException ex) {
-            throw new IllegalStateException("Failed to serialize A2A JSON-RPC response", ex);
+    private static void putIfPresent(Map<String, Object> target, String key, Object value) {
+        if (value != null) {
+            target.put(key, value);
         }
     }
 
     private boolean normalizeStreamingResponseResult(Object response, JsonNode json)
-            throws JsonProcessingException, com.google.protobuf.InvalidProtocolBufferException {
+            throws JsonProcessingException, InvalidProtocolBufferException {
         if (!(response instanceof SendStreamingMessageResponse streamingResponse)
                 || !(json instanceof ObjectNode object)
                 || !(streamingResponse.getResult() instanceof StreamingEventKind streamingEvent)) {

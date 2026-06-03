@@ -2,8 +2,6 @@ package com.huawei.ascend.service.bootstrap;
 
 import com.huawei.ascend.service.access.api.NotificationPort;
 import com.huawei.ascend.service.access.core.AccessSubmissionService;
-import com.huawei.ascend.service.access.egress.EgressDispatcher;
-import com.huawei.ascend.service.access.egress.EgressQueueRegistry;
 import com.huawei.ascend.service.engine.port.AccessLayerClient;
 import com.huawei.ascend.service.session.api.SessionManager;
 import com.huawei.ascend.service.taskcontrol.api.TaskControlClient;
@@ -28,19 +26,15 @@ import org.springframework.context.annotation.Configuration;
 public class AgentServiceBootstrapConfiguration {
 
     /**
-     * Inbound seam. The access module publishes its {@code AccessGateway} only
-     * once an {@link AccessSubmissionService} exists. Access binds egress before
-     * submitting to task control, while task control owns task-id allocation and
-     * lifecycle state.
+     * Inbound seam. Access resolves the session before submitting to task
+     * control, while task control owns task-id allocation and lifecycle state.
      */
     @Bean
     @ConditionalOnMissingBean(AccessSubmissionService.class)
     public AccessSubmissionService accessSubmissionService(
             TaskControlClient taskControlClient,
-            SessionManager sessionManager,
-            EgressQueueRegistry egressQueueRegistry,
-            EgressDispatcher egressDispatcher) {
-        return new AccessSubmissionService(taskControlClient, sessionManager, egressQueueRegistry, egressDispatcher);
+            SessionManager sessionManager) {
+        return new AccessSubmissionService(taskControlClient, sessionManager);
     }
 
     /**
