@@ -115,6 +115,38 @@ class AgentServiceEndToEndIT {
     }
 
     @Test
+    void a2aMultiTurnSameSessionKeepsSessionAndCreatesTaskPerCompletedTurn() {
+        JsonNode firstTurn = send("session-multi", "first question");
+        String firstTaskId = firstTurn.path("taskId").asText();
+        awaitTaskState("session-multi", firstTaskId, TaskState.COMPLETED);
+        awaitOutputContaining(new A2aOutputHandle(TENANT, "session-multi"), "first question");
+
+        assertThat(sessionManager.get(TENANT, "session-multi")).hasValueSatisfying(session ->
+                assertThat(session.currentUserInput()).anyMatch(message -> "first question".equals(message.text())));
+
+        JsonNode secondTurn = send("session-multi", "second question");
+        String secondTaskId = secondTurn.path("taskId").asText();
+        awaitTaskState("session-multi", secondTaskId, TaskState.COMPLETED);
+        List<A2aOutput> outputs = awaitOutputContaining(
+                new A2aOutputHandle(TENANT, "session-multi"),
+                "second question");
+
+        assertThat(firstTaskId).isNotBlank();
+        assertThat(secondTaskId).isNotBlank();
+        assertThat(secondTaskId).isNotEqualTo(firstTaskId);
+        assertThat(outputs).anyMatch(output -> String.valueOf(output.body()).contains("first question"));
+        assertThat(outputs).anyMatch(output -> String.valueOf(output.body()).contains("second question"));
+        assertThat(sessionManager.get(TENANT, "session-multi")).hasValueSatisfying(session -> {
+            assertThat(session.sessionId()).isEqualTo("session-multi");
+            assertThat(session.currentUserInput()).hasSize(1);
+            assertThat(session.currentUserInput().get(0).text()).isEqualTo("second question");
+        });
+        assertThat(taskControlService.tasks(TENANT, "session-multi"))
+                .hasSize(2)
+                .allSatisfy(task -> assertThat(task.getState()).isEqualTo(TaskState.COMPLETED));
+    }
+
+    @Test
     void a2aInterruptedTaskCanBeResumedThroughAccessAndComplete() {
         JsonNode waitingAccepted = send(INTERRUPTING_AGENT, "session-wait", "weather");
         String taskId = waitingAccepted.path("taskId").asText();
@@ -184,6 +216,22 @@ class AgentServiceEndToEndIT {
         List<A2aOutput> outputs = outputRegistry.list(handle);
         while (System.nanoTime() < deadline
                 && (outputs.isEmpty() || !outputs.get(outputs.size() - 1).terminal())) {
+            try {
+                Thread.sleep(20L);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            outputs = outputRegistry.list(handle);
+        }
+        return outputs;
+    }
+
+    private List<A2aOutput> awaitOutputContaining(A2aOutputHandle handle, String text) {
+        long deadline = System.nanoTime() + java.time.Duration.ofSeconds(5).toNanos();
+        List<A2aOutput> outputs = outputRegistry.list(handle);
+        while (System.nanoTime() < deadline
+                && outputs.stream().noneMatch(output -> String.valueOf(output.body()).contains(text))) {
             try {
                 Thread.sleep(20L);
             } catch (InterruptedException ex) {
