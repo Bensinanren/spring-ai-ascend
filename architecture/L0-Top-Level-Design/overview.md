@@ -3,10 +3,8 @@ level: L0-TLD
 TAG:
   - overview
   - logical-view
-  - runtime-path
-  - deployment-variants
   - architecture-fact
-status: 架构事实
+status: active
 dependency:
   - README.md
   - views.md
@@ -15,177 +13,111 @@ dependency:
   - glossary.md
 ---
 
-# L0 Overview
+# L0 架构概览
 
-## Purpose
+## 目的
 
-This document gives the top-level mental model for `spring-ai-ascend`. It
-summarizes the system goal, target audiences, problem domain, runtime path,
-deployment variants, module boundary shape, quality attributes, and known risks.
+本文档给出系统顶层心智模型，概述系统目标、目标受众、问题领域、核心架构原则、模块边界形态和质量属性。
 
-It does not define contract schemas, API signatures, database tables, message
-topics, retry values, or implementation methods.
+本文档属于架构顶层设计范围，不涉及具体模块的分域设计与具体实现，例如 schema、API 签名、数据库表、消息 topic、重试参数或实现方法等。本文档是 L0 架构概览，逻辑视图、开发视图、运行视图、物理视图部分内容（如运行时路径、部署形态等）由 `views.md` 承载。
 
-## System Goal
+## 系统目标
 
-`spring-ai-ascend` is a self-hostable, governable, extensible agent runtime
-platform built on Java 21 and Spring Boot. It lets Spring developers compose
-agents, model gateways, skills, memory, retrieval, planners, hooks, and
-middleware through SPI, configuration, and contracts while the platform retains
-runtime control, tenant isolation, observability, auditability, capacity
-governance, and change governance.
+本项目定位为面向企业级场景的智能体平台，面向企业应用中的智能体开发、运行、集成、协作与治理提供统一基础。
 
-It is also an open-source Agent development and runtime foundation aligned with
-the Kunpeng and Ascend ecosystem. The platform is intentionally compatible with
-heterogeneous agent frameworks: rigid workflow-style execution and flexible
-agent-loop execution can be integrated through the `agent-execution-engine`
-boundary instead of a closed single-framework runtime. The official execution
-engine is the openJiuwen implementation. Other agent frameworks are treated as
-heterogeneous execution engines adapted to the same Execution Engine SPI.
+* 业务与平台解耦（高安全与高并发）
+业务侧聚焦于细粒度权限控制、多租户数据隐私保护与多端敏捷接入；平台侧专注于低成本运维治理、全维度资源弹性调度与系统高并发高可用。通过业务与平台的明确解耦，兼顾业务敏捷迭代与平台高效稳定。
 
-The target architecture accepts authenticated tenant requests, drives LLM and
-tool-calling execution with audit-grade evidence, supports long-horizon
-suspend/resume behavior, and separates business-owned facts from platform-owned
-runtime trajectory.
+* 生态开放与平滑兼容（异构集成与统一治理）
+原生拥抱 Spring 生态，平滑对接主流微服务体系。全面支持工作流（Workflow）编排与智能体循环（Agent-Loop）双模式驱动；具备异构框架兼容能力，支持存量智能体的运行态平滑接入，构建企业级多智能体（Multi-Agent）的高效协同与一体化治理网络。
 
-The intended business outcome is to help enterprise developers build digital
-employee and agent-collaboration applications without making the platform the
-owner of business facts, business approval rules, or long-running business
-process semantics.
+* 极简开发与敏捷演进（分域隔离与全栈低代码）
+采用域隔离机制解耦核心业务逻辑，通过模块化架构支持功能弹性扩展。最大限度沉淀底层共性能力，降低智能体开发门槛；全面支持配置化、可视化界面及对话式（Prompt-based）开发，实现智能体业务的快速构建与敏捷交付。
 
-## Audience Boundary
+* 全栈国产化硬件亲和（算力协同与效能优化）
+深度适配鲲鹏与昇腾硬件生态，针对智算（AI）与通算（通用 CPU）集群进行全栈级优化。通过智能算力调度与软硬件协同，在混合算力集群中提升性能表现与效率平衡。
 
-| Audience | Primary Need | Timing |
-|---|---|---|
-| Framework-internal contributors | SPI surface, gate rules, architecture workspace, contract truth, module boundaries. | W0/W1/W2 primary |
-| External Spring developers | SDK, quickstart, local and platform capabilities, agent integration, debugging evidence. | W2/W3 primary |
-| Regulated-industry self-host operators | Packaged runtime, isolation, compliance evidence, audit, posture-aware operations. | W3+ |
+## 受众边界
 
-Finance and other industry references in older material are decision-history
-examples unless an accepted ADR makes a vertical the current product identity.
-The current framing is vertical-agnostic and Ascend/Kunpeng hardware-synergy-led.
-
-## Problem Domain
-
-The platform has to solve several long-lived architecture problems:
-
-- Agent execution crosses HTTP ingress, lifecycle state, orchestration,
-  model/tool/memory interaction, bus, observability, governance, and verification.
-- State types such as Task, Session, Memory, Checkpoint, Tool Call, Audit,
-  Trace, Policy, and engine-internal execution state can conflict unless each
-  has a clear owner and writer rule.
-- Long-running work must not hold physical threads, sockets, or client
-  connections while waiting for external input.
-- Business facts and customer permission models must not become hidden platform
-  state.
-- Architecture documents must be traceable to ADRs, generated facts, verification
-  edges, and implementation constraints.
-
-## Core Architecture Principles
-
-| Principle | L0 Meaning |
+| 受众 | 主要需求 |
 |---|---|
-| Platform/business decoupling | Platform code does not carry business customizations; business extends through SPI and configuration. |
-| Contract-first interaction | Cross-module behavior is described before implementation and verified by contract or scenario evidence. |
-| Single state owner | Every core state has one owner and a restricted writer path. |
-| Suspend instead of hold | Long waits are expressed as cursor, suspend, resume, or handoff, not retained physical resources. |
-| Runtime-owned governance | Model, skill, memory, planner, callback, and policy behavior enters through runtime hooks, middleware, capacity, and audit surfaces. |
-| Explicit capability placement | Each tool, context, memory, retriever, approval UI, Gateway capability, and A2A action declares where it executes and which data boundary it crosses. |
-| Boundary-mediated A2A | Multi-agent collaboration inside one `agent-service` instance is closed by that instance; cross-instance or cross-boundary A2A control flows through `agent-bus`. |
-| Control/data/stream separation | Platform Gateway governance, Service Task API, service realtime stream, `agent-bus` interaction governance, event/control channels, and object-reference data paths are separate mechanisms. |
-| Heterogeneous framework compatibility | Official openJiuwen execution and heterogeneous framework execution both enter through the `agent-execution-engine` boundary and the Execution Engine SPI. |
-| Developer lifecycle support | Development, debugging, observability, operations evidence, and verification harnesses are first-class architecture concerns. |
-| Harness-first development | Core scenarios and invariants should produce mocks, stubs, assertions, and tests before runtime binding is called complete. |
+| 内部贡献者 | 高内聚内核、高扩展插件架构、接入协议规范、鲲鹏/昇腾原生优化、全局可观测与运维监控。 |
+| 外部企业开发者 | Spring 生态即插即用、微服务体系平滑融入、异构资产低改造接入、企业级生产安全、可视化画布与对话式配置。 |
 
-## Top-Level Runtime Path
+## 问题领域
 
-```text
-External Client
-  -> agent-client or external HTTP caller
-  -> Platform Gateway capability or Service Task API
-  -> agent-service.platform
-  -> agent-service runtime state owner and reference adapters
-  -> agent-execution-engine through Execution Engine SPI
-  -> agent-middleware for model, skill, memory, retrieval, prompt, and hook surfaces
-  -> agent-bus for Platform Gateway governance, S2C, cross-boundary A2A,
-     federation, control, and rhythm signals
-  -> observability, audit, cost attribution, and verification evidence
-```
+企业级智能体（Agent）的落地已从单一原型的“尝鲜”走向生产环境的“规模化应用”。在此演进过程中，通用开源框架或轻量级低代码平台暴露出明显的局限性，核心问题领域集中在以下四个维度：
 
-For V1, `Task` is the unified server-side authoritative execution lifecycle
-state. It has the same semantic level as an A2A protocol task: it can be created
-or bound by a client-to-server request, or by an `agent-service` instance request
-to another `agent-service` instance through A2A/federation control.
+1. 业务演进的“紧耦合”与平台的“亚健康”
+* 传统痛点：由于缺乏清晰的“业务-平台”边界，企业在构建智能体时，往往将复杂的权限控制、多租户隔离、数据合规等业务逻辑，与底层的大模型调用、长上下文管理、高并发资源调度等平台逻辑混杂在一起。
+* 架构演进挑战：这导致业务形态一变，底层系统就要伤筋动骨；同时，大量具有不确定性的 Agent 任务（如死循环、偶发性大流量）极易拖垮整个平台的微服务底座，缺乏确定性的 SLA 保障。
 
-An `agent-service` instance owns Task-level lifecycle and parent/child state for
-work created inside that instance. Cross-instance, cross-department,
-cross-deployment, or cross-trust-boundary collaboration uses `agent-bus` for
-A2A/federation control. The remote Task lifecycle remains owned by the remote
-`agent-service` instance; the local instance keeps the relationship reference,
-join state, and observability evidence. `agent-execution-engine` owns
-finer-grained execution state below the Task boundary, such as workflow node
-state or ReAct loop state.
+2. 生态孤岛化与存量资产复用鸿沟
+* 传统痛点：目前智能体生态割裂严重（如 Python 生态的 LangChain/CrewAI，Java 生态的 Spring AI，以及各类自研框架）。
+* 架构演进挑战：企业内部往往存在大量基于不同框架、不同语言开发的“存量 Agent”。传统架构难以在不重写代码的前提下，将这些异构智能体平滑纳入统一的治理网络中，无法打破“单点智能”的孤岛局面，实现真正的跨框架多体协作（Multi-Agent Collaboration）。
 
-## Deployment Variants
+3. 开发门槛分化与生产交付效率低下
+* 传统痛点：智能体的开发涉及工程硬核（高并发、分布式、硬件加速）与业务逻辑（Prompt 调优、业务编排、专家经验）的双重复杂性。
+* 架构演进挑战：纯代码开发（Code-first）将非技术背景的业务专家拒之门外，交付周期长；而纯低代码平台（No-code）又缺乏足够的扩展性，无法支撑深度业务定制。如何在保持底层模块可动态扩展的同时，提供配置化、可视化、对话式的全栈极简开发体验，是加速 B 端交付的瓶颈所在。
 
-| Variant | Runtime Placement | Architecture Meaning |
-|---|---|---|
-| Platform-centric | `agent-client` in business side; service, engine, bus, middleware in platform side. | Platform hosts context, tools, model governance, observability, and runtime controls. |
-| Weak department / PaaS tenant | Runtime fully hosted by platform; business provides configuration, data-source authorization references, release acceptance, and operations input. | Platform provides hosted runtime and tenant isolation without owning business facts. |
-| Protected local capability | Sensitive tools, local context, local memory/retrieval, or approval UI remain on C-Side. | Platform issues S2C/Yield instructions and receives controlled results. |
-| Business-centric / federated | Client, service, and engine may run in business side; bus and middleware can remain platform services. | Local low-latency execution is allowed; cross-boundary A2A still uses platform bus contracts. |
-| Hybrid enterprise individual | Local personal tools and platform public services participate in one activity. | Capability placement may vary inside one Task. |
+4. 算力成本高企与国产化适配断层
+* 传统痛点：大模型及智能体系统的运行深度依赖高昂的算力资源。企业内部通常存在“通用算力（CPU）”与“智能算力（NPU/GPU）”混合部署的现状。
+* 架构演进挑战：现有开源框架多基于海外主流硬件生态，在国产化硬件（如鲲鹏、昇腾）上的全栈软硬协同调优严重不足。缺乏智能的算力调度机制，导致异构集群间算力吞吐失衡、能效比低，无法满足企业级全栈国产化合规与控本增效的双重诉求。
 
-## Module Boundary Summary
+## 核心架构原则
 
-L0 defines six top-level logical modules. These modules are logical domains and
-future L1 architecture domains, not a one-to-one list of runtime processes,
-reactor artifacts, or Java packaging units. A logical module may contain several
-runtime units, adapters, services, deployable components, or development
-artifacts below L0.
+为解决上述问题领域，达成系统目标，本平台在顶层设计上遵循以下六项核心架构原则（Architecture Principles），作为约束后续所有分域设计、运行时路径及技术选型的底层红线。六项原则分别从业务解耦、异构兼容、数据边界、机制分离、资源释放和开发体验约束后续设计。
 
-Future official openJiuwen implementation projects may use community project
-names, such as `agent-runtime-java` for `agent-service` and `agent-core-java` for
-`agent-execution-engine`. Those names describe implementation projects, not new
-L0 logical modules.
+| 原则（Principle） | L0 顶层含义（Axiom） | 架构刚性约束（Constraints） |
+| :--- | :--- | :--- |
+| **Principle 1:<br>业务与底座明确解耦** | 坚持“平台不承载业务定制”的纵向分层设计。平台底座对业务保持中立，业务侧通过标准 **SPI 机制与声明式配置**进行弹性扩展。 | 1. 严禁修改平台核心（Core）代码满足特定业务定制需求。<br>2. 建立全方位的**运行时治理与审计表面（Audit Surface）**，模型、记忆、策略等行为必须通过标准的运行时钩子（Hooks）进入。 |
+| **Principle 2:<br>契约优先与异构中立** | 不绑定特定语言与 Agent 框架。跨模块行为与多体协作必须“契约先行”，先于具体实现被显式描述，并具备仿真验证能力。 | 1. 官方执行引擎与外部异构框架执行通过 `agent-execution-engine` 边界与 Execution Engine SPI 对等进入。<br>2. 异构智能体满足通信契约后，支持**低改造或免改造运行态接入**。 |
+| **Principle 3:<br>显式能力放置与数据边界** | 企业级数据隐私与权限是第一红线。工具、上下文、记忆、审批 UI 等能力，必须**显式声明其执行宿主与所跨越的数据边界**。 | 1. 单个 `agent-service` 实例内的多智能体协作由该实例内部闭合。<br>2. 跨实例、跨数据边界的 A2A（Agent-to-Agent）控制流与数据交互，**必须强制经由中央 `agent-bus`（智能体总线）**。 |
+| **Principle 4:<br>机制三线分离** | 为支撑企业级高并发与高性能，系统在架构设计上必须实现**控制面、数据面、流式运行面的彻底分离**。 | 1. 平台网关治理（Platform Gateway）、服务任务 API、服务实时流（Stream）以及对象引用路径在机制上必须采用独立的通道与处理线程池，**严禁混用**，防长尾大文本阻塞控制通道。 |
+| **Principle 5:<br>挂起而非占用** | 智能体在长周期等待（大模型推理、用户审批等）场景下，遵循异步化设计，**严禁保留昂贵的物理资源（如线程、长连接）**。 | 1. 所有的长等待行为必须统一表达为**游标（Cursor）、挂起（Suspend）、恢复（Resume）或异步交接（Handover）**机制。<br>2. 必须通过状态机和上下文持久化让出物理线程，确保高并发资源平滑。 |
+| **Principle 6:<br>开发者生命周期一等公民** | 开源生态中，开发者的体验与全生命周期工具链支撑（DX）是系统成功的基石。调试、运维证据和验证脚手架是核心架构的“一等关注点”。 | 1. 坚持**脚手架优先开发（Scaffold-First）**。<br>2. 核心场景和系统不变量必须在设计期先产出配套的 mock、stub、断言和测试，再进行运行时绑定，确保全链路可验证与可观测。 |
 
-| L0 Logical Module | Summary |
-|---|---|
-| `agent-client` | Client-side integration, SDK, local capability endpoint, cursor/callback/SSE consumption, and business-side capability boundary. |
-| `agent-service` | Server-side agent service boundary, Task lifecycle and hierarchy owner, Service Task API, service-side adapters, external realtime stream surfaces, and runtime query surfaces. |
-| `agent-execution-engine` | Execution engine domain for workflow, ReAct, planner, engine adapter, engine registry/envelope, and finer-grained execution state below Task. |
-| `agent-bus` | Broad platform interaction governance domain for Platform Gateway governance, S2C, A2A/federation, routing, permission mediation, control, rhythm signals, data-reference envelopes, and narrower event/control transport units. |
-| `agent-middleware` | Agent middleware foundation domain for selectable and integrable memory, knowledge, sandbox, skill, tool, model, retrieval, prompt, advisor, and hook services. |
-| `agent-evolve` | Evolution-plane domain for governed export, learning/evaluation loops, optimization, and future ML pipeline integration. |
+## 模块边界形态
 
-Build artifacts, starters, dependency BoMs, adapters, and deployable units are
-not promoted into L0 logical modules. They are determined in the appropriate
-development or deployment view under the relevant L1/L2 domain.
+本平台在 L0 顶层设计上定义了六个核心**逻辑模块（Logical Modules）**。这些模块代表系统的逻辑自治领域和未来的 L1 架构边界，**不与具体的运行时进程、Artifact、Java 包单元或物理部署形态一一对应**。一个 L0 逻辑模块在物理实现上可按需拆分为多个运行时单元、适配器、可部署组件或开发产物。
 
-Evolution-plane work consumes governed runtime evidence through export or bus
-contracts and must not synchronously block the main execution path. Heavy
-analysis, scoring, prompt optimization, knowledge graph construction, or
-fine-tuning pipelines remain off the primary request path unless a future ADR
-changes that boundary.
+| L0 逻辑模块 | 领域范围与设计摘要（L0 Abstract） | 顶层架构红线与边界约束（Constraints） |
+| :--- | :--- | :--- |
+| **`agent-client`**<br>(业务接入与客户端集成) | 覆盖客户端集成、多端 SDK、本地能力端点、游标/回调接收以及业务侧能力边界。 | 1. 负责长周期异步任务的 **SSE（Server-Sent Events）流式消费**与状态持久化。<br>2. 作为业务接入的第一道防线，严禁承载任何通用的智能体编排与底座治理逻辑。 |
+| **`agent-service`**<br>(服务端状态与生命周期) | 服务端智能体服务的边界。覆盖 Task 全生命周期管理、层级所有者（Hierarchy Owner）、Service Task API、服务侧适配器、外部实时流表面及运行时查询表面。 | 1. 负责维护高阶的任务状态机与服务侧契约。<br>2. 向下对接执行引擎，向上提供标准查询表面，通过层级所有者机制确保任务的确定性归属与销毁。 |
+| **`agent-execution-engine`**<br>(核心执行与引擎适配) | 智能体执行引擎领域。覆盖工作流（Workflow）、ReAct 范式、规划器（Planner）、引擎适配器、引擎注册表/信封（Envelope），以及 Task 之下更细粒度的运行时执行状态。 | 1. 官方原生实现（如 `openJiuwen`）与异构框架执行均通过 **Execution Engine SPI** 对等接入。<br>2. 严格遵循“挂起而非占用”原则， Task 细粒度状态的流转必须契约化，并通过信封机制实现异构上下文的平滑包装。 |
+| **`agent-bus`**<br>(全局交互治理与总线) | 广义平台交互治理领域。覆盖 Platform Gateway 治理、S2C（Server-to-Client）、A2A（Agent-to-Agent）/联邦协作、跨界路由、权限中介、控制/节奏信号（Cadence Signals）、数据引用信封以及事件/控制传输单元。 | 1. 严格执行**控制/数据/流机制的三线分离**。<br>2. 跨实例、跨数据边界的 A2A 交互与节奏信号强制流经 `agent-bus`，充当安全隔离与合规审计的中介。 |
+| **`agent-middleware`**<br>(基础中间件与运行时钩子) | 智能体中间件基础领域。覆盖可选择/可集成的记忆（Memory）、知识（Knowledge）、沙箱（Sandbox）、技能、工具、模型适配、检索、提示词、Advisor 和运行时 Hook 服务。 | 1. 必须为上层执行提供标准的**运行时钩子（Hooks）与审计表面**。<br>2. 各种中间件能力（如沙箱、记忆）必须表现为可插拔的原子服务，严禁与特定执行引擎强耦合。 |
+| **`agent-evolve`**<br>(异步演进与数据反馈平面) | 智能体演进平面领域。覆盖受治理的数据导出、学习/评估循环（Eval-Loop）、提示词/知识优化和未来 ML Pipeline 集成。 | 1. 演进平面仅通过导出数据或总线契约**异步消费**运行时证据，**严禁同步阻塞主执行路径**。<br>2. 重型分析、评分、知识图谱构建或微调 Pipeline 必须保留在主请求路径之外（除非未来 ADR 改变该边界）。 |
 
-## Quality Attributes
+> 📌 **关于开源实现项目的命名澄清**：
+> 未来官方基于 Java 的 `openJiuwen` 实现项目，可能会使用具体的社区项目名称。例如：用 `agent-runtime-java` 表示 `agent-service` 的 Java 实现，用 `agent-core-java` 表示 `agent-execution-engine` 的 Java 实现。这些 community 名称描述的是**物理实现项目**，不属于新的 L0 逻辑模块。
 
-| Attribute | L0 Expression |
-|---|---|
-| Traceability | Every architectural claim should link to ADRs, modules, constraints, generated facts, or verification. |
-| Recoverability | Long-horizon work must preserve enough checkpoint or resume evidence before entering suspended states. |
-| Idempotency | Irreversible effects require idempotency or equivalent duplicate protection. |
-| Tenant isolation | Tenant identity is propagated and checked across runtime and storage boundaries. |
-| Observability | Core scenarios emit trace, event, audit, and cost evidence. |
-| Evolvability | Breaking boundary changes require ADR/change governance and downstream impact propagation. |
-| Honesty | `design_only`, `draft`, `accepted`, and `shipped` are not interchangeable. |
+## 质量属性
 
-## Known Risks
+本平台作为企业级开源智能体基础底座，其非功能性设计不仅追求通用性能指标，更关注复杂混合负载下的“生产确定性”与开源生态的“长期生命力”。
 
-| ID | Risk |
-|---|---|
-| L0-RISK-001 | Some historical material still uses Run-based names; V1 L0 treats those as compatibility or implementation-history terms, not canonical lifecycle vocabulary. |
-| L0-RISK-002 | Some L1 agent-service files contain unresolved merge markers and can taint downstream boundary interpretation. |
-| L0-RISK-003 | Draft capability placement and harness material is useful but not yet promoted into accepted architecture or scope planning. |
-| L0-RISK-004 | Some older trustworthy/DFX material has SPI ownership drift and must be aligned before promotion. |
-| L0-RISK-005 | Contract/interface drafts exist outside the accepted contract catalog and must not be treated as runtime authority. |
+### 1. 资源弹性与可恢复性（Scalability & Recoverability）
+* **策略与约束**：
+  * **全链路异步挂起**：基于 `agent-execution-engine` 的“挂起而非占用”原则，长等待任务必须持久化至状态机，释放物理线程。
+  * **持久化恢复证据**：长周期工作在进入挂起（Suspend）状态前，**必须在服务端保留足够的 Checkpoint 或恢复证据**，确保系统在重启或灾后重建时能够恢复任务现场。
+
+### 2. 运行时幂等性与确定性（Idempotency & Process Certainty）
+* **策略与约束**：
+  * **不可逆效果保护**：任何涉及外部系统调用、状态修改、资产扣减等不可逆效果的工具（Tools）和 A2A 动作，**必须强制实现幂等性设计或等价的重复保护机制**。
+  * **机制解耦保护**：严格执行控制/数据/流三线分离，大模型实时流（Stream）的长尾延时不得反向阻塞控制通道和健康检查节奏信号。
+
+### 3. 多租户隔离与全链路安全（Tenant Isolation & Security）
+* **策略与约束**：
+  * **租户身份上下文传播**：多租户身份（Tenant ID）作为一等架构凭证，**必须在运行时、网络传输（`agent-bus`）以及物理存储边界之间进行全链路传播与强制检查**。
+  * **执行沙箱化**：`agent-middleware` 提供的工具与代码执行环境必须具备沙箱（Sandbox）隔离能力，且所有行为必须在安全审计表面（Audit Surface）留下完整证据。
+
+### 4. 多维可观测性与精细化审计（Comprehensive Observability）
+* **策略与约束**：
+  * **非侵入式证据链**：核心场景必须原生、非侵入式地**产出全链路 Trace（调用链）、Event（事件）、Audit（审计）和 Cost（大模型算力成本）证据**。
+  * **主路径解耦**：`agent-evolve` 平面仅通过异步监听方式消费上述可观测性证据，重型分析与图谱构建必须保留在主请求路径之外。
+
+### 5. 软硬协同的效能优化（Performance & Eco-Efficiency）
+* **策略与约束**：
+  * **算力特征感知**：调度机制必须能够自动识别任务属性。轻量级流程控制由鲲鹏（通算）节点消化；重型模型推理与向量计算通过高速通道路由至昇腾（智算）底层。
+  * **异构协议低损耗**：外部异构框架（如 Python 资产）在运行态接入时，其协议转换开销应尽量降低，不得成为全局流水线的性能瓶颈。

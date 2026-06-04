@@ -7,6 +7,8 @@ TAG:
   - process-view
   - physical-view
   - scenarios-view
+  - runtime-path
+  - deployment-variants
   - architecture-fact
 status: 架构事实
 dependency:
@@ -86,6 +88,37 @@ design lives under `architecture/L2-Low-Level-Design/`.
 
 ## Process View
 
+### Top-Level Runtime Path
+
+```text
+External Client
+  -> agent-client or external HTTP caller
+  -> Platform Gateway capability or Service Task API
+  -> agent-service.platform
+  -> agent-service runtime state owner and reference adapters
+  -> agent-execution-engine through Execution Engine SPI
+  -> agent-middleware for model, skill, memory, retrieval, prompt, and hook surfaces
+  -> agent-bus for Platform Gateway governance, S2C, cross-boundary A2A,
+     federation, control, and rhythm signals
+  -> observability, audit, cost attribution, and verification evidence
+```
+
+For V1, `Task` is the unified server-side authoritative execution lifecycle
+state. It has the same semantic level as an A2A protocol task: it can be created
+or bound by a client-to-server request, or by an `agent-service` instance request
+to another `agent-service` instance through A2A/federation control.
+
+An `agent-service` instance owns Task-level lifecycle and parent/child state for
+work created inside that instance. Cross-instance, cross-department,
+cross-deployment, or cross-trust-boundary collaboration uses `agent-bus` for
+A2A/federation control. The remote Task lifecycle remains owned by the remote
+`agent-service` instance; the local instance keeps the relationship reference,
+join state, and observability evidence. `agent-execution-engine` owns
+finer-grained execution state below the Task boundary, such as workflow node
+state or ReAct loop state.
+
+### Runtime Process
+
 The top-level runtime process is:
 
 1. A client submits an intent or request.
@@ -123,6 +156,16 @@ The physical view is governed by deployment mode and trust boundary.
 | Sandbox execution | Platform or trusted isolation provider | Untrusted generated code and unverified third-party tools run in isolated sandbox capacity, not in the normal compute-control process. |
 | Evolution | Platform | Governed export and future evolution pipeline integration. |
 | External data path | Customer, object store, provider, or third-party system | Large payloads and business data stay outside narrow event/control messages; `agent-bus` may govern the reference envelope and authorized handoff. |
+
+### Deployment Variants
+
+| Variant | Runtime Placement | Architecture Meaning |
+|---|---|---|
+| Platform-centric | `agent-client` in business side; service, engine, bus, middleware in platform side. | Platform hosts context, tools, model governance, observability, and runtime controls. |
+| Weak department / PaaS tenant | Runtime fully hosted by platform; business provides configuration, data-source authorization references, release acceptance, and operations input. | Platform provides hosted runtime and tenant isolation without owning business facts. |
+| Protected local capability | Sensitive tools, local context, local memory/retrieval, or approval UI remain on C-Side. | Platform issues S2C/Yield instructions and receives controlled results. |
+| Business-centric / federated | Client, service, and engine may run in business side; bus and middleware can remain platform services. | Local low-latency execution is allowed; cross-boundary A2A still uses platform bus contracts. |
+| Hybrid enterprise individual | Local personal tools and platform public services participate in one activity. | Capability placement may vary inside one Task. |
 
 This refines the five-plane deployment proposal from the 2026-05-14 L0 review:
 edge access, compute/control, bus/interaction governance, sandbox execution, and
