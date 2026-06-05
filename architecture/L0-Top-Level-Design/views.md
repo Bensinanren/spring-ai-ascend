@@ -10,7 +10,7 @@ TAG:
   - runtime-path
   - deployment-variants
   - architecture-fact
-status: 架构事实
+status: active
 dependency:
   - README.md
   - overview.md
@@ -19,196 +19,180 @@ dependency:
   - glossary.md
 ---
 
-# L0 4+1 Views
+# L0 4+1 架构视图
 
-## Purpose
+## 目的
 
-This document organizes L0 architecture facts through 4+1 views. It is the
-architecture fact view system, not the version scope scenario backlog.
+本文档通过 4+1 视图组织 L0 架构事实，用于说明企业级智能体平台在逻辑结构、开发实现、运行控制、物理部署和技术验证场景上的顶层形态。
 
-The scenarios view here contains technical verification scenarios that validate
-architectural shape. Version-scoped business activity scenarios, feature use
-cases, and delivery tasks live in the version scope system and reference this
-document when they rely on architecture constraints.
+本文档是架构事实视图体系，不是版本范围内的业务场景 backlog。场景视图仅包含用于验证架构形态的技术验证场景；版本范围内的业务活动场景、特性用例和交付任务归属到 `version-scope/`，并在依赖架构约束时引用本文档。
 
-## View Map
+## 视图地图
 
-| View | Question Answered | Primary Inputs |
+| 视图 | 回答的问题 | 本文档给出的信息 |
 |---|---|---|
-| Logical | What concepts, capabilities, and cross-cutting verticals exist? | L0 overview, capability facts, constraints, glossary. |
-| Development | Which modules and source boundaries may exist? | module metadata, generated modules DSL, L1 docs. |
-| Process | How does runtime control move through the system? | runtime path, suspend/resume, A2A, callback, telemetry. |
-| Physical | Where do components run and what trust/data boundaries exist? | deployment variants, posture, tenant, bus channels, data paths. |
-| Scenarios | Which representative technical flows stress the architecture? | Technical verification scenarios after promotion. |
+| 逻辑视图 | 系统由哪些逻辑模块、逻辑概念和能力关系构成？ | 逻辑模块、核心概念、状态归属、能力归属和模块关联关系。 |
+| 开发视图 | 逻辑模块如何映射到实现代码、实现项目和技术选型？ | 当前仓库目录、未来开源实现项目、主流技术选型和不应提升为 L0 模块的制品。 |
+| 运行视图 | 顶层运行路径如何流转，各模块采用什么并发模型？ | 请求接入、Task 执行、工具/上下文、S2C、A2A、挂起/恢复和证据链路径。 |
+| 物理视图 | 不同部署形态下，模块如何映射到部署单元和物理资源？ | 平台中心、弱部门/PaaS、本地能力、业务中心/联邦和混合个人形态。 |
+| 场景视图 | 哪些技术场景稳定运行可以反馈其他四个视图成立？ | S1-S6 技术验证场景及其覆盖的逻辑、开发、运行和物理视图风险。 |
 
-## Logical View
+## 逻辑视图
 
-The system is an agent runtime platform with the following L0 logical concepts:
+L0 逻辑视图描述系统的稳定心智模型。它不等同于 Java 包、运行进程、部署单元或未来开源项目名称。
 
-- Tenant and actor identity.
-- Runtime intent, Task execution control, Task hierarchy, and lifecycle state.
-- Engine-internal execution state such as workflow node state and ReAct loop
-  state.
-- Session, context package, memory, retrieval, and knowledge boundaries.
-- Agent definition, planner, model gateway, skill, hook, and middleware surfaces.
-- Platform Gateway governance, S2C callback, A2A control, federation,
-  data-reference path, and rhythm signals.
-- Trace, span, audit, cost attribution, and replay-safe evidence.
-- Policy, posture, capacity, sandbox, and idempotency controls.
+### 逻辑模块
 
-Cross-cutting verticals are defined in `constraints.md`:
+| L0 逻辑模块 | 核心职责 | 主要拥有的逻辑对象 | 不拥有 |
+|---|---|---|---|
+| `agent-client` | 业务接入、SDK、本地能力端点、游标/回调和流消费。 | client invocation、本地能力引用、SSE 消费游标、C-Side 能力端点。 | 服务端 Task 生命周期、平台审计写入、智能体通用编排。 |
+| `agent-service` | 服务端 Task 生命周期、运行时接入、异构框架适配 SPI、反腐装配和查询/流表面。 | Task、Task tree、Service Task API、Session shell、服务端适配入口、外部实时流表面。 | 业务事实、模型/记忆/技能全局 SPI、跨边界 A2A 私有通道。 |
+| `agent-sdk` | 面向开发者的智能体开发 SDK，主流选型为 `openJiuwen`（`agent-core`）。 | workflow 图执行器、ReAct loop 执行器、Node、Tool、Hook、Planner 等开发组件。 | 服务端 Task 生命周期、租户治理、跨边界路由、平台审计最终写入。 |
+| `agent-bus` | 全局交互治理、Platform Gateway 治理、S2C、A2A/联邦、路由、权限中介和节奏信号。 | Platform Gateway 能力、A2A 控制、S2C 回调、数据引用信封、事件/控制通道、rhythm signal。 | 单实例内部多智能体协调、Service Task API、Task sleep 状态、大载荷正文和 token 流。 |
+| `agent-middleware` | 可插拔智能体中间件、运行时 Hook 和审计表面。 | ModelGateway、Memory、Retrieval、Knowledge、Skill、Sandbox、Prompt、Advisor、RuntimeMiddleware。 | Task 生命周期状态、跨边界 A2A 控制传输、客户业务状态。 |
+| `agent-evolve` | 异步演进、评估、学习反馈和受治理导出。 | 运行证据导出、Eval-Loop、提示词/知识优化、未来 ML Pipeline 接入。 | 主请求同步路径、运行时生命周期变更、未治理业务数据抽取。 |
 
-- Tenant Vertical.
-- Posture Vertical.
-- Telemetry Vertical.
-- Audit and policy vertical.
-- Capacity and backpressure vertical.
+### 核心概念与归属
 
-## Development View
-
-The L0 development view starts from six logical modules and then lets L1/L2
-development views decide source modules, package layout, BoMs, starters,
-adapters, generated facts, and build governance.
-
-The six L0 logical modules are:
-
-- `agent-client`.
-- `agent-service`.
-- `agent-execution-engine`.
-- `agent-bus`.
-- `agent-middleware`.
-- `agent-evolve`.
-
-Generated reactor facts, dependency BoMs, and Java starters are development or
-deployment artifacts. They must be assigned under the relevant logical module or
-build/deployment governance view; they are not additional L0 logical modules.
-
-L1 architecture lives under `architecture/L1-High-Level-Design/`. L2 technical
-design lives under `architecture/L2-Low-Level-Design/`.
-
-## Process View
-
-### Top-Level Runtime Path
-
-```text
-External Client
-  -> agent-client or external HTTP caller
-  -> Platform Gateway capability or Service Task API
-  -> agent-service.platform
-  -> agent-service runtime state owner and reference adapters
-  -> agent-execution-engine through Execution Engine SPI
-  -> agent-middleware for model, skill, memory, retrieval, prompt, and hook surfaces
-  -> agent-bus for Platform Gateway governance, S2C, cross-boundary A2A,
-     federation, control, and rhythm signals
-  -> observability, audit, cost attribution, and verification evidence
-```
-
-For V1, `Task` is the unified server-side authoritative execution lifecycle
-state. It has the same semantic level as an A2A protocol task: it can be created
-or bound by a client-to-server request, or by an `agent-service` instance request
-to another `agent-service` instance through A2A/federation control.
-
-An `agent-service` instance owns Task-level lifecycle and parent/child state for
-work created inside that instance. Cross-instance, cross-department,
-cross-deployment, or cross-trust-boundary collaboration uses `agent-bus` for
-A2A/federation control. The remote Task lifecycle remains owned by the remote
-`agent-service` instance; the local instance keeps the relationship reference,
-join state, and observability evidence. `agent-execution-engine` owns
-finer-grained execution state below the Task boundary, such as workflow node
-state or ReAct loop state.
-
-### Runtime Process
-
-The top-level runtime process is:
-
-1. A client submits an intent or request.
-2. Entry processing binds tenant, actor, idempotency, posture, and trace context.
-3. The service-side runtime owner creates or locates the Task execution control
-   aggregate.
-4. The `agent-service` Task owner dispatches execution through the Execution
-   Engine SPI; the engine does not pull Tasks directly from bus or Platform
-   Gateway surfaces.
-5. Model, tool, memory, retrieval, prompt, and advisor work enters through
-   middleware and hook surfaces.
-6. If local capability, approval, or cross-instance/cross-boundary
-   collaboration is required, the system uses S2C/Yield or A2A/federation
-   control surfaces.
-7. Long waits become `agent-service`-owned suspend/resume, not held physical
-   connections or blocked threads. Cross-instance wakeup or timing signals may
-   be governed by `agent-bus`.
-8. External realtime output uses service streaming surfaces such as SSE by
-   default; narrow event/control channels do not become token streaming.
-9. Large or sensitive payloads use data-reference paths rather than narrow
-   event/control channel payloads. `agent-bus` may govern the reference envelope,
-   routing metadata, and permission handoff.
-10. Trace, audit, metrics, and cost attribution evidence is emitted throughout.
-
-## Physical View
-
-The physical view is governed by deployment mode and trust boundary.
-
-| Plane | Typical Owner | Notes |
+| 逻辑概念 | 语义 | 归属 |
 |---|---|---|
-| Edge / client | Business application or integrating developer | SDK, local capability endpoint, cursor and stream consumption. |
-| Compute control | Platform or business-hosted service | `agent-service`, execution control, engine realization, middleware binding. |
-| Bus and interaction governance | Platform by default | Platform Gateway governance, S2C, A2A/federation, routing, permission mediation, rhythm signals, data-reference envelopes, and narrower event/control transport units. |
-| Middleware / adapters | Platform or configured provider | Model, skill, memory, retrieval, prompt, advisor and hook surfaces. |
-| Sandbox execution | Platform or trusted isolation provider | Untrusted generated code and unverified third-party tools run in isolated sandbox capacity, not in the normal compute-control process. |
-| Evolution | Platform | Governed export and future evolution pipeline integration. |
-| External data path | Customer, object store, provider, or third-party system | Large payloads and business data stay outside narrow event/control messages; `agent-bus` may govern the reference envelope and authorized handoff. |
+| Task | V1 统一的服务端权威执行生命周期状态。 | `agent-service` 实例。 |
+| Task tree | 父子执行、委派、汇合、失败传播和成本归因关系。 | 同实例由本地 `agent-service` 拥有；跨实例通过 `agent-bus` 联邦控制保留引用关系。 |
+| Client invocation | 客户端调用引用或 SDK 本地句柄，可映射到服务端 Task。 | `agent-client` + `agent-service` 查询表面。 |
+| Session / Context package | 对话、变量、上下文投影、记忆和检索组装的上下文连续性。 | `agent-service` 与 `agent-middleware` 协作，生命周期不得覆盖 Task。 |
+| Agent definition | 绑定模型、技能、记忆、规划器、提示词和 advisor 的智能体定义。 | `agent-service` 持有服务侧注册/运行入口，组件来自 `agent-sdk` 或 `agent-middleware`。 |
+| Execution component | workflow 节点、ReAct loop、Tool、Hook、Planner 等开发者可选组件。 | `agent-sdk`。 |
+| Runtime governance | 租户、身份、安全态势、幂等、审计、容量和策略控制。 | 由 `agent-service`、`agent-bus`、`agent-middleware` 按边界协作。 |
+| Evidence | trace、span、event、audit、metrics、cost 和可安全重放的 fixture。 | 遥测与审计纵向能力，写入路径由运行时治理控制。 |
 
-### Deployment Variants
+### 关联关系
 
-| Variant | Runtime Placement | Architecture Meaning |
+| 关系 | 说明 | 约束 |
 |---|---|---|
-| Platform-centric | `agent-client` in business side; service, engine, bus, middleware in platform side. | Platform hosts context, tools, model governance, observability, and runtime controls. |
-| Weak department / PaaS tenant | Runtime fully hosted by platform; business provides configuration, data-source authorization references, release acceptance, and operations input. | Platform provides hosted runtime and tenant isolation without owning business facts. |
-| Protected local capability | Sensitive tools, local context, local memory/retrieval, or approval UI remain on C-Side. | Platform issues S2C/Yield instructions and receives controlled results. |
-| Business-centric / federated | Client, service, and engine may run in business side; bus and middleware can remain platform services. | Local low-latency execution is allowed; cross-boundary A2A still uses platform bus contracts. |
-| Hybrid enterprise individual | Local personal tools and platform public services participate in one activity. | Capability placement may vary inside one Task. |
+| `agent-client` -> `agent-service` | 客户端提交意图、查询 Task、消费服务流或执行本地能力回调。 | 客户端不直接写服务端生命周期状态。 |
+| `agent-service` -> `agent-sdk` | 服务端通过受治理的执行契约调用官方 SDK 组件或被适配的智能体实现。 | `agent-sdk` 返回执行结果、挂起请求、工具意图、上下文请求或终态结果，不直接抢占 Task owner。 |
+| `agent-service` -> 异构框架 | `agent-service` 持有适配 SPI、反腐装配入口与运行时接入契约。 | 不要求外部开源框架预先满足平台通信契约，由适配实现吸收差异。 |
+| `agent-service` -> `agent-middleware` | 模型、技能、记忆、检索、提示词、Advisor 和 Hook 通过中间件边界进入。 | 中间件不得绕过服务端 Task owner 写生命周期状态。 |
+| `agent-service` -> `agent-bus` | 跨实例、跨部门、跨部署或跨信任边界时使用 A2A/联邦、S2C 和 rhythm signal。 | `agent-bus` 治理跨边界控制和引用信封，但不拥有每个服务实例内部的 Task sleep 状态。 |
+| `agent-evolve` <- 运行证据 | 演进平面异步消费受治理导出的运行证据。 | 不同步阻塞主执行路径。 |
 
-This refines the five-plane deployment proposal from the 2026-05-14 L0 review:
-edge access, compute/control, bus/interaction governance, sandbox execution, and
-evolution are separate physical concerns even when early delivery co-locates
-some of them.
+切面纵向能力由 `constraints.md` 定义，包括租户纵向能力、安全态势纵向能力、遥测纵向能力、审计与策略纵向能力、容量与背压纵向能力。
 
-Trust boundaries include:
+## 开发视图
 
-- HTTP edge to runtime.
-- C-Side to S-Side.
-- Parent to child execution boundary.
-- Task to skill permission boundary.
-- Cross-workflow, cross-instance, or cross-boundary handoff.
-- Tenant-scoped storage and telemetry replay boundary.
+开发视图说明 L0 逻辑模块如何落到当前仓库、未来开源实现项目和技术选型。实现可以拆分、合并或迁移，但不能反向改变 L0 逻辑边界。
 
-## Scenarios View
+### 模块到实现映射
 
-The L0 scenarios view is limited to architecture-shaping technical verification
-scenarios. Business activity scenarios such as BA-001, BA-002, and BA-003 belong
-under `version-scope/` as release scope and development tracking material.
+| L0 逻辑模块 | 当前仓库事实 / 代码落点 | 主流实现或技术选型 | 说明 |
+|---|---|---|---|
+| `agent-client` | `agent-client/` | Java SDK、HTTP/SSE client、本地能力端点适配。 | 面向业务接入与集成开发者，不承载平台编排。 |
+| `agent-service` | `agent-service/` | Spring Boot service、Service Task API、运行时状态机、异构框架适配 SPI。 | `openJiuwen` 的 `agent-runtime-java` 可作为未来社区实现项目名。 |
+| `agent-sdk` | 当前可能仍以历史 engine 目录、SDK 代码或草案实现存在。 | `openJiuwen`（`agent-core`）、workflow graph executor、ReAct loop executor、Node/Tool/Hook/Planner 组件。 | `agent-core-java` 是未来社区实现项目名，不替代 L0 逻辑模块名。 |
+| `agent-bus` | `agent-bus/` | Platform Gateway、A2A/联邦、S2C、事件/控制通道、权限中介、节奏信号。 | 不等同于单一 MQ 或 event bus。 |
+| `agent-middleware` | `agent-middleware/` | Spring AI 适配、ModelGateway、Memory、Retrieval、Skill、Sandbox、Prompt、Advisor、RuntimeMiddleware。 | 能力以可插拔 SPI 或适配器形态出现。 |
+| `agent-evolve` | `agent-evolve/` | 受治理导出、Eval-Loop、离线评分、提示词/知识优化、未来 ML Pipeline。 | 只异步消费证据，不进入主请求同步链路。 |
 
-The current technical draft candidates from
-`docs/architecture/l0/02-scenarios/technical/` are:
+### 制品与技术选型规则
 
-| Scenario | Architecture Role | Status |
+| 对象 | 开发视图处理方式 |
+|---|---|
+| BoM / dependencies | 属于构建治理或相关模块开发制品，不是 L0 逻辑模块。 |
+| starter / auto-configuration | 属于被包装能力的集成制品，不是 L0 逻辑模块。 |
+| adapter | 属于服务侧适配或 SDK/中间件适配实现，必须说明归属模块和契约边界。 |
+| generated facts / module metadata | 描述代码事实和 reactor 身份，不决定 L0 模块准入。 |
+| external OSS framework | 作为异构智能体框架或中间件提供方接入，由 `agent-service` 适配 SPI 或 `agent-middleware` SPI 吸收差异。 |
+
+L1 架构位于 `architecture/L1-High-Level-Design/`。L2 技术设计由后续 `architecture/L2-Low-Level-Design/` 或具体模块内技术设计承载。
+
+## 运行视图
+
+运行视图描述顶层关键路径和并发模型。L0 不规定线程池大小、超时值、topic 名称或 API 签名，但规定控制面、数据面、流式运行面和长等待语义必须分离。
+
+### 关键运行路径
+
+| 路径 | 顶层流程 | 涉及模块 | 必须保持的约束 |
+|---|---|---|---|
+| Task 创建与接入 | client / HTTP caller -> Platform Gateway 或 Service Task API -> `agent-service` 创建 Task。 | `agent-client`、`agent-bus`、`agent-service` | 入口绑定 tenant、actor、idempotency、posture 和 trace；Platform Gateway 不成为 Task owner。 |
+| 智能体执行 | `agent-service` Task owner -> 受治理执行契约 -> `agent-sdk` 官方组件或异构框架适配实现 -> 返回执行结果/意图。 | `agent-service`、`agent-sdk`、异构框架适配实现 | SDK/框架不直接拉取 Task，不直接写生命周期状态。 |
+| 上下文构建 | Task owner 请求上下文 -> Session shell -> memory/retrieval/prompt/advisor 组装 context package。 | `agent-service`、`agent-middleware` | Context 不覆盖 Task 生命周期；记忆和知识状态通过中间件边界读写。 |
+| 工具调用 | 执行组件产生 tool intent -> 服务侧治理 -> skill/tool/sandbox 执行 -> audit/evidence。 | `agent-sdk`、`agent-service`、`agent-middleware` | 不可逆副作用必须幂等或有重复保护；工具不得绕过治理直接外呼。 |
+| 本地能力 / 审批 | 服务侧产生 Yield/S2C 请求 -> `agent-bus` 治理回调 -> `agent-client` 本地能力或审批 UI -> 受控结果返回。 | `agent-service`、`agent-bus`、`agent-client` | C-Side 能力保留在业务侧；平台只接收治理后的结果和证据。 |
+| 跨实例 A2A / 联邦 | 本地 Task 产生子工作或联邦请求 -> `agent-bus` A2A/联邦控制 -> 远端 `agent-service` 创建/绑定远端 Task。 | `agent-service`、`agent-bus`、远端 `agent-service` | 远端 Task 生命周期由远端服务拥有；本地只保留关系引用、join 状态和证据。 |
+| 挂起 / 恢复 | 长等待 -> `agent-service` 持久化 checkpoint / cursor / next-wake -> 释放物理资源 -> 回调、节奏信号或用户动作恢复。 | `agent-service`、`agent-bus`、`agent-client` | 长等待不得占用线程或长连接；bus 可治理唤醒信号但不拥有服务内 sleep 状态。 |
+| 实时输出 | `agent-service` 服务流表面 -> client SSE/stream 消费。 | `agent-service`、`agent-client` | token/content stream 不退化为窄事件/控制通道。 |
+| 数据引用 | 控制消息携带引用信封 -> 授权消费者读取对象存储/客户系统/提供方。 | `agent-bus`、`agent-service`、外部数据路径 | 大载荷和敏感数据不进入窄事件/控制载荷。 |
+| 证据链 | 各路径产生 trace、span、event、audit、metrics、cost、fixture。 | 全模块 + 纵向能力 | 证据可关联 tenant、Task、agent、tree、tool 和 cost。 |
+
+### 并发模型
+
+| 并发域 | 并发方式 | 资源释放规则 | 背压与隔离 |
+|---|---|---|---|
+| 接入控制 | 短事务处理请求准入、幂等校验、租户和安全态势绑定。 | 不承载长尾 token stream 或大载荷传输。 | 与服务流、数据路径和 bus 控制通道隔离。 |
+| Task lifecycle | 每个 Task 由 `agent-service` 持有状态机和确定性 writer path。 | 长等待表达为 suspend/resume/cursor/checkpoint。 | 按租户、应用、agent、Task tree 做容量和并发治理。 |
+| SDK / 框架执行 | workflow 节点、ReAct loop 和异构适配可并发执行。 | 执行组件返回意图或结果，不保留服务端生命周期锁。 | 由服务侧契约和中间件治理限制工具、模型和资源使用。 |
+| 中间件能力 | 模型、记忆、检索、技能、沙箱等能力按独立资源池或提供方边界运行。 | 外部调用与沙箱执行必须可审计、可超时、可熔断。 | Provider 级背压不得阻塞 Task 控制通道。 |
+| Bus 控制 | A2A、S2C、rhythm signal 和数据引用信封走窄控制/事件通道。 | 只传控制、引用、路由和节奏信号。 | 不承载 token stream、大对象正文或服务内 Task sleep owner。 |
+| 服务流 | SSE 或等价服务实时输出表面。 | 客户端消费慢不得反向阻塞控制面。 | 与事件/控制通道分离。 |
+| 演进平面 | 异步消费导出证据，离线分析、评分或优化。 | 不同步等待主请求。 | 通过导出契约和隐私治理限流。 |
+
+## 物理视图
+
+物理视图说明不同部署形态下，逻辑模块如何映射到部署单元、信任边界和物理资源。一个逻辑模块可以被拆成多个部署单元，多个逻辑模块也可以在早期阶段合并部署，但合并部署不改变逻辑边界。
+
+### 物理平面
+
+| 物理平面 | 典型部署单元 | 主要资源 | 承载模块 |
+|---|---|---|---|
+| 边缘 / 客户端平面 | SDK、业务应用、本地能力 agent、审批 UI。 | 终端、本地服务器、业务侧网络和本地凭据。 | `agent-client`，以及 C-Side local capability。 |
+| 服务控制平面 | Task service、runtime service、adapter host、query/stream service。 | CPU、服务线程池、状态存储、checkpoint 存储。 | `agent-service`，可包含被适配的 `agent-sdk` 执行组件。 |
+| SDK / 执行组件平面 | Java SDK library、agent-core runtime、workflow/ReAct executor、异构框架 adapter host。 | CPU/NPU/GPU 入口、执行线程、框架运行时资源。 | `agent-sdk`，以及由 `agent-service` 适配接入的外部框架。 |
+| 总线与交互治理平面 | Platform Gateway、A2A/S2C gateway、event/control channel、permission/routing service。 | 网络、消息中间件、路由表、权限中介、调度器。 | `agent-bus`。 |
+| 中间件能力平面 | model gateway、memory store、retrieval service、skill service、sandbox service、prompt/advisor service。 | 模型连接池、向量库、对象存储、沙箱容器、外部工具连接。 | `agent-middleware`。 |
+| 数据路径平面 | 客户数据源、对象存储、第三方系统、模型/知识提供方。 | 数据库、对象存储、文件系统、专线或外部 API。 | 外部系统 + 数据引用路径治理。 |
+| 演进平面 | export job、eval worker、offline scoring、ML pipeline adapter。 | 离线计算、训练/评估资源、证据仓。 | `agent-evolve`。 |
+
+### 部署形态映射
+
+| 形态 | 模块与部署单元映射 | 物理资源特征 | 架构含义 |
+|---|---|---|---|
+| 平台中心型 | `agent-service`、`agent-bus`、`agent-middleware`、`agent-evolve` 由平台部署；`agent-client` 在业务侧；`agent-sdk` 作为平台服务内组件或库运行。 | 平台托管 CPU/存储/模型连接/沙箱；业务侧只持有 SDK 和少量本地引用。 | 平台托管上下文、工具、模型治理、可观测性和运行控制。 |
+| 弱部门 / PaaS 租户型 | 所有运行时部署单元由平台托管；业务只提交配置、授权引用和发布验收输入。 | 平台多租户隔离、共享容量池、统一审计与运维。 | 平台拥有运行时，不拥有业务事实和细粒度业务权限模型。 |
+| 受保护本地能力型 | 敏感工具、本地上下文、本地记忆/检索或审批 UI 部署在 C-Side；平台部署服务控制、bus 和中间件公共能力。 | 本地资源保存敏感数据；平台通过 S2C/Yield 获取受控结果。 | 能力放置显式跨越 C-Side/S-Side 边界。 |
+| 业务中心 / 联邦型 | 业务侧可部署 `agent-client`、`agent-service`、`agent-sdk` 和部分 `agent-middleware`；平台保留共享 `agent-bus`、公共中间件和演进治理。 | 本地低延迟执行，跨边界控制走平台 bus。 | 同实例协作本地闭合；跨实例、跨部门、跨信任边界仍使用 A2A/联邦契约。 |
+| 混合企业个人型 | 个人本地工具、业务侧服务和平台公共服务共同参与同一 Task。 | 本地终端、业务服务、平台服务和外部数据路径同时参与。 | 能力放置可在一个 Task 内变化，但每次跨边界必须留下引用、授权和审计证据。 |
+
+信任边界包括 HTTP 边缘到运行时边界、C-Side 到 S-Side 边界、父执行到子执行边界、Task 到技能权限边界、跨 workflow/实例/部署/信任边界交接、租户级存储与遥测重放边界。
+
+## 场景视图
+
+场景视图只描述技术验证场景。它的目的不是覆盖业务 backlog，而是选择少量技术场景来持续反证逻辑视图、开发视图、运行视图和物理视图是否成立。
+
+### 技术验证场景
+
+| 场景 | 稳定运行证明什么 | 覆盖视图 |
 |---|---|---|
-| S1 Create Task | Entry, idempotency, tenant, initial lifecycle state. | candidate_promote |
-| S2 Execute Agent Step | Engine dispatch and terminal or intermediate execution result. | candidate_promote |
-| S3 Build Context Package | Session, memory, retrieval, and context projection. | candidate_promote |
-| S4 Tool Call With Governance | Tool authorization, capacity, audit, policy, and idempotency. | candidate_promote |
-| S5 Suspend / Resume | Long wait, checkpoint, callback, resume, timeout, and cancellation. | candidate_promote |
-| S6 Child Task / Federation | Multi-agent collaboration, federation, join, and cross-boundary control. | candidate_promote |
+| S1 创建 Task | 入口、租户、操作者、幂等、trace 和 Task owner 归属正确。 | 逻辑视图、运行视图、物理视图。 |
+| S2 执行智能体步骤 | `agent-service` 能通过受治理执行契约调用 `agent-sdk` 或适配实现，并保持 Task 生命周期权威。 | 逻辑视图、开发视图、运行视图。 |
+| S3 构建上下文包 | Session、memory、retrieval、prompt、advisor 的归属和协作路径不越界。 | 逻辑视图、运行视图。 |
+| S4 带治理的工具调用 | Tool/Skill/Sandbox 能力经过授权、容量、审计、幂等和副作用保护。 | 逻辑视图、开发视图、运行视图。 |
+| S5 挂起 / 恢复 | 长等待可以释放物理资源，并通过 checkpoint、cursor、callback、timeout 或 rhythm signal 恢复。 | 运行视图、物理视图。 |
+| S6 子 Task / 联邦协作 | 同实例 Task tree 与跨实例 A2A/联邦边界清晰，远端生命周期不被本地或 bus 抢占。 | 逻辑视图、运行视图、物理视图。 |
 
-These scenarios should not be treated as accepted runtime authority until
-conflicts in `governance.md` are resolved and the technical scenarios are
-promoted through the architecture fact system.
+### 场景提升规则
 
-## View Outputs
+当前 S1-S6 是技术验证场景候选，不是业务活动场景。它们在完成 L0-GAP-003 的提升决策，并具备对应断言、fixture、contract test、架构审视或显式未验证状态之前，不能被称为已验证的运行时权威。
 
-This branch does not keep a separate machine-readable L0 workspace authority.
-The L0 view model is recorded here as architecture fact.
+场景提升时必须记录：
 
-Rendered PlantUML and image exports under `docs/architecture/l0/architecture-views/`
-are historical draft delivery views. They may be useful visual references, but
-they should be regenerated from current architecture facts before being promoted
-back into `architecture/`.
+- 该场景验证的 L0 逻辑模块和状态 owner。
+- 涉及的实现模块、适配器或技术选型。
+- 控制面、数据面、服务流和 bus 事件/控制通道是否分离。
+- 涉及的部署形态和物理资源假设。
+- 通过的自动化测试、人工审视或明确的未验证状态。
+
+## 视图输出
+
+当前分支不保留独立的机器可读 L0 workspace 权威。L0 视图模型以架构事实形式记录在本文档中。
+
+`docs/architecture/l0/architecture-views/` 下的 PlantUML 渲染图和图片导出属于历史草案交付视图。它们可以作为视觉参考，但在重新提升回 `architecture/` 之前，应基于当前架构事实重新生成。
