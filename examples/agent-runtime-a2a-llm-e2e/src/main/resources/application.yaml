@@ -29,3 +29,7 @@ sample:
         base-url: ${SAA_SAMPLE_RETAIL_WEALTH_RUNTIME_BASE_URL:self}
         endpoint-path: ${SAA_SAMPLE_RETAIL_WEALTH_RUNTIME_ENDPOINT_PATH:/sample/agentscope/retail-wealth/process}
         embedded: ${SAA_SAMPLE_RETAIL_WEALTH_RUNTIME_EMBEDDED:true}
+  langgraph:
+    base-url: ${SAA_SAMPLE_LANGGRAPH_BASE_URL:http://localhost:2024}
+    assistant-id: ${SAA_SAMPLE_LANGGRAPH_ASSISTANT_ID:agent}
+    api-key: ${SAA_SAMPLE_LANGGRAPH_API_KEY:}
