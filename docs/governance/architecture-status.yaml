@@ -1133,6 +1133,21 @@ capabilities:
       - gate/check_architecture_sync.sh
     allowed_claim: "Section 4 #62 / Rule R-C.1 shipped at L1.x — each of the 8 reactor modules (`agent-runtime`, `agent-service`, `agent-service-starter`, `agent-sdk`, `agent-bus`, `springai-ascend-client`, `springai-ascend-client-kotlin`, `spring-ai-ascend-dependencies`) has a sibling module-metadata.yaml declaring module, kind (platform | domain | starter | bom | sample | sdk), version, semver_compatibility, spi_packages, allowed/forbidden_dependencies, and deployment_plane; architecture_doc and dfx_doc are declared where the module has an L1/DFX surface (agent-sdk has no dedicated L1 doc yet — its architecture_doc is null; the BoM declares both null by design). Enforced by Gate Rule 36 domain_module_has_spi_package (declared SPI packages must exist on disk). Runtime semver compatibility enforcement deferred per CLAUDE-deferred.md 31.b."
 
+  agent_bus_capability_surfaces:
+    status: test_verified
+    shipped: true
+    l0_decision: docs/adr/0163-agent-bus-capability-surfaces.yaml
+    l2_documents: []
+    implementation:
+      - agent-bus/src/main/java/com/huawei/ascend/bus/memory/
+      - agent-bus/src/main/java/com/huawei/ascend/bus/knowledge/
+      - agent-bus/src/main/java/com/huawei/ascend/bus/messaging/
+      - agent-runtime/src/main/java/com/huawei/ascend/runtime/engine/BusCapabilities.java
+    tests:
+      - agent-bus/src/test/java/com/huawei/ascend/bus/
+      - examples/agent-runtime-a2a-llm-e2e/src/test/java/com/huawei/ascend/examples/a2a/MultiAgentBusE2eTest.java
+    allowed_claim: "Shipped per ADR-0163: bus.memory (SessionMemoryStore bounded session windows + BusinessFactPublisher materializing the ADR-0051 emission path — business facts emitted, never stored), bus.knowledge (KnowledgeSource seam + per-tenant registry + composite fan-out; in-memory token-overlap reference), bus.messaging (AgentMessageBus in-process tenant-scoped topics, bounded DROP_OLDEST queues with drop counters, contained handler failures). Wired into AgentExecutionContext as optional capabilities behind replaceable beans under the agent-runtime.enabled gate; multi-agent request/reply e2e green. Durable transports, vector stores and the C-side fact bridge are SPI extension points, not shipped. The bus.spi engine/s2c freeze is unchanged."
+
   spi_dfx_tck_codesign:
     status: test_verified
     shipped: true

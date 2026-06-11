@@ -7,13 +7,16 @@ module: agent-bus
 kind: domain             # platform | domain | starter | bom | sample | sdk
 version: 0.1.0-SNAPSHOT
 semver_compatibility: experimental
-description: "Bus & State Hub plane — owns the server-to-client control surface: s2c (S2C, S2cCallbackTransport per ADR-0074 + ADR-0088); the planned C2S ingress surface (ADR-0089) was superseded by ADR-0161 (agent-service serviceization). Three-track channel isolation (control / data / rhythm per Rule R-E) declared in docs/governance/bus-channels.yaml. Workflow primitives (Mailbox, AdmissionDecision, BackpressureSignal, SleepDeclaration, WakeupPulse, TickEngine) deferred to W2 per ADR-0050."
+description: "Bus & State Hub plane — capability surfaces for agents (ADR-0163): bus.memory (S-side session memory + the ADR-0051 BusinessFactEvent emission path), bus.knowledge (tenant-scoped retrieval seam over C-side-owned content), bus.messaging (in-process async agent messaging; cross-process stays A2A through the service facade). Also carries the design-frozen s2c + engine SPI surfaces (S2cCallbackTransport per ADR-0074 + ADR-0088; EnginePort model per ADR-0158); the planned C2S ingress surface (ADR-0089) was superseded by ADR-0161. Three-track channel isolation declared in docs/governance/bus-channels.yaml; workflow primitives deferred per ADR-0050."
 architecture_doc: architecture/docs/L1/agent-bus/README.md
 dfx_doc: docs/dfx/agent-bus.yaml
 spi_packages:
-  - com.huawei.ascend.bus.spi            # roll-up parent of the s2c + engine sub-packages
+  - com.huawei.ascend.bus.spi            # roll-up parent of the s2c + engine sub-packages (design-frozen)
   - com.huawei.ascend.bus.spi.s2c        # S2cCallbackTransport + S2cCallbackEnvelope + S2cCallbackResponse (server-to-client callback, ADR-0088)
   - com.huawei.ascend.bus.spi.engine     # EnginePort + neutral execution model (ExecutorDefinition / RunContext / SuspendSignal / Checkpointer / Orchestrator) per ADR-0158
+  - com.huawei.ascend.bus.memory         # SessionMemoryStore + BusinessFactPublisher (ADR-0163; ownership per ADR-0051)
+  - com.huawei.ascend.bus.knowledge      # KnowledgeSource retrieval seam + registry/composite (ADR-0163)
+  - com.huawei.ascend.bus.messaging      # AgentMessageBus in-process async agent messaging (ADR-0163)
 allowed_dependencies: []
 forbidden_dependencies:
   - agent-service           # bus is upstream of compute_control plane

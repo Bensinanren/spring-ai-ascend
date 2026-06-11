@@ -63,6 +63,10 @@ SPI impls: thread-safe, no null returns. SPIs that process tenant-owned runtime 
 | `RuntimeRegistry` | `agent-service` | `com.huawei.ascend.service.spi.registry` | shipped — runtime registration + lease/TTL state behind the serviceization facade; in-memory reference impl; HTTP edge in `agent-service-starter` (ADR-0161) |
 | `AgentDirectory` | `agent-service` | `com.huawei.ascend.service.spi.discovery` | shipped — tenant-scoped agent cards + route resolution (ADR-0161) |
 | `RouteGrantService` | `agent-service` | `com.huawei.ascend.service.spi.routing` | shipped — HMAC-signed east-west route grants: resolve + validate (ADR-0161) |
+| `SessionMemoryStore` | `agent-bus` | `com.huawei.ascend.bus.memory` | shipped — tenant+session scoped S-side working memory (append / newest-first window / clear); bounded in-memory reference ships in-package; business facts are NEVER stored here (ADR-0163, ownership per ADR-0051) |
+| `BusinessFactPublisher` | `agent-bus` | `com.huawei.ascend.bus.memory` | shipped — the ADR-0051 emission path: discovered business facts leave as `BusinessFactEvent` for the C-side to accept or discard; the bounded recording reference never persists (ADR-0163) |
+| `KnowledgeSource` | `agent-bus` | `com.huawei.ascend.bus.knowledge` | shipped — tenant-scoped retrieval seam over C-side-owned knowledge content; per-tenant named registry + stable score-desc composite fan-out; token-overlap in-memory reference (ADR-0163) |
+| `AgentMessageBus` | `agent-bus` | `com.huawei.ascend.bus.messaging` | shipped — in-process async agent messaging: tenant-scoped topics, ordered per-topic delivery, bounded per-subscriber queues (DROP_OLDEST, counted), contained handler failures; cross-process agent-to-agent stays A2A through the service facade (ADR-0163) |
 
 **SPI count by module (shipped surface):**
 
@@ -70,7 +74,7 @@ SPI impls: thread-safe, no null returns. SPIs that process tenant-owned runtime 
 |---|---|
 | `agent-service` | 3 (`RuntimeRegistry`, `AgentDirectory`, `RouteGrantService`) — Spring HTTP edge lives in `agent-service-starter`, which declares no SPI of its own |
 | `agent-runtime` | 7 (`AgentRuntimeHandler`, `AgentCardProvider`, `MemoryProvider`, `StreamAdapter`, `LlmCallListener`, `GenerationSpanSink`, `SpendLog`) |
-| `agent-bus` | 5 (`S2cCallbackTransport`, `Checkpointer`, `Orchestrator`, `EnginePort`, `DefinitionResolver`) — `RunContext` / `TraceContext` / `ExecutionContext` are structural carriers, listed below |
+| `agent-bus` | 9 — capability surfaces 4 (`SessionMemoryStore`, `BusinessFactPublisher`, `KnowledgeSource`, `AgentMessageBus`; `AgentMessageHandler` / `Subscription` are companion carriers) + design-frozen 5 (`S2cCallbackTransport`, `Checkpointer`, `Orchestrator`, `EnginePort`, `DefinitionResolver`) — `RunContext` / `TraceContext` / `ExecutionContext` are structural carriers, listed below |
 
 **Per-SPI tenant scope (canonical post-ADR-0044):**
 

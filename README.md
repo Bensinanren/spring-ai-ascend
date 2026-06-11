@@ -174,6 +174,7 @@ These 7 surfaces present **distinct slices**: workspace (structure) → constrai
 
 ## Where to go next (cross-links beyond the Reading path)
 
+- [docs/developer-handbook.md](docs/developer-handbook.md) — the single front-door manual for industry developers building agents and multi-agent systems on the platform.
 - [docs/contracts/](docs/contracts/) — full contract corpus (each contract has authority ADR + enforcer).
 - [docs/adr/README.md](docs/adr/README.md) — full Architecture Decision Records corpus (the canonical count lives in docs/governance/architecture-status.yaml#architecture_sync_gate.baseline_metrics; currently 65 active+locked ADRs but only the baseline_metrics number is authoritative).
 - [docs/governance/architecture-status.yaml](docs/governance/architecture-status.yaml) — per-capability shipped/deferred ledger.
