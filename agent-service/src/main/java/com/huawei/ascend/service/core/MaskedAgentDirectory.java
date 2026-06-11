@@ -61,11 +61,22 @@ public final class MaskedAgentDirectory implements AgentDirectory {
             return null;
         }
         return interfaces.stream()
-                .map(agentInterface -> new AgentInterface(
-                        agentInterface.protocolBinding(),
-                        maskedUrl,
-                        agentInterface.tenant(),
-                        agentInterface.protocolVersion()))
+                .map(agentInterface -> withUrl(agentInterface, maskedUrl))
                 .toList();
+    }
+
+    /**
+     * Rebuilds the interface with only the url replaced. The SDK exposes no
+     * copy-builder for {@link AgentInterface}, so this positional construction
+     * must enumerate every record component; the directory test pins the
+     * component list so an SDK upgrade that adds a field fails loudly here
+     * instead of silently dropping data from every masked card.
+     */
+    private static AgentInterface withUrl(AgentInterface original, String url) {
+        return new AgentInterface(
+                original.protocolBinding(),
+                url,
+                original.tenant(),
+                original.protocolVersion());
     }
 }

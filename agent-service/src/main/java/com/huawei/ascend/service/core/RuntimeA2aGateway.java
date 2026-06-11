@@ -15,6 +15,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Byte-level A2A forwarder behind a resolved route. A2A-NO-REWRITE invariant:
@@ -53,6 +58,14 @@ public final class RuntimeA2aGateway {
         this.requestTimeout = Objects.requireNonNull(requestTimeout, "requestTimeout");
     }
 
+    /**
+     * Buffered forward: the configured request timeout bounds the whole
+     * exchange — headers and body. {@link HttpRequest#timeout} alone covers
+     * only receipt of the response headers, so the body is accumulated on the
+     * client's own machinery and the calling thread waits with a deadline; a
+     * runtime that returns headers promptly and then stalls mid-body can never
+     * hold the caller past the timeout.
+     */
     public A2aGatewayResponse forward(
             String agentId,
             String tenantId,
@@ -66,14 +79,17 @@ public final class RuntimeA2aGateway {
                 routingContext == null ? RoutingContext.empty() : routingContext);
         Duration routeResolveLatency = Duration.between(routeStart, Instant.now());
         HttpRequest request = buildForwardRequest(route, body, requestHeaders);
+        Instant forwardStart = Instant.now();
+        AtomicReference<Instant> headersReceivedAt = new AtomicReference<>();
+        CompletableFuture<HttpResponse<byte[]>> exchange = httpClient.sendAsync(request, responseInfo -> {
+            headersReceivedAt.set(Instant.now());
+            return HttpResponse.BodySubscribers.ofByteArray();
+        });
         try {
-            Instant forwardStart = Instant.now();
-            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            Duration firstByteLatency = Duration.between(forwardStart, Instant.now());
-            byte[] responseBody;
-            try (InputStream responseStream = response.body()) {
-                responseBody = responseStream.readAllBytes();
-            }
+            HttpResponse<byte[]> response = exchange.get(requestTimeout.toNanos(), TimeUnit.NANOSECONDS);
+            Instant firstByteAt = headersReceivedAt.get();
+            Duration firstByteLatency =
+                    Duration.between(forwardStart, firstByteAt == null ? Instant.now() : firstByteAt);
             Duration forwardLatency = Duration.between(forwardStart, Instant.now());
             return new A2aGatewayResponse(
                     response.statusCode(),
@@ -82,11 +98,17 @@ public final class RuntimeA2aGateway {
                     firstByteLatency,
                     forwardLatency,
                     route.runtimeInstanceId().value(),
-                    responseBody);
-        } catch (IOException ex) {
-            throw new A2aGatewayForwardException("Failed to forward A2A request to " + route.a2aEndpoint(), ex);
+                    response.body());
+        } catch (ExecutionException ex) {
+            Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+            throw new A2aGatewayForwardException("Failed to forward A2A request to " + route.a2aEndpoint(), cause);
+        } catch (TimeoutException ex) {
+            exchange.cancel(true);
+            throw new A2aGatewayForwardException(
+                    "A2A forward to " + route.a2aEndpoint() + " exceeded the request timeout of " + requestTimeout, ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+            exchange.cancel(true);
             throw new A2aGatewayForwardException("Interrupted while forwarding A2A request to " + route.a2aEndpoint(), ex);
         }
     }

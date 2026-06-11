@@ -17,8 +17,8 @@ spi_packages:
   - com.huawei.ascend.service.spi.routing     # HMAC-signed route grants
 allowed_dependencies:
   - agent-runtime    # framework-neutral engine SPI (engine.spi.AgentRuntimeHandler / StreamAdapter)
-  - agent-bus                 # neutral bus.spi.engine + bus.spi.s2c SPIs
-forbidden_dependencies: []
+forbidden_dependencies:
+  - agent-bus        # the frozen bus SPI plane; ServicePackageBoundaryTest forbids any service -> bus.spi dependency
 deployment_plane: compute_control
 deployment_loci:
   - platform_centric    # mode_a default per ADR-0101

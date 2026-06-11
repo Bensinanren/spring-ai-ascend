@@ -21,6 +21,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import org.a2aproject.sdk.jsonrpc.common.json.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -88,7 +89,10 @@ public final class RuntimeRegistrationClient implements AutoCloseable {
         body.put("runtimeInstanceId", registration.runtimeInstanceId().value());
         body.put("tenantId", registration.tenantId());
         body.put("agentId", registration.agentId());
-        body.put("agentCard", registration.agentCard());
+        // The agent card is a third-party A2A spec type with polymorphic
+        // members (securitySchemes); its wire shape belongs to the SDK's own
+        // serializer, never to a default-Jackson view of the record graph.
+        body.put("agentCard", agentCardWireJson(registration));
         body.put("a2aEndpoint", registration.a2aEndpoint().toString());
         body.put("healthEndpoint", registration.healthEndpoint().toString());
         body.put("version", registration.version());
@@ -184,6 +188,15 @@ public final class RuntimeRegistrationClient implements AutoCloseable {
             }
         } catch (RuntimeException ex) {
             log.warn("Best-effort deregistration of {} failed", instanceId, ex);
+        }
+    }
+
+    private JsonNode agentCardWireJson(RuntimeAgentRegistration registration) {
+        try {
+            return json.readTree(JsonUtil.toJson(registration.agentCard()));
+        } catch (Exception ex) {
+            throw new RuntimeRegistrationClientException(
+                    "Failed to serialize the agent card for " + registration.agentId(), ex);
         }
     }
 

@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.a2aproject.sdk.jsonrpc.common.json.JsonUtil;
+import org.a2aproject.sdk.spec.APIKeySecurityScheme;
+import org.a2aproject.sdk.spec.AgentCard;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -90,6 +93,39 @@ class RuntimeRegistrationClientTest {
         assertThat(body.path("capacitySnapshot").path("llmInFlight").asInt()).isEqualTo(3);
         assertThat(body.path("capacitySnapshot").path("p95FirstTokenMs").asLong()).isEqualTo(100);
         assertThat(body.path("metadata").path("zone").asText()).isEqualTo("az-1");
+    }
+
+    @Test
+    void agentCardTravelsAsTheA2aSdkSerializersJsonIncludingSecuritySchemes() throws Exception {
+        startServer(exchange -> respond(exchange, 200, registrationResultJson("runtime-1")));
+        client = RuntimeRegistrationClient.builder(baseUri()).build();
+        AgentCard card = AgentCard.builder(AgentCards.agentCard("weather-agent"))
+                .securitySchemes(Map.of("api-key", APIKeySecurityScheme.builder()
+                        .location(APIKeySecurityScheme.Location.HEADER)
+                        .name("X-Api-Key")
+                        .description("tenant API key")
+                        .build()))
+                .build();
+
+        RuntimeRegistrationOutcome outcome = client.register(new RuntimeAgentRegistration(
+                RuntimeInstanceId.of("runtime-1"),
+                "tenant-a",
+                "weather-agent",
+                card,
+                URI.create("http://runtime-1.local/a2a"),
+                URI.create("http://runtime-1.local/v1/health"),
+                "1.2.3",
+                Duration.ofSeconds(30),
+                Map.of()));
+
+        assertThat(outcome.registered()).isTrue();
+        // The card's wire shape is the SDK serializer's output, byte-for-tree:
+        // a Jackson view of the third-party record graph would both drift on
+        // SDK layout changes and be unable to carry the polymorphic
+        // securitySchemes members at all.
+        JsonNode sentCard = json.readTree(captured.get(0).body()).path("agentCard");
+        assertThat(sentCard).isEqualTo(json.readTree(JsonUtil.toJson(card)));
+        assertThat(sentCard.path("securitySchemes").path("api-key").isObject()).isTrue();
     }
 
     @Test

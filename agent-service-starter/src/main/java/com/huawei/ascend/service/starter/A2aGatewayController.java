@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -75,19 +76,56 @@ public final class A2aGatewayController {
         addHeader(forwardHeaders, "X-Ascend-Route-Grant-Signature", grant.signature());
         addHeader(forwardHeaders, "X-Ascend-Source-Agent", grant.sourceAgentId());
         addHeader(forwardHeaders, "X-Ascend-Tenant", grant.tenantId());
+        Instant forwardCallStart = Instant.now();
         A2aGatewayStreamResponse response = gateway.forwardStreaming(
                 agentId,
                 tenantId,
                 routingContext,
                 requestBody,
                 forwardHeaders);
-        HttpHeaders responseHeaders = new HttpHeaders();
-        responseHeaders.setContentType(MediaType.parseMediaType(response.contentType()));
-        responseHeaders.set("X-Ascend-Runtime-Instance", response.runtimeInstanceId());
-        responseHeaders.set("X-Ascend-Route-Grant-Id", grant.grantId());
-        responseHeaders.set("X-Ascend-Route-Resolve-Ms", Long.toString(response.routeResolveLatency().toMillis()));
-        responseHeaders.set("X-Ascend-First-Byte-Ms", Long.toString(response.firstByteLatency().toMillis()));
-        responseHeaders.set("X-Ascend-Forward-Start-Ms", Long.toString(response.firstByteLatency().toMillis()));
+        // Offset from request receipt at which the gateway began the upstream
+        // send: time spent before the gateway call plus its route resolution.
+        long forwardStartMs = Duration.between(requestStart, forwardCallStart)
+                .plus(response.routeResolveLatency())
+                .toMillis();
+        return respond(response, grant, a2aMethod, sessionId, correlationId,
+                requestBody.length, requestStart, forwardStartMs);
+    }
+
+    /**
+     * Builds the streaming response entity from an already-open upstream
+     * exchange. The runtime side is third-party-adjacent, so its status code
+     * and content type are treated leniently; if post-processing still fails,
+     * the upstream stream is closed, the forward is recorded as failed, and the
+     * fault is surfaced as a gateway error — never as a client 400.
+     */
+    ResponseEntity<StreamingResponseBody> respond(
+            A2aGatewayStreamResponse response,
+            RouteGrant grant,
+            String a2aMethod,
+            String sessionId,
+            String correlationId,
+            long requestBytes,
+            Instant requestStart,
+            long forwardStartMs) {
+        HttpStatusCode statusCode;
+        HttpHeaders responseHeaders;
+        try {
+            statusCode = HttpStatusCode.valueOf(response.statusCode());
+            responseHeaders = new HttpHeaders();
+            responseHeaders.setContentType(parseContentType(response.contentType()));
+            responseHeaders.set("X-Ascend-Runtime-Instance", response.runtimeInstanceId());
+            responseHeaders.set("X-Ascend-Route-Grant-Id", grant.grantId());
+            responseHeaders.set("X-Ascend-Route-Resolve-Ms", Long.toString(response.routeResolveLatency().toMillis()));
+            responseHeaders.set("X-Ascend-First-Byte-Ms", Long.toString(response.firstByteLatency().toMillis()));
+            responseHeaders.set("X-Ascend-Forward-Start-Ms", Long.toString(forwardStartMs));
+        } catch (RuntimeException ex) {
+            closeQuietly(response.body());
+            recordCompletion(response, grant, a2aMethod, sessionId, correlationId,
+                    requestBytes, requestStart, 0, "FAILED", GatewayErrorCode.GATEWAY_FORWARD_FAILED.name());
+            throw new A2aGatewayForwardException(
+                    "Runtime " + response.runtimeInstanceId() + " returned a response the gateway could not relay", ex);
+        }
         StreamingResponseBody stream = output -> streamAndRecord(
                 response,
                 output,
@@ -95,9 +133,28 @@ public final class A2aGatewayController {
                 a2aMethod,
                 sessionId,
                 correlationId,
-                requestBody.length,
+                requestBytes,
                 requestStart);
-        return new ResponseEntity<>(stream, responseHeaders, HttpStatus.valueOf(response.statusCode()));
+        return new ResponseEntity<>(stream, responseHeaders, statusCode);
+    }
+
+    private static MediaType parseContentType(String contentType) {
+        if (contentType == null) {
+            return MediaType.APPLICATION_JSON;
+        }
+        try {
+            return MediaType.parseMediaType(contentType);
+        } catch (RuntimeException ex) {
+            return MediaType.APPLICATION_JSON;
+        }
+    }
+
+    private static void closeQuietly(InputStream body) {
+        try {
+            body.close();
+        } catch (IOException ignored) {
+            // The stream is being abandoned because relaying already failed.
+        }
     }
 
     @ExceptionHandler(AgentRouteNotFoundException.class)
@@ -153,22 +210,37 @@ public final class A2aGatewayController {
             errorCode = GatewayErrorCode.RUNTIME_UNREACHABLE.name();
             throw ex;
         } finally {
-            forwardObserver.onForwardCompleted(new A2aForwardObserver.A2aForwardCompletion(
-                    grant.tenantId(),
-                    grant.sourceAgentId(),
-                    grant.targetAgentId(),
-                    response.runtimeInstanceId(),
-                    grant.grantId(),
-                    a2aMethod,
-                    sessionId,
-                    correlationId,
-                    status,
-                    errorCode,
-                    response.routeResolveLatency(),
-                    response.firstByteLatency(),
-                    Duration.between(requestStart, Instant.now()),
-                    requestBytes,
-                    responseBytes));
+            recordCompletion(response, grant, a2aMethod, sessionId, correlationId,
+                    requestBytes, requestStart, responseBytes, status, errorCode);
         }
+    }
+
+    private void recordCompletion(
+            A2aGatewayStreamResponse response,
+            RouteGrant grant,
+            String a2aMethod,
+            String sessionId,
+            String correlationId,
+            long requestBytes,
+            Instant requestStart,
+            long responseBytes,
+            String status,
+            String errorCode) {
+        forwardObserver.onForwardCompleted(new A2aForwardObserver.A2aForwardCompletion(
+                grant.tenantId(),
+                grant.sourceAgentId(),
+                grant.targetAgentId(),
+                response.runtimeInstanceId(),
+                grant.grantId(),
+                a2aMethod,
+                sessionId,
+                correlationId,
+                status,
+                errorCode,
+                response.routeResolveLatency(),
+                response.firstByteLatency(),
+                Duration.between(requestStart, Instant.now()),
+                requestBytes,
+                responseBytes));
     }
 }

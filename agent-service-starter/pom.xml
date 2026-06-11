@@ -38,6 +38,15 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
+    <!-- Generates spring-configuration-metadata.json from the
+         @ConfigurationProperties classes so IDEs offer completion, inline
+         docs, and unknown-key validation for the agent-service.* keys that
+         integrators hand-type. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <optional>true</optional>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

@@ -7,6 +7,8 @@ import com.huawei.ascend.service.core.RuntimeA2aGateway;
 import com.huawei.ascend.service.spi.discovery.AgentDirectory;
 import com.huawei.ascend.service.spi.registry.RuntimeRegistry;
 import com.huawei.ascend.service.spi.routing.RouteGrantService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -26,6 +28,8 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(name = "agent-service.enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(AgentServiceProperties.class)
 public class AgentServiceAutoConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(AgentServiceAutoConfiguration.class);
 
     /**
      * One in-memory store serves both the registration and discovery
@@ -49,6 +53,21 @@ public class AgentServiceAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     RouteGrantService routeGrantService(AgentDirectory directory, AgentServiceProperties properties) {
+        if (AgentServiceProperties.DEFAULT_ROUTE_GRANT_SECRET.equals(properties.getRouteGrantSecret())) {
+            if (properties.getAccess().getJwt().isEnabled()) {
+                // A deployment that provisions JWT is production-posture; signing
+                // route grants with the public checked-in secret would silently
+                // void the edge's authorization model, so refuse to start.
+                throw new IllegalStateException(
+                        "agent-service.access.jwt.enabled=true but agent-service.route-grant-secret is still the "
+                                + "checked-in development default. Route grants signed with the public default secret "
+                                + "are forgeable by anyone; set agent-service.route-grant-secret to a private value.");
+            }
+            log.warn("Route grants are being signed with the checked-in development default of "
+                    + "agent-service.route-grant-secret. The default secret is public, so signed grants provide no "
+                    + "authorization; set agent-service.route-grant-secret before exposing this edge beyond local "
+                    + "development.");
+        }
         return new HmacRouteGrantService(directory, properties.getRouteGrantSecret());
     }
 

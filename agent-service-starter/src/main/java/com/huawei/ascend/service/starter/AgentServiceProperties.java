@@ -13,9 +13,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties("agent-service")
 public class AgentServiceProperties {
 
+    /**
+     * Checked-in development default for {@code routeGrantSecret}. It is
+     * public knowledge, so signing with it provides no authorization at all;
+     * the auto-configuration warns when it is in use and refuses to start a
+     * JWT-provisioned (production-posture) deployment with it.
+     */
+    public static final String DEFAULT_ROUTE_GRANT_SECRET = "agent-service-local-route-grant-secret";
+
     private boolean enabled = true;
 
-    private String routeGrantSecret = "agent-service-local-route-grant-secret";
+    private String routeGrantSecret = DEFAULT_ROUTE_GRANT_SECRET;
 
     private String publicBaseUrl = "";
 

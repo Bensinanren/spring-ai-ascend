@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.a2aproject.sdk.jsonrpc.common.json.JsonUtil;
 import org.a2aproject.sdk.spec.AgentCard;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +34,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @RestController
 public final class RuntimeRegistryController {
@@ -51,7 +54,7 @@ public final class RuntimeRegistryController {
                 RuntimeInstanceId.of(request.runtimeInstanceId()),
                 request.tenantId(),
                 request.agentId(),
-                request.agentCard(),
+                parseAgentCard(request.agentCard()),
                 request.a2aEndpoint(),
                 request.healthEndpoint(),
                 request.version(),
@@ -97,6 +100,17 @@ public final class RuntimeRegistryController {
                 routingContext == null ? RoutingContext.empty() : routingContext);
     }
 
+    private static AgentCard parseAgentCard(JsonNode agentCard) {
+        if (agentCard == null || agentCard.isNull()) {
+            return null;
+        }
+        try {
+            return JsonUtil.fromJson(agentCard.toString(), AgentCard.class);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("agentCard is not a valid A2A agent card", ex);
+        }
+    }
+
     @ExceptionHandler(AgentRouteNotFoundException.class)
     public ResponseEntity<ErrorResponse> notFound(AgentRouteNotFoundException ex) {
         HttpStatus status = ex.code() == GatewayErrorCode.AGENT_NOT_FOUND ? HttpStatus.NOT_FOUND : HttpStatus.SERVICE_UNAVAILABLE;
@@ -108,11 +122,18 @@ public final class RuntimeRegistryController {
         return ResponseEntity.badRequest().body(new ErrorResponse(GatewayErrorCode.BAD_REQUEST.name(), ex.getMessage()));
     }
 
+    /**
+     * The agent card travels as the SDK serializer's JSON, not as a Jackson
+     * view of the third-party record graph: Jackson cannot bind the spec's
+     * polymorphic members (e.g. {@code securitySchemes}) and would silently
+     * couple the registration wire format to the SDK's record layout. The raw
+     * tree is parsed with the SDK's own deserializer in {@link #register}.
+     */
     public record RuntimeRegistrationRequest(
             String runtimeInstanceId,
             String tenantId,
             String agentId,
-            AgentCard agentCard,
+            JsonNode agentCard,
             URI a2aEndpoint,
             URI healthEndpoint,
             String version,
@@ -120,6 +141,23 @@ public final class RuntimeRegistryController {
             RuntimeCapacitySnapshot capacitySnapshot,
             Map<String, Object> metadata) {
 
+        private static final JsonMapper WIRE_JSON = JsonMapper.builder().build();
+
+        public RuntimeRegistrationRequest(
+                String runtimeInstanceId,
+                String tenantId,
+                String agentId,
+                JsonNode agentCard,
+                URI a2aEndpoint,
+                URI healthEndpoint,
+                String version,
+                long ttlSeconds,
+                Map<String, Object> metadata) {
+            this(runtimeInstanceId, tenantId, agentId, agentCard, a2aEndpoint, healthEndpoint, version, ttlSeconds,
+                    RuntimeCapacitySnapshot.empty(), metadata);
+        }
+
+        /** Typed convenience for in-JVM callers; converts to the SDK wire form. */
         public RuntimeRegistrationRequest(
                 String runtimeInstanceId,
                 String tenantId,
@@ -130,8 +168,19 @@ public final class RuntimeRegistryController {
                 String version,
                 long ttlSeconds,
                 Map<String, Object> metadata) {
-            this(runtimeInstanceId, tenantId, agentId, agentCard, a2aEndpoint, healthEndpoint, version, ttlSeconds,
-                    RuntimeCapacitySnapshot.empty(), metadata);
+            this(runtimeInstanceId, tenantId, agentId, toWireCard(agentCard), a2aEndpoint, healthEndpoint, version,
+                    ttlSeconds, RuntimeCapacitySnapshot.empty(), metadata);
+        }
+
+        private static JsonNode toWireCard(AgentCard agentCard) {
+            if (agentCard == null) {
+                return null;
+            }
+            try {
+                return WIRE_JSON.readTree(JsonUtil.toJson(agentCard));
+            } catch (Exception ex) {
+                throw new IllegalArgumentException("agentCard cannot be serialized as an A2A agent card", ex);
+            }
         }
     }
 

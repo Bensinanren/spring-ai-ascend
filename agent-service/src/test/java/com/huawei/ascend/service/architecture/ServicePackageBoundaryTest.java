@@ -6,6 +6,9 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
 import org.junit.jupiter.api.Test;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -41,18 +44,18 @@ class ServicePackageBoundaryTest {
 
     @Test
     void serviceModuleTouchesRuntimeOnlyThroughEngineSpi() {
+        // Allowlist, not denylist: every agent-runtime package is forbidden by
+        // default, so a new runtime package can never silently widen this seam.
+        // The framework-neutral engine SPI — plus the engine-root execution
+        // context types that appear in SPI signatures — is the only permitted
+        // dependency surface.
         ArchRule rule = noClasses()
                 .that().resideInAPackage("com.huawei.ascend.service..")
-                .should().dependOnClassesThat()
-                .resideInAnyPackage(
-                        "com.huawei.ascend.runtime.access..",
-                        "com.huawei.ascend.runtime.app..",
-                        "com.huawei.ascend.runtime.boot..",
-                        "com.huawei.ascend.runtime.common..",
-                        "com.huawei.ascend.runtime.control..",
-                        "com.huawei.ascend.runtime.queue..",
-                        "com.huawei.ascend.runtime.run..",
-                        "com.huawei.ascend.runtime.session..")
+                .should().dependOnClassesThat(
+                        resideInAPackage("com.huawei.ascend.runtime..")
+                                .and(not(resideInAnyPackage(
+                                        "com.huawei.ascend.runtime.engine",
+                                        "com.huawei.ascend.runtime.engine.spi.."))))
                 .allowEmptyShould(false);
         rule.check(SERVICE_CLASSES);
     }

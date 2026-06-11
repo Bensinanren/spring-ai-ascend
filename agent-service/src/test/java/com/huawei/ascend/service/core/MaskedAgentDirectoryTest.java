@@ -8,9 +8,11 @@ import com.huawei.ascend.service.spi.registry.RuntimeAgentRegistration;
 import com.huawei.ascend.service.spi.registry.RuntimeInstanceId;
 import com.huawei.ascend.service.testsupport.AgentCards;
 import com.huawei.ascend.service.testsupport.MutableClock;
+import java.lang.reflect.RecordComponent;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.a2aproject.sdk.spec.AgentCard;
@@ -66,6 +68,38 @@ class MaskedAgentDirectoryTest {
 
         RuntimeRoute route = masked.resolveRoute("agent-weather", TENANT, RoutingContext.empty());
         assertThat(route.a2aEndpoint()).isEqualTo(RUNTIME_ENDPOINT);
+    }
+
+    @Test
+    void maskingPreservesEveryNonUrlInterfaceField() {
+        AgentCard runtimeCard = AgentCard.builder(AgentCards.agentCard("agent-weather"))
+                .url(RUNTIME_ENDPOINT.toString())
+                .supportedInterfaces(List.of(new AgentInterface(
+                        TransportProtocol.JSONRPC.asString(),
+                        RUNTIME_ENDPOINT.toString(),
+                        "tenant-a",
+                        "0.3.0")))
+                .build();
+        register(runtimeCard);
+
+        AgentInterface maskedInterface = masked.getAgentCard("agent-weather", TENANT)
+                .supportedInterfaces().getFirst();
+
+        assertThat(maskedInterface.url()).isEqualTo("https://edge.example.com/v1/agents/agent-weather/a2a");
+        assertThat(maskedInterface.protocolBinding()).isEqualTo(TransportProtocol.JSONRPC.asString());
+        assertThat(maskedInterface.tenant()).isEqualTo("tenant-a");
+        assertThat(maskedInterface.protocolVersion()).isEqualTo("0.3.0");
+    }
+
+    @Test
+    void agentInterfaceShapeIsPinnedForTheUrlRewrite() {
+        // MaskedAgentDirectory rebuilds AgentInterface positionally because the
+        // SDK has no copy-builder for it. If this pin fails after an SDK bump,
+        // a new record component exists that the rewrite would silently drop:
+        // update MaskedAgentDirectory.withUrl to carry it, then update the pin.
+        assertThat(Arrays.stream(AgentInterface.class.getRecordComponents())
+                .map(RecordComponent::getName))
+                .containsExactly("protocolBinding", "url", "tenant", "protocolVersion");
     }
 
     @Test

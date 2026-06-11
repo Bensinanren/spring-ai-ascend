@@ -19,13 +19,17 @@ import org.a2aproject.sdk.spec.AgentInterface;
 import org.a2aproject.sdk.spec.AgentProvider;
 import org.a2aproject.sdk.spec.TransportProtocol;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+@ExtendWith(OutputCaptureExtension.class)
 class AgentServiceAutoConfigurationTest {
 
     private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
@@ -76,7 +80,8 @@ class AgentServiceAutoConfigurationTest {
     void jwtFilterGuardsTheServiceRoutesWhenEnabled() {
         contextRunner.withPropertyValues(
                 "agent-service.access.jwt.enabled=true",
-                "agent-service.access.jwt.hmac-secret=service-test-secret-which-is-long-enough")
+                "agent-service.access.jwt.hmac-secret=service-test-secret-which-is-long-enough",
+                "agent-service.route-grant-secret=provisioned-route-grant-secret")
                 .run(context -> {
                     assertThat(context).hasSingleBean(FilterRegistrationBean.class);
                     FilterRegistrationBean<?> registration = context.getBean(FilterRegistrationBean.class);
@@ -90,6 +95,39 @@ class AgentServiceAutoConfigurationTest {
     void jwtEnabledWithoutSecretFailsStartup() {
         contextRunner.withPropertyValues("agent-service.access.jwt.enabled=true")
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void jwtEnabledWithTheDefaultRouteGrantSecretFailsStartup() {
+        // Provisioning JWT signals production posture; route grants signed
+        // with the public checked-in default secret would be forgeable.
+        contextRunner.withPropertyValues(
+                "agent-service.access.jwt.enabled=true",
+                "agent-service.access.jwt.hmac-secret=service-test-secret-which-is-long-enough")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .rootCause()
+                            .hasMessageContaining("agent-service.route-grant-secret");
+                });
+    }
+
+    @Test
+    void defaultRouteGrantSecretWarnsAtStartup(CapturedOutput output) {
+        contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(RouteGrantService.class);
+            assertThat(output).contains("checked-in development default")
+                    .contains("agent-service.route-grant-secret");
+        });
+    }
+
+    @Test
+    void provisionedRouteGrantSecretStartsWithoutTheWarning(CapturedOutput output) {
+        contextRunner.withPropertyValues("agent-service.route-grant-secret=provisioned-route-grant-secret")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(RouteGrantService.class);
+                    assertThat(output).doesNotContain("checked-in development default");
+                });
     }
 
     @Test
