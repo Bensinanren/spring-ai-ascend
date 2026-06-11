@@ -70,6 +70,20 @@
       <artifactId>protobuf-java</artifactId>
       <version>4.33.2</version>
     </dependency>
+    <!-- Optional OTLP path of the console client (SAA_SAMPLE_OTLP_ENDPOINT):
+         ClientTelemetry.otlpHttp needs the OTel sdk + exporter the client SDK
+         declares optional. Runtime scope — no sample code touches an OTel type
+         on the main path. -->
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-sdk</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-otlp</artifactId>
+      <scope>runtime</scope>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
@@ -82,6 +96,13 @@
     <dependency>
       <groupId>com.tngtech.archunit</groupId>
       <artifactId>archunit-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- In-memory span exporter for the client-telemetry e2e test (brings the
+         OTel api + sdk the client SDK declares optional). -->
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-sdk-testing</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

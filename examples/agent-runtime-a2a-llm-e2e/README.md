@@ -368,6 +368,39 @@ export SAA_SAMPLE_LLM_MODEL="gpt-5.4-mini"
 export SAA_SAMPLE_A2A_BASE_URL="http://localhost:18080"
 ```
 
+### Console Client Telemetry (optional)
+
+The client SDK can emit one CLIENT span per A2A call through its
+`ClientTelemetry` seam (default: noop). Two wiring forms:
+
+```java
+// Consumer-supplied OpenTelemetry SDK (its lifecycle stays with you):
+AscendA2aClient.builder()
+    .baseUrl(baseUrl)
+    .telemetry(OtelClientTelemetry.create(openTelemetry, Posture.DEV))
+    .build();
+
+// Self-contained OTLP/HTTP pipeline owned by the client (flushed on close):
+AscendA2aClient.builder()
+    .baseUrl(baseUrl)
+    .telemetry(ClientTelemetry.otlpHttp(
+        "http://localhost:4318/v1/traces", Posture.DEV, null))
+    .build();
+```
+
+The console client wires the second form from environment variables:
+
+- `SAA_SAMPLE_OTLP_ENDPOINT`: full OTLP/HTTP traces endpoint, e.g.
+  `http://localhost:4318/v1/traces`. Unset (the default) keeps telemetry off
+  and the client's behavior unchanged.
+- `SAA_SAMPLE_TELEMETRY_POSTURE`: `DEV`, `RESEARCH`, or `PROD` (default
+  `DEV`); sets the sampling ratio and whether message text may ride on spans
+  (never in `PROD`).
+
+The span's trace context also becomes the outbound `traceparent`, so the
+server's `traceresponse` and the exported client span share one trace-id —
+verified end-to-end by `ClientTelemetryE2eTest` against a booted runtime.
+
 The openJiuwen sample creates both native checkpointer candidates during
 configuration. It sets `InMemoryCheckpointer` as the default path for local E2E
 runs. Set `SAA_SAMPLE_OPENJIUWEN_CHECKPOINTER=redis` and provide
