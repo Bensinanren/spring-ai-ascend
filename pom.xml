@@ -55,6 +55,7 @@
     <temporal.version>1.35.0</temporal.version>
     <mcp.version>1.0.0</mcp.version>
     <a2a-sdk.version>1.0.0.CR1</a2a-sdk.version>
+    <openjiuwen.version>0.1.7</openjiuwen.version>
     <protobuf.version>4.33.2</protobuf.version>
     <langchain4j.version>1.14.1</langchain4j.version>
     <resilience4j.version>2.4.0</resilience4j.version>
@@ -124,6 +125,13 @@
         <groupId>io.modelcontextprotocol.sdk</groupId>
         <artifactId>mcp</artifactId>
         <version>${mcp.version}</version>
+      </dependency>
+
+      <!-- openJiuwen agent framework: one pin for every module and example. -->
+      <dependency>
+        <groupId>com.openjiuwen</groupId>
+        <artifactId>agent-core-java</artifactId>
+        <version>${openjiuwen.version}</version>
       </dependency>
 
       <!-- A2A Java SDK. -->

@@ -51,6 +51,13 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
+    <!-- Generates spring-configuration-metadata.json from the @ConfigurationProperties
+         classes so IDEs offer completion + javadoc for the hand-typed agent-runtime.* keys. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <optional>true</optional>
+    </dependency>
 
     <!-- Persistence: JDBC + Postgres + Flyway. -->
     <dependency>
@@ -186,7 +193,6 @@
     <dependency>
       <groupId>com.openjiuwen</groupId>
       <artifactId>agent-core-java</artifactId>
-      <version>0.1.7</version>
       <optional>true</optional>
     </dependency>
 

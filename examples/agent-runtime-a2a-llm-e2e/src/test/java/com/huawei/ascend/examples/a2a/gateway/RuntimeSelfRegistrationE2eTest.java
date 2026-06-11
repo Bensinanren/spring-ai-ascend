@@ -44,13 +44,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(
         classes = RuntimeSelfRegistrationE2eTest.TestServiceFacade.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "spring.autoconfigure.exclude="
+        properties = {
+                "agent-runtime.enabled=false",
+                "spring.autoconfigure.exclude="
                 + "com.huawei.ascend.runtime.session.SessionManageConfiguration,"
                 + "com.huawei.ascend.runtime.queue.QueueAutoConfiguration,"
                 + "com.huawei.ascend.runtime.control.TaskControlAutoConfiguration,"
                 + "com.huawei.ascend.runtime.app.RuntimeWiringConfiguration,"
                 + "com.huawei.ascend.runtime.access.AccessLayerConfiguration,"
-                + "com.huawei.ascend.runtime.engine.EngineAutoConfiguration")
+                + "com.huawei.ascend.runtime.engine.EngineAutoConfiguration"})
 class RuntimeSelfRegistrationE2eTest {
 
     private static final String TENANT = "tenant-selfreg";
