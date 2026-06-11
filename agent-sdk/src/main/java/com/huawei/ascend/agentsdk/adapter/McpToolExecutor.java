@@ -24,8 +24,10 @@ import java.util.function.Function;
  * Executes an {@code mcp:} tool against the server declared for it under
  * {@code mcpServers}. One client per server name is connected lazily on first
  * use and reused across invocations; {@link #close()} tears them all down.
- * Text results reach the agent as plain strings; structured results as
- * Jackson-decoded maps/lists.
+ * A transport failure evicts the cached client and retries once on a fresh
+ * connection, so a dead stdio process or dropped SSE session never disables
+ * the server permanently. Text results reach the agent as plain strings;
+ * structured results as Jackson-decoded maps/lists.
  */
 public final class McpToolExecutor implements AutoCloseable {
 
@@ -63,12 +65,11 @@ public final class McpToolExecutor implements AutoCloseable {
             throw new ToolExecutionException("MCP tool '" + handle.tool() + "' references unknown server '"
                     + handle.server() + "'; declare it under mcpServers");
         }
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
+                handle.tool(), inputs == null ? Map.of() : inputs);
         McpSchema.CallToolResult result;
         try {
-            McpConnection connection = connections.computeIfAbsent(handle.server(),
-                    name -> connectionFactory.apply(spec));
-            result = connection.callTool(new McpSchema.CallToolRequest(
-                    handle.tool(), inputs == null ? Map.of() : inputs));
+            result = callWithOneReconnect(handle.server(), spec, request);
         } catch (ToolExecutionException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -84,6 +85,45 @@ public final class McpToolExecutor implements AutoCloseable {
         } catch (IllegalArgumentException e) {
             throw new ToolExecutionException("MCP tool '" + handle.tool() + "' on server '"
                     + handle.server() + "' answered a result the SDK cannot decode: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Calls the tool on the cached connection; a transport failure means the
+     * cached client may be dead (stdio child gone, SSE session dropped), so it
+     * is evicted and the call retried exactly once on a fresh connection. A
+     * second failure evicts again and propagates — never more than one
+     * reconnect attempt per invocation.
+     */
+    private McpSchema.CallToolResult callWithOneReconnect(
+            String server, McpServerSpec spec, McpSchema.CallToolRequest request) {
+        McpConnection connection = connections.computeIfAbsent(server,
+                name -> connectionFactory.apply(spec));
+        try {
+            return connection.callTool(request);
+        } catch (RuntimeException first) {
+            evict(server, connection);
+            McpConnection fresh = connections.computeIfAbsent(server,
+                    name -> connectionFactory.apply(spec));
+            try {
+                return fresh.callTool(request);
+            } catch (RuntimeException second) {
+                evict(server, fresh);
+                if (second != first) {
+                    second.addSuppressed(first);
+                }
+                throw second;
+            }
+        }
+    }
+
+    /** Drops the connection from the cache (only if still the cached one) and closes it quietly. */
+    private void evict(String server, McpConnection connection) {
+        connections.remove(server, connection);
+        try {
+            connection.close();
+        } catch (RuntimeException e) {
+            // Best-effort teardown of an already-broken connection.
         }
     }
 

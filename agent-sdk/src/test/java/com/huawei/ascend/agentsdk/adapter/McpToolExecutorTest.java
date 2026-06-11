@@ -120,6 +120,51 @@ class McpToolExecutorTest {
     }
 
     @Test
+    void deadConnectionIsEvictedAndTheCallRetriesOnceOnAFreshOne() {
+        StubConnection dead = new StubConnection(textResult("unused"));
+        dead.failure = new IllegalStateException("stdio process exited");
+        StubConnection fresh = new StubConnection(textResult("recovered"));
+        List<StubConnection> sequence = new ArrayList<>(List.of(dead, fresh));
+        AtomicInteger connects = new AtomicInteger();
+        McpToolExecutor executor = new McpToolExecutor(Map.of("inventory", INVENTORY), spec -> {
+            connects.incrementAndGet();
+            return sequence.remove(0);
+        });
+
+        Object result = executor.execute(LOOKUP, Map.of());
+
+        assertThat(result).isEqualTo("recovered");
+        assertThat(connects).hasValue(2);
+        assertThat(dead.closed).isTrue();
+        assertThat(fresh.requests).hasSize(1);
+    }
+
+    @Test
+    void failureAfterTheSingleReconnectEvictsAgainSoTheNextCallStartsClean() {
+        AtomicInteger connects = new AtomicInteger();
+        StubConnection healthy = new StubConnection(textResult("back online"));
+        McpToolExecutor executor = new McpToolExecutor(Map.of("inventory", INVENTORY), spec -> {
+            int attempt = connects.incrementAndGet();
+            if (attempt <= 2) {
+                StubConnection broken = new StubConnection(textResult("unused"));
+                broken.failure = new IllegalStateException("sse session dropped");
+                return broken;
+            }
+            return healthy;
+        });
+
+        assertThatThrownBy(() -> executor.execute(LOOKUP, Map.of()))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("sse session dropped");
+        // Exactly one reconnect attempt inside the failing call — no retry loop.
+        assertThat(connects).hasValue(2);
+
+        // The broken connection was evicted, so the next call connects afresh and succeeds.
+        assertThat(executor.execute(LOOKUP, Map.of())).isEqualTo("back online");
+        assertThat(connects).hasValue(3);
+    }
+
+    @Test
     void connectionFailureSurfacesAsToolExecutionException() {
         McpToolExecutor executor = new McpToolExecutor(Map.of("inventory", INVENTORY), spec -> {
             throw new IllegalStateException("spawn refused");
