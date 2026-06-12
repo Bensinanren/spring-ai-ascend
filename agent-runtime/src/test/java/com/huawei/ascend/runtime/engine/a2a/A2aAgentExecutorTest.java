@@ -468,7 +468,7 @@ class A2aAgentExecutorTest {
             return Stream.of("remote");
         });
         when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> "remote".equals(value)
-                    ? AgentExecutionResult.remoteInvocation(new AgentExecutionResult.RemoteInvocation(
+                    ? remoteInterrupt(new AgentExecutionResult.RemoteInvocation(
                             "remote-agent", "a2a_remote_remote_agent", "tool-call-1",
                             "task-1", "ctx-1", "task-1", Map.of("message", "hello remote")))
                     : AgentExecutionResult.completed("local final after remote")));
@@ -494,7 +494,7 @@ class A2aAgentExecutorTest {
             return Stream.of("REMOTE_RESUME".equals(context.getInputType()) ? "resumed" : "remote");
         });
         when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> "remote".equals(value)
-                ? AgentExecutionResult.remoteInvocation(new AgentExecutionResult.RemoteInvocation(
+                ? remoteInterrupt(new AgentExecutionResult.RemoteInvocation(
                         "remote-agent", "a2a_remote_remote_agent", "tool-call-1",
                         "task-1", "ctx-1", "conversation-1", Map.of("message", "hello remote")))
                 : AgentExecutionResult.completed("local final after remote")));
@@ -533,7 +533,7 @@ class A2aAgentExecutorTest {
         AgentRuntimeHandler handler = mock(AgentRuntimeHandler.class);
         when(handler.agentId()).thenReturn("agent-x");
         when(handler.execute(any())).thenAnswer(inv -> Stream.of("remote"));
-        when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> AgentExecutionResult.remoteInvocation(
+        when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> remoteInterrupt(
                 new AgentExecutionResult.RemoteInvocation(
                     "remote-agent", "a2a_remote_remote_agent", "tool-call-1",
                     "task-1", "ctx-1", "task-1", Map.of("message", "needs user")))));
@@ -576,7 +576,7 @@ class A2aAgentExecutorTest {
             return Stream.of("remote");
         });
         when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> "remote".equals(value)
-                ? AgentExecutionResult.remoteInvocation(new AgentExecutionResult.RemoteInvocation(
+                ? remoteInterrupt(new AgentExecutionResult.RemoteInvocation(
                         "remote-agent", "a2a_remote_remote_agent", "tool-call-1",
                         "task-1", "ctx-1", "conversation-1", Map.of("message", "hello remote")))
                 : AgentExecutionResult.completed("local final after missing terminal")));
@@ -649,7 +649,7 @@ class A2aAgentExecutorTest {
         AgentRuntimeHandler handler = mock(AgentRuntimeHandler.class);
         when(handler.agentId()).thenReturn("agent-x");
         when(handler.execute(any())).thenAnswer(inv -> Stream.of("resumed"));
-        when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> AgentExecutionResult.remoteInvocation(
+        when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> remoteInterrupt(
                 new AgentExecutionResult.RemoteInvocation(
                         "remote-agent-2",
                         "a2a_remote_remote_agent_2",
@@ -675,7 +675,7 @@ class A2aAgentExecutorTest {
         AgentRuntimeHandler handler = mock(AgentRuntimeHandler.class);
         when(handler.agentId()).thenReturn("agent-x");
         when(handler.execute(any())).thenAnswer(inv -> Stream.of("remote"));
-        when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> AgentExecutionResult.remoteInvocation(
+        when(handler.resultAdapter()).thenReturn(raw -> raw.map(value -> remoteInterrupt(
                 new AgentExecutionResult.RemoteInvocation(
                     "remote-agent", "a2a_remote_remote_agent", "tool-call-1",
                     "task-1", "ctx-1", "task-1", Map.of("message", "needs user")))));
@@ -763,6 +763,12 @@ class A2aAgentExecutorTest {
     private static RemoteAgentInvocationService.RemoteAgentResult remoteResult(
             RemoteAgentInvocationService.RemoteAgentResult.Type type, String text) {
         return new RemoteAgentInvocationService.RemoteAgentResult(type, text, null, null, Map.of());
+    }
+
+    private static AgentExecutionResult remoteInterrupt(AgentExecutionResult.RemoteInvocation invocation) {
+        AgentExecutionResult result = AgentExecutionResult.interrupted(invocation);
+        assertThat(result.interruptPayload()).isInstanceOf(AgentExecutionResult.RemoteAgentInterrupt.class);
+        return result;
     }
 
     /** Capture the Message handed to fail(Message) and concatenate its text. */

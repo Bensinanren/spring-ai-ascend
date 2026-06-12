@@ -131,6 +131,6 @@ mvn -f examples/agent-runtime-a2a-remote-openjiuwen-e2e/pom.xml test
 
 - Agent A 通过 `agent-runtime.remote-agents[0].url` 发现 Agent B 的 A2A card
 - Runtime 根据 card 生成 `RemoteAgentToolSpec`，注入为 OpenJiuwen tool `a2a_remote_remote_b`
-- LLM 选择调用该 tool → `OpenJiuwenRemoteAgentInterruptRail` 中断 → `REMOTE_INVOCATION`
+- LLM 选择调用该 tool → `OpenJiuwenRemoteAgentInterruptRail` 中断 → `INTERRUPTED(RemoteAgentInterrupt)`
 - Runtime 通过 A2A client 出站调用 Agent B
 - Agent B 流式返回 → 完成后 runtime 将结果 resume Agent A → Agent A 生成摘要 → `COMPLETED`
