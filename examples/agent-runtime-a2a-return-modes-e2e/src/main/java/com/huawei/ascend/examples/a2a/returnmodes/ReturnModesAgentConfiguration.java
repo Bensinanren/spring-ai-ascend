@@ -1,7 +1,9 @@
 package com.huawei.ascend.examples.a2a.returnmodes;
 
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
+import com.huawei.ascend.runtime.engine.a2a.A2aAgentCardMapper;
 import com.huawei.ascend.runtime.engine.a2a.AgentCards;
+import com.huawei.ascend.runtime.engine.spi.AgentCapabilitiesDescriptor;
 import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
 import com.huawei.ascend.runtime.engine.spi.StreamAdapter;
@@ -22,7 +24,12 @@ public class ReturnModesAgentConfiguration {
 
     @Bean
     org.a2aproject.sdk.spec.AgentCard returnModesAgentCard() {
-        return AgentCards.create(AGENT_ID, "Deterministic agent for A2A return mode verification.");
+        // This handler genuinely emits multiple incremental output frames before completion
+        // (stream-part-1, stream-part-2, stream-done), so streaming=true is honest.
+        // In-memory push store is not durable, so pushNotifications=false.
+        return A2aAgentCardMapper.toAgentCard(
+                AgentCards.defaultDescriptor(AGENT_ID, "Deterministic agent for A2A return mode verification.")
+                        .withCapabilities(new AgentCapabilitiesDescriptor(true, false, false)));
     }
 
     private static final class DeterministicReturnModesHandler implements AgentRuntimeHandler {
@@ -35,6 +42,13 @@ public class ReturnModesAgentConfiguration {
 
         @Override
         public boolean isHealthy() {
+            return true;
+        }
+
+        @Override
+        public boolean supportsStreaming() {
+            // execute() returns multiple incremental output frames before the terminal result,
+            // so this handler genuinely streams rather than returning a single completed frame.
             return true;
         }
 

@@ -50,7 +50,7 @@ class RemoteOpenJiuwenA2aE2eTest {
                 AgentCard card = client.agentCard();
                 assertThat(card.name()).isEqualTo(AgentAConfiguration.AGENT_ID);
                 assertThat(card.description()).contains("LLM-driven");
-                assertThat(card.capabilities().streaming()).isTrue();
+                assertThat(card.capabilities().streaming()).isFalse();
                 assertThat(card.supportedInterfaces())
                         .extracting(AgentInterface::protocolBinding)
                         .contains(TransportProtocol.JSONRPC.asString());

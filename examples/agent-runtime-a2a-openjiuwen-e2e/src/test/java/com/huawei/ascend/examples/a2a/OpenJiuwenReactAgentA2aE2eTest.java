@@ -38,7 +38,7 @@ class OpenJiuwenReactAgentA2aE2eTest {
         AgentCard agentCard = client.agentCard();
         assertThat(agentCard.name()).isEqualTo(AGENT_ID);
         assertThat(agentCard.description()).contains("openJiuwen ReAct agent");
-        assertThat(agentCard.capabilities().streaming()).isTrue();
+        assertThat(agentCard.capabilities().streaming()).isFalse();
         assertThat(agentCard.supportedInterfaces())
                 .extracting(AgentInterface::protocolBinding)
                 .contains(TransportProtocol.JSONRPC.asString());

@@ -37,7 +37,7 @@ class ReturnModesA2aE2eTest {
 
         AgentCard card = client.agentCard();
         assertThat(card.capabilities().streaming()).isTrue();
-        assertThat(card.capabilities().pushNotifications()).isTrue();
+        assertThat(card.capabilities().pushNotifications()).isFalse();
 
         EventKind syncResult = client.sendMessage("sync");
         assertThat(syncResult).isInstanceOf(Task.class);

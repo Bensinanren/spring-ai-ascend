@@ -39,7 +39,7 @@ class RuntimeAppBootTest {
                     URI.create("http://localhost:" + runtime.port()), TIMEOUT);
 
             AgentCard card = client.agentCard();
-            assertThat(card.capabilities().streaming()).isTrue();
+            assertThat(card.capabilities().streaming()).isFalse();
         }
     }
 
