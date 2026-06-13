@@ -17,6 +17,8 @@ import org.a2aproject.sdk.spec.AgentInterface;
 import org.a2aproject.sdk.spec.AgentProvider;
 import org.a2aproject.sdk.spec.AgentSkill;
 import org.a2aproject.sdk.spec.TransportProtocol;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +26,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "sample.remote-agent-tool.role", havingValue = "remote")
 public class RemoteA2aAgentConfiguration {
+    private static final Logger LOG = LoggerFactory.getLogger(RemoteA2aAgentConfiguration.class);
+
     static final String AGENT_ID = "remote-b";
 
     @Bean
@@ -68,6 +72,19 @@ public class RemoteA2aAgentConfiguration {
             DemoAgent agent = new DemoAgent();
             agent.configure(ReActAgentConfig.builder().maxIterations(2).build());
             return agent;
+        }
+
+        @Override
+        protected Object toOpenJiuwenInput(AgentExecutionContext context) {
+            String conversationId = context.getAgentStateKey();
+            boolean firstTurn = !STARTED_CONVERSATIONS.contains(conversationId);
+            LOG.info("remote-agent received message taskId={} conversationId={} turn={} messages={} text={}",
+                    context.getScope().taskId(),
+                    conversationId,
+                    firstTurn ? "first" : "continuation",
+                    context.getMessages().size(),
+                    context.lastUserText());
+            return super.toOpenJiuwenInput(context);
         }
 
         @Override
