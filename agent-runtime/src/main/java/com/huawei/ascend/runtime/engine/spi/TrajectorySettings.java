@@ -1,5 +1,6 @@
 package com.huawei.ascend.runtime.engine.spi;
 
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -16,12 +17,38 @@ import java.util.regex.Pattern;
  * built-in key-name masking via {@link TrajectoryMasking#mask}, preserving byte-identical
  * default behaviour. A deployment supplies a {@link Redactor} bean to opt into
  * value-based recognition (card numbers, national IDs, GPS coordinate pairs, etc.).
+ *
+ * <p><b>Payload-ref store (opt-in):</b> when {@code payloadRefStore} is non-null,
+ * {@code payloadRefFields} is non-empty, and {@code payloadRefThreshold} is positive,
+ * over-threshold STRING slot values for the named fields are persisted out-of-band and
+ * replaced in the trajectory by a {@code payload_ref://...} URI. Default ({@code off()}
+ * and {@code basic()}) is no store — behaviour is byte-identical to before.
  */
 public record TrajectorySettings(boolean enabled, Pattern maskKeyPattern, int truncateChars,
-        double sampleRate, Redactor redactor) {
+        double sampleRate, Redactor redactor,
+        PayloadRefStore payloadRefStore, int payloadRefThreshold, Set<String> payloadRefFields) {
+
+    /**
+     * Canonical constructor — validates that {@code payloadRefFields} is never null so
+     * callers can always call {@code payloadRefFields().contains(...)} safely.
+     */
+    public TrajectorySettings {
+        if (payloadRefFields == null) {
+            payloadRefFields = Set.of();
+        }
+    }
+
+    /**
+     * Backward-compatible convenience constructor for call sites that do not need
+     * payload-ref: wraps the original five-field signature with no-op ref defaults.
+     */
+    public TrajectorySettings(boolean enabled, Pattern maskKeyPattern, int truncateChars,
+            double sampleRate, Redactor redactor) {
+        this(enabled, maskKeyPattern, truncateChars, sampleRate, redactor, null, 0, Set.of());
+    }
 
     public static TrajectorySettings off() {
-        return new TrajectorySettings(false, null, 0, 1.0, null);
+        return new TrajectorySettings(false, null, 0, 1.0, null, null, 0, Set.of());
     }
 
     /**
@@ -30,6 +57,6 @@ public record TrajectorySettings(boolean enabled, Pattern maskKeyPattern, int tr
      * sampling or value-based recognition.
      */
     public static TrajectorySettings basic(boolean enabled, Pattern maskKeyPattern, int truncateChars) {
-        return new TrajectorySettings(enabled, maskKeyPattern, truncateChars, 1.0, null);
+        return new TrajectorySettings(enabled, maskKeyPattern, truncateChars, 1.0, null, null, 0, Set.of());
     }
 }

@@ -5,11 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
+import com.huawei.ascend.runtime.engine.spi.LocalFsPayloadRefStore;
 import com.huawei.ascend.runtime.engine.spi.Redactor;
 import com.huawei.ascend.runtime.engine.spi.StreamAdapter;
 import com.huawei.ascend.runtime.engine.spi.TrajectoryMasking;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySettings;
 import com.huawei.ascend.runtime.engine.spi.ValueRecognizingRedactor;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.stream.Stream;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.ListTasksResult;
@@ -22,6 +24,7 @@ import org.a2aproject.sdk.spec.ListTasksParams;
 import org.a2aproject.sdk.spec.Task;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -162,6 +165,30 @@ class RuntimeAutoConfigurationTest {
         TrajectorySettings settings = RuntimeAutoConfiguration.toTrajectorySettings(properties, supplied);
         // off() is returned when disabled; its redactor is null regardless of argument.
         assertThat(settings.redactor()).isNull();
+    }
+
+    /** Default config (payloadRef disabled) yields a null store — unchanged truncation behaviour. */
+    @Test
+    void payloadRefDisabledByDefaultYieldsNullStore() {
+        TrajectoryProperties properties = new TrajectoryProperties();
+        TrajectorySettings settings = RuntimeAutoConfiguration.toTrajectorySettings(properties);
+        assertThat(settings.payloadRefStore()).isNull();
+        assertThat(settings.payloadRefThreshold()).isEqualTo(0);
+        assertThat(settings.payloadRefFields()).isEmpty();
+    }
+
+    /** Enabling payloadRef with a baseDir and fields wires a LocalFsPayloadRefStore. */
+    @Test
+    void payloadRefEnabledWiresLocalFsStore(@TempDir java.nio.file.Path tempDir) {
+        TrajectoryProperties properties = new TrajectoryProperties();
+        properties.getPayloadRef().setEnabled(true);
+        properties.getPayloadRef().setBaseDir(tempDir.toString());
+        properties.getPayloadRef().setThreshold(1024);
+        properties.getPayloadRef().setFields(List.of("result", "args"));
+        TrajectorySettings settings = RuntimeAutoConfiguration.toTrajectorySettings(properties);
+        assertThat(settings.payloadRefStore()).isInstanceOf(LocalFsPayloadRefStore.class);
+        assertThat(settings.payloadRefThreshold()).isEqualTo(1024);
+        assertThat(settings.payloadRefFields()).containsExactlyInAnyOrder("result", "args");
     }
 
     /**

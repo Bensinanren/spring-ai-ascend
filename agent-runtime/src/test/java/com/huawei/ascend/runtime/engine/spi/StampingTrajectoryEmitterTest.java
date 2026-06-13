@@ -8,7 +8,9 @@ import com.huawei.ascend.runtime.engine.spi.TrajectoryEvent.Kind;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
@@ -339,5 +341,149 @@ class StampingTrajectoryEmitterTest {
         assertThat(args.get("payment")).isEqualTo("4111111111111111");
         // Sensitive key names still masked even on the default path
         assertThat(args.get("amount")).isEqualTo("99");
+    }
+
+    // ── payload-ref tests ─────────────────────────────────────────────────────
+
+    /** Collects (fieldPath → payload) pairs that were stored. */
+    private static final class RecordingStore implements PayloadRefStore {
+        final List<String> storedPayloads = new CopyOnWriteArrayList<>();
+        final List<String> storedFields = new CopyOnWriteArrayList<>();
+
+        @Override
+        public String store(String contextId, String taskId, long seq, String fieldPath, String payload) {
+            storedPayloads.add(payload);
+            storedFields.add(fieldPath);
+            return "payload_ref://" + taskId + "/" + seq + "-" + fieldPath + ".txt";
+        }
+    }
+
+    /**
+     * Over-threshold result slot (from a tool-call end) is stored out-of-band and the event
+     * carries the {@code payload_ref://} URI, not the truncated inline value.
+     */
+    @Test
+    void overThresholdResultIsRefizedAndEventCarriesUri() {
+        CapturingSink sink = new CapturingSink();
+        RecordingStore store = new RecordingStore();
+        String longResult = "x".repeat(20);  // exceeds threshold of 10
+        TrajectorySettings settings = new TrajectorySettings(
+                true, Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256, 1.0, null,
+                store, 10, Set.of("result"));
+        StampingTrajectoryEmitter emitter = new StampingTrajectoryEmitter(
+                sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        emitter.emit(TrajectoryDraft.runStart());
+        emitter.emit(TrajectoryDraft.toolCallEnd("search", longResult));
+        emitter.emit(TrajectoryDraft.runEnd());
+
+        TrajectoryEvent toolEnd = first(sink.events, Kind.TOOL_CALL_END);
+        assertThat(toolEnd.result()).asString().startsWith("payload_ref://");
+        // The store received the FULL content (not truncated).
+        assertThat(store.storedPayloads).hasSize(1);
+        assertThat(store.storedPayloads.get(0)).isEqualTo(longResult);
+    }
+
+    /**
+     * When a secret-bearing result and a Redactor are configured, the STORED content must
+     * be secret-redacted — the raw secret must never reach the store.
+     */
+    @Test
+    void secretsAreRedactedBeforeStoreWhenCustomRedactorConfigured() {
+        CapturingSink sink = new CapturingSink();
+        RecordingStore store = new RecordingStore();
+        // A Redactor that replaces "SECRET" with "***" anywhere in the string.
+        Redactor maskingRedactor = (eventKind, fieldPath, value) -> {
+            if (value instanceof String s) {
+                return s.replace("SECRET", "***");
+            }
+            return value;
+        };
+        String rawResult = "prefix SECRET suffix padding padding padding padding padding padding";
+        TrajectorySettings settings = new TrajectorySettings(
+                true, Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256, 1.0, maskingRedactor,
+                store, 10, Set.of("result"));
+        StampingTrajectoryEmitter emitter = new StampingTrajectoryEmitter(
+                sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        emitter.emit(TrajectoryDraft.runStart());
+        emitter.emit(TrajectoryDraft.toolCallEnd("search", rawResult));
+        emitter.emit(TrajectoryDraft.runEnd());
+
+        // Stored payload must NOT contain the raw secret.
+        assertThat(store.storedPayloads).hasSize(1);
+        assertThat(store.storedPayloads.get(0)).doesNotContain("SECRET");
+        assertThat(store.storedPayloads.get(0)).contains("***");
+        // Event result must be a payload_ref:// URI.
+        assertThat(first(sink.events, Kind.TOOL_CALL_END).result()).asString().startsWith("payload_ref://");
+    }
+
+    /**
+     * With NO store configured (the default path), a long result is truncated as today —
+     * behaviour is byte-identical to the pre-ref behaviour.
+     */
+    @Test
+    void noStoreConfiguredLongResultRemainsInlineTruncated() {
+        CapturingSink sink = new CapturingSink();
+        String longResult = "y".repeat(20);
+        // settings.payloadRefStore() == null → unchanged (truncated at truncateChars=8)
+        TrajectorySettings settings = TrajectorySettings.basic(
+                true, Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 8);
+        StampingTrajectoryEmitter emitter = new StampingTrajectoryEmitter(
+                sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        emitter.emit(TrajectoryDraft.runStart());
+        emitter.emit(TrajectoryDraft.toolCallEnd("search", longResult));
+        emitter.emit(TrajectoryDraft.runEnd());
+
+        TrajectoryEvent toolEnd = first(sink.events, Kind.TOOL_CALL_END);
+        // Truncated inline — contains the overflow marker, not a payload_ref.
+        assertThat(toolEnd.result()).asString().contains("…(");
+        assertThat(toolEnd.result()).asString().doesNotStartWith("payload_ref://");
+    }
+
+    /**
+     * A short result under the threshold is NOT ref-ized even when a store is configured.
+     */
+    @Test
+    void underThresholdResultIsNotRefized() {
+        CapturingSink sink = new CapturingSink();
+        RecordingStore store = new RecordingStore();
+        String shortResult = "short";  // length 5 < threshold 10
+        TrajectorySettings settings = new TrajectorySettings(
+                true, Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256, 1.0, null,
+                store, 10, Set.of("result"));
+        StampingTrajectoryEmitter emitter = new StampingTrajectoryEmitter(
+                sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        emitter.emit(TrajectoryDraft.runStart());
+        emitter.emit(TrajectoryDraft.toolCallEnd("search", shortResult));
+        emitter.emit(TrajectoryDraft.runEnd());
+
+        // Store not called; inline value preserved.
+        assertThat(store.storedPayloads).isEmpty();
+        assertThat(first(sink.events, Kind.TOOL_CALL_END).result()).isEqualTo(shortResult);
+    }
+
+    /**
+     * A non-String (Map) args slot is never ref-ized regardless of size.
+     */
+    @Test
+    void nonStringArgsSlotIsNotRefized() {
+        CapturingSink sink = new CapturingSink();
+        RecordingStore store = new RecordingStore();
+        TrajectorySettings settings = new TrajectorySettings(
+                true, Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256, 1.0, null,
+                store, 10, Set.of("args"));
+        StampingTrajectoryEmitter emitter = new StampingTrajectoryEmitter(
+                sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        // Map args: non-String, should not be ref-ized even though "query" value is long.
+        emitter.emit(TrajectoryDraft.toolCallStart("search",
+                Map.of("query", "x".repeat(50))));
+
+        assertThat(store.storedPayloads).isEmpty();
+        TrajectoryEvent event = first(sink.events, Kind.TOOL_CALL_START);
+        assertThat(event.args()).isInstanceOf(Map.class);
     }
 }

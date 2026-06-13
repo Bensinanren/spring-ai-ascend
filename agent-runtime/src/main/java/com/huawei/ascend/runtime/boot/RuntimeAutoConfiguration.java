@@ -6,11 +6,16 @@ import com.huawei.ascend.runtime.engine.a2a.AgentCardProvider;
 import com.huawei.ascend.runtime.engine.a2a.RemoteAgentCardCache;
 import com.huawei.ascend.runtime.engine.a2a.RemoteAgentInvocationService;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
+import com.huawei.ascend.runtime.engine.spi.LocalFsPayloadRefStore;
+import com.huawei.ascend.runtime.engine.spi.PayloadRefStore;
 import com.huawei.ascend.runtime.engine.spi.Redactor;
 import com.huawei.ascend.runtime.engine.spi.TrajectoryMasking;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySettings;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySinkFactory;
+import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -159,8 +164,22 @@ public class RuntimeAutoConfiguration {
         if (!properties.isEnabled()) {
             return TrajectorySettings.off();
         }
-        return new TrajectorySettings(true, compileMaskPattern(properties.getMask().getKeyPattern()),
-                properties.getMask().getTruncateChars(), properties.getSampleRate(), redactor);
+        Pattern maskPattern = compileMaskPattern(properties.getMask().getKeyPattern());
+        int truncate = properties.getMask().getTruncateChars();
+        double sampleRate = properties.getSampleRate();
+
+        TrajectoryProperties.PayloadRef refCfg = properties.getPayloadRef();
+        PayloadRefStore store = null;
+        int refThreshold = 0;
+        Set<String> refFields = Set.of();
+        if (refCfg.isEnabled() && refCfg.getBaseDir() != null && !refCfg.getBaseDir().isBlank()
+                && !refCfg.getFields().isEmpty()) {
+            store = new LocalFsPayloadRefStore(Path.of(refCfg.getBaseDir()));
+            refThreshold = refCfg.getThreshold();
+            refFields = new HashSet<>(refCfg.getFields());
+        }
+        return new TrajectorySettings(true, maskPattern, truncate, sampleRate, redactor,
+                store, refThreshold, refFields);
     }
 
     /**

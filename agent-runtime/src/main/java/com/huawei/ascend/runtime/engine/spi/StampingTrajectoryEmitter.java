@@ -28,6 +28,11 @@ import java.util.concurrent.ThreadLocalRandom;
  * duration, and a point event hangs off the nearest open span. The stack is maintained
  * for <i>every</i> draft, even a capability-filtered one, so dropping an unsupported
  * span never desyncs the parent chain of the events that publish.
+ *
+ * <p><b>Payload-ref store:</b> when a {@link PayloadRefStore} is configured in
+ * settings, opted-in STRING slot values longer than {@code payloadRefThreshold} are
+ * persisted out-of-band (after secret-redaction) and replaced by a
+ * {@code payload_ref://...} URI; see {@link #maybeRefize}.
  */
 public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
 
@@ -77,13 +82,20 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
         if (!publish) {
             return;
         }
+        long eventSeq = seq++;
         String kindName = String.valueOf(kind);
-        Object args = redact(kindName, "args", draft.args());
-        Object result = redact(kindName, "result", draft.result());
-        Object reasoning = redact(kindName, "reasoning", draft.reasoning());
+        Object args = maybeRefize(kindName, "args", draft.args(),
+                redact(kindName, "args", draft.args()), eventSeq);
+        Object result = maybeRefize(kindName, "result", draft.result(),
+                redact(kindName, "result", draft.result()), eventSeq);
+        // reasoning is typed as String on TrajectoryEvent; redact then optionally ref-ize.
+        Object reasoningRedacted = redact(kindName, "reasoning", draft.reasoning());
+        Object reasoningFinal = maybeRefize(kindName, "reasoning", draft.reasoning(),
+                reasoningRedacted, eventSeq);
+        String reasoningStr = reasoningFinal != null ? String.valueOf(reasoningFinal) : null;
         ErrorInfo error = maskError(kindName, draft.error());
         sink.accept(new TrajectoryEvent(
-                seq++,
+                eventSeq,
                 kind,
                 now,
                 span.durationMs(),
@@ -101,7 +113,7 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
                 draft.attempt(),
                 draft.retryable(),
                 error,
-                reasoning != null ? String.valueOf(reasoning) : null,
+                reasoningStr,
                 draft.finishReason(),
                 parentTaskId,
                 parentTraceId,
@@ -205,6 +217,57 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
             return settings.redactor().redact(eventKind, fieldPath, value);
         }
         return TrajectoryMasking.mask(value, settings.maskKeyPattern(), settings.truncateChars());
+    }
+
+    /**
+     * Applies payload-ref storage for over-threshold STRING slots when the store is
+     * configured and the field is opted in. Only top-level {@link CharSequence} raw
+     * values are eligible (prompt/completion use-case); Maps and Lists go through normal
+     * redaction only.
+     *
+     * <p>Invariant: secrets are redacted BEFORE content reaches the store. The full
+     * redacted string is produced without truncation — for the default (no custom
+     * {@link Redactor}) path that is the raw string itself (bare strings have no map
+     * keys, so key-name masking is a no-op). For the custom-redactor path the redactor's
+     * own output is stored — note that if the redactor itself truncates, the stored
+     * content may be truncated (accepted limitation; documented here).
+     *
+     * @param eventKind     the kind string, forwarded to a custom redactor if present
+     * @param fieldPath     slot name, e.g. {@code "result"}
+     * @param rawValue      original draft value before any masking
+     * @param normalRedacted value already produced by {@link #redact} (masked+truncated)
+     * @param eventSeq      this event's own seq number, used to name the stored file
+     * @return a {@code payload_ref://} URI replacing the inline value, or
+     *         {@code normalRedacted} when ref-izing is not applicable or storage fails
+     */
+    private Object maybeRefize(String eventKind, String fieldPath, Object rawValue,
+            Object normalRedacted, long eventSeq) {
+        PayloadRefStore store = settings.payloadRefStore();
+        if (store == null || !settings.payloadRefFields().contains(fieldPath)) {
+            return normalRedacted;
+        }
+        if (!(rawValue instanceof CharSequence rawSeq)) {
+            return normalRedacted;
+        }
+        String raw = rawSeq.toString();
+        int threshold = settings.payloadRefThreshold();
+        if (threshold <= 0 || raw.length() <= threshold) {
+            return normalRedacted;
+        }
+        // Produce full secret-redacted content without truncation (secrets-before-store invariant).
+        String fullRedacted;
+        if (settings.redactor() != null) {
+            // Custom redactor path: call it and stringify. Its own truncation may apply.
+            Object redactedObj = settings.redactor().redact(eventKind, fieldPath, raw);
+            fullRedacted = redactedObj != null ? String.valueOf(redactedObj) : raw;
+        } else {
+            // Default key-name path: mask with truncateChars=0 (no truncation). A bare
+            // string has no map keys, so this effectively returns the raw string unchanged.
+            Object redactedObj = TrajectoryMasking.mask(raw, settings.maskKeyPattern(), 0);
+            fullRedacted = redactedObj != null ? String.valueOf(redactedObj) : raw;
+        }
+        String ref = store.store(contextId, taskId, eventSeq, fieldPath, fullRedacted);
+        return ref != null ? ref : normalRedacted;
     }
 
     /** Free-text error messages can embed secrets; run the message through the same masker. */
