@@ -30,19 +30,21 @@ class OtelSpanSinkTest {
     private static final AttributeKey<Double> GEN_AI_OUTPUT_COST_USD = AttributeKey.doubleKey("gen_ai.usage.output_cost_usd");
     private static final AttributeKey<String> GEN_AI_ERROR_TYPE = AttributeKey.stringKey("gen_ai.error.type");
     private static final AttributeKey<List<String>> GEN_AI_FINISH_REASONS = AttributeKey.stringArrayKey("gen_ai.response.finish_reasons");
+    private static final AttributeKey<String> PARENT_TASK_ID = AttributeKey.stringKey("trajectory.parent_task_id");
+    private static final AttributeKey<String> PARENT_TRACE_ID = AttributeKey.stringKey("trajectory.parent_trace_id");
 
     /** Basic helper — no finishReason or error. Keeps existing call sites unchanged. */
     private static TrajectoryEvent ev(long seq, Kind kind, long ts, Long dur, String spanId, String parent,
             String name, Usage usage) {
         return new TrajectoryEvent(seq, kind, ts, dur, "task1", spanId, parent, "t1", "ctx1", "task1",
-                "obj", name, null, null, usage, null, null, null, null, null, "2");
+                "obj", name, null, null, usage, null, null, null, null, null, null, null, "2");
     }
 
     /** Extended helper that also accepts finishReason and error. */
     private static TrajectoryEvent evFull(long seq, Kind kind, long ts, Long dur, String spanId, String parent,
             String name, Usage usage, String finishReason, ErrorInfo error) {
         return new TrajectoryEvent(seq, kind, ts, dur, "task1", spanId, parent, "t1", "ctx1", "task1",
-                "obj", name, null, null, usage, null, null, error, null, finishReason, "2");
+                "obj", name, null, null, usage, null, null, error, null, finishReason, null, null, "2");
     }
 
     @Test
@@ -196,6 +198,43 @@ class OtelSpanSinkTest {
 
         // No spans were exported (no open/close), just verify no exception was thrown.
         assertThat(exporter.getFinishedSpanItems()).isEmpty();
+    }
+
+    /** Helper with explicit parentTaskId/parentTraceId. */
+    private static TrajectoryEvent evWithParents(long seq, Kind kind, long ts, String spanId,
+            String parentTaskId, String parentTraceId) {
+        return new TrajectoryEvent(seq, kind, ts, null, "task1", spanId, null, "t1", "ctx1", "task1",
+                "obj", null, null, null, null, null, null, null, null, null, parentTaskId, parentTraceId, "2");
+    }
+
+    @Test
+    void runStartWithParentIds_emitsParentTaskIdAndParentTraceIdAttributes() {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        OtelSpanSink sink = new OtelSpanSink(tracerFor(exporter));
+
+        sink.onOpen("ctx1", "task1");
+        sink.accept(evWithParents(0, Kind.RUN_START, 1000, "run1", "parent-task-42", "parent-trace-77"));
+        sink.accept(ev(1, Kind.RUN_END, 1100, 100L, "run1", null, null, null));
+        sink.onClose();
+
+        SpanData run = byName(exporter.getFinishedSpanItems(), "agent.run");
+        assertThat(run.getAttributes().get(PARENT_TASK_ID)).isEqualTo("parent-task-42");
+        assertThat(run.getAttributes().get(PARENT_TRACE_ID)).isEqualTo("parent-trace-77");
+    }
+
+    @Test
+    void runStartWithNullParentIds_parentAttributesAbsent() {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        OtelSpanSink sink = new OtelSpanSink(tracerFor(exporter));
+
+        sink.onOpen("ctx1", "task1");
+        sink.accept(evWithParents(0, Kind.RUN_START, 1000, "run1", null, null));
+        sink.accept(ev(1, Kind.RUN_END, 1100, 100L, "run1", null, null, null));
+        sink.onClose();
+
+        SpanData run = byName(exporter.getFinishedSpanItems(), "agent.run");
+        assertThat(run.getAttributes().get(PARENT_TASK_ID)).isNull();
+        assertThat(run.getAttributes().get(PARENT_TRACE_ID)).isNull();
     }
 
     private static SdkTracerProvider buildProvider(InMemorySpanExporter exporter) {

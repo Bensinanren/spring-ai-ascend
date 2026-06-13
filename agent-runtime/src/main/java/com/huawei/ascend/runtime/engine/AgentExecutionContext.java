@@ -31,6 +31,8 @@ public final class AgentExecutionContext {
     private volatile Map<String, Object> agentState;
     /** Per-invocation trajectory emitter; NOOP until a TrajectorySource handler opens it. */
     private volatile TrajectoryEmitter trajectoryEmitter = TrajectoryEmitter.NOOP;
+    private volatile String parentTaskId;
+    private volatile String parentTraceId;
 
     public AgentExecutionContext(RuntimeIdentity scope, String inputType,
                                   List<RuntimeMessage> messages, Map<String, Object> variables) {
@@ -84,6 +86,20 @@ public final class AgentExecutionContext {
 
     public void setTrajectoryEmitter(TrajectoryEmitter trajectoryEmitter) {
         this.trajectoryEmitter = trajectoryEmitter != null ? trajectoryEmitter : TrajectoryEmitter.NOOP;
+    }
+
+    public String getParentTaskId() { return parentTaskId; }
+    public String getParentTraceId() { return parentTraceId; }
+
+    /**
+     * Attaches parent-run linkage so the trajectory can be correlated to a calling agent.
+     * Both ids are null by default (top-level run); the inbound dispatch layer sets them
+     * when a parent context is available.
+     */
+    public AgentExecutionContext withParentLinkage(String parentTaskId, String parentTraceId) {
+        this.parentTaskId = parentTaskId;
+        this.parentTraceId = parentTraceId;
+        return this;
     }
 
     private static String resolveAgentStateKey(RuntimeIdentity scope, Map<String, Object> variables) {

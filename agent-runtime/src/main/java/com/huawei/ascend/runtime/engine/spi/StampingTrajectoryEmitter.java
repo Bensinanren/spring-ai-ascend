@@ -35,6 +35,8 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
     private final String tenantId;
     private final String contextId;
     private final String taskId;
+    private final String parentTaskId;
+    private final String parentTraceId;
     private final TrajectorySettings settings;
     private final Set<Kind> supportedKinds;
     private long seq;
@@ -42,10 +44,18 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
 
     public StampingTrajectoryEmitter(TrajectorySink sink, RuntimeIdentity scope,
             TrajectorySettings settings, Set<Kind> supportedKinds) {
+        this(sink, scope, settings, supportedKinds, null, null);
+    }
+
+    public StampingTrajectoryEmitter(TrajectorySink sink, RuntimeIdentity scope,
+            TrajectorySettings settings, Set<Kind> supportedKinds,
+            String parentTaskId, String parentTraceId) {
         this.sink = sink;
         this.tenantId = scope != null ? scope.tenantId() : null;
         this.contextId = scope != null ? scope.sessionId() : null;
         this.taskId = scope != null ? scope.taskId() : null;
+        this.parentTaskId = parentTaskId;
+        this.parentTraceId = parentTraceId;
         this.settings = settings;
         this.supportedKinds = supportedKinds;
     }
@@ -92,6 +102,8 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
                 error,
                 reasoning != null ? String.valueOf(reasoning) : null,
                 draft.finishReason(),
+                parentTaskId,
+                parentTraceId,
                 TrajectoryEvent.SCHEMA_VERSION));
     }
 

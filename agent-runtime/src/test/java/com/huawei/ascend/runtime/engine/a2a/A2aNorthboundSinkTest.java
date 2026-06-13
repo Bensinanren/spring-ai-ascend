@@ -138,13 +138,38 @@ class A2aNorthboundSinkTest {
         assertThat(data).containsEntry("finishReason", "stop");
     }
 
+    /** Asserts that parentTaskId and parentTraceId are serialized into the toMap wire representation. */
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void toMap_withParentIds_surfacesThemInFlushedPart() {
+        A2aNorthboundSink sink = new A2aNorthboundSink();
+        sink.accept(eventWithParentIds(0, Kind.RUN_START, "parent-task-42", "parent-trace-77"));
+
+        AgentEmitter emitter = mock(AgentEmitter.class);
+        sink.flush(emitter, "task-1-trajectory", false);
+
+        ArgumentCaptor<List> partsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emitter).addArtifact(partsCaptor.capture(), eq("task-1-trajectory"), eq("agent-trajectory"),
+                any(), eq(false), eq(true));
+        List<?> parts = partsCaptor.getValue();
+        assertThat(parts).hasSize(1);
+        Map<String, Object> data = (Map<String, Object>) ((DataPart) parts.get(0)).data();
+        assertThat(data).containsEntry("parentTaskId", "parent-task-42");
+        assertThat(data).containsEntry("parentTraceId", "parent-trace-77");
+    }
+
     private static TrajectoryEvent event(long seq, Kind kind) {
         return new TrajectoryEvent(seq, kind, 0L, null, "task-1", "span", null, "tenant", "ctx-1", "task-1",
-                "run", null, null, null, null, null, null, null, null, null, "2");
+                "run", null, null, null, null, null, null, null, null, null, null, null, "2");
     }
 
     private static TrajectoryEvent eventWithFinishReason(long seq, Kind kind, String finishReason) {
         return new TrajectoryEvent(seq, kind, 0L, null, "task-1", "span", null, "tenant", "ctx-1", "task-1",
-                "run", null, null, null, null, null, null, null, null, finishReason, "2");
+                "run", null, null, null, null, null, null, null, null, finishReason, null, null, "2");
+    }
+
+    private static TrajectoryEvent eventWithParentIds(long seq, Kind kind, String parentTaskId, String parentTraceId) {
+        return new TrajectoryEvent(seq, kind, 0L, null, "task-1", "span", null, "tenant", "ctx-1", "task-1",
+                "run", null, null, null, null, null, null, null, null, null, parentTaskId, parentTraceId, "2");
     }
 }

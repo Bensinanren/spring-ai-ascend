@@ -41,7 +41,8 @@ public abstract class AbstractAgentRuntimeHandler implements AgentRuntimeHandler
             return;
         }
         context.setTrajectoryEmitter(
-                new StampingTrajectoryEmitter(sink, context.getScope(), settings, supportedKinds()));
+                new StampingTrajectoryEmitter(sink, context.getScope(), settings, supportedKinds(),
+                        context.getParentTaskId(), context.getParentTraceId()));
     }
 
     @Override

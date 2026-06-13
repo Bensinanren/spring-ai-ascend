@@ -189,4 +189,35 @@ class StampingTrajectoryEmitterTest {
         assertThat(args.get("api_key")).isEqualTo("***");
         assertThat(String.valueOf(args.get("query"))).startsWith("a very l").contains("…(");
     }
+
+    @Test
+    void parentLinkageIsStampedOntoEveryEvent() {
+        CapturingSink sink = new CapturingSink();
+        TrajectorySettings settings =
+                new TrajectorySettings(true, Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256);
+        StampingTrajectoryEmitter emitter = new StampingTrajectoryEmitter(
+                sink, SCOPE, settings, EnumSet.allOf(Kind.class), "parent-task-99", "parent-trace-77");
+
+        emitter.emit(TrajectoryDraft.runStart());
+        emitter.emit(TrajectoryDraft.toolCallStart("search", "q"));
+        emitter.emit(TrajectoryDraft.toolCallEnd("search", "r"));
+        emitter.emit(TrajectoryDraft.runEnd());
+
+        assertThat(sink.events).allSatisfy(e -> {
+            assertThat(e.parentTaskId()).isEqualTo("parent-task-99");
+            assertThat(e.parentTraceId()).isEqualTo("parent-trace-77");
+        });
+    }
+
+    @Test
+    void nullParentLinkageProducesNullFieldsOnEvents() {
+        CapturingSink sink = new CapturingSink();
+        StampingTrajectoryEmitter emitter = emitter(sink, EnumSet.of(Kind.RUN_START));
+
+        emitter.emit(TrajectoryDraft.runStart());
+
+        assertThat(sink.events).hasSize(1);
+        assertThat(sink.events.get(0).parentTaskId()).isNull();
+        assertThat(sink.events.get(0).parentTraceId()).isNull();
+    }
 }

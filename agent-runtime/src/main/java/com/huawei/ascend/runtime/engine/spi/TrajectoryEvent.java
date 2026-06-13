@@ -29,6 +29,12 @@ import java.util.Set;
  * {@code parentSpanId} resolves to the nearest <i>emitted</i> ancestor, so a detail
  * level that drops an optional-tier span never leaves a dangling parent.
  * {@code tsEpochMillis} is the event wall-clock time.
+ *
+ * <p><b>Sub-agent linkage.</b> {@code parentTaskId} and {@code parentTraceId} carry the
+ * task and trace ids of the invoking parent when this run is a sub-agent call. Both are
+ * null for top-level runs and populated by the inbound dispatch layer when a parent
+ * context is available, allowing a consumer to link the full call graph across agent
+ * boundaries.
  */
 public record TrajectoryEvent(
         long seq,
@@ -51,6 +57,8 @@ public record TrajectoryEvent(
         ErrorInfo error,
         String reasoning,
         String finishReason,
+        String parentTaskId,
+        String parentTraceId,
         String schemaVersion) {
 
     /**

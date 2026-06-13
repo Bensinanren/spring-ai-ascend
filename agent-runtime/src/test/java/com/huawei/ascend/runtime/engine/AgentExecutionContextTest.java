@@ -46,6 +46,19 @@ class AgentExecutionContextTest {
         assertThat(withMetadata.metadata()).containsEntry("wireRole", "assistant");
     }
 
+    @Test
+    void parentLinkageDefaultsNullAndIsSetByWithParentLinkage() {
+        AgentExecutionContext ctx = context(List.of());
+
+        assertThat(ctx.getParentTaskId()).isNull();
+        assertThat(ctx.getParentTraceId()).isNull();
+
+        AgentExecutionContext returned = ctx.withParentLinkage("parent-task-1", "parent-trace-1");
+        assertThat(returned).isSameAs(ctx);
+        assertThat(ctx.getParentTaskId()).isEqualTo("parent-task-1");
+        assertThat(ctx.getParentTraceId()).isEqualTo("parent-trace-1");
+    }
+
     private static AgentExecutionContext context(List<RuntimeMessage> messages) {
         return new AgentExecutionContext(
                 new RuntimeIdentity("tenant", "user", "session", "task", "agent"),

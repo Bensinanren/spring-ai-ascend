@@ -39,6 +39,8 @@ final class OtelSpanSink implements TrajectorySink {
     private static final AttributeKey<String> GEN_AI_TOOL_NAME = AttributeKey.stringKey("gen_ai.tool.name");
     private static final AttributeKey<String> TRAJECTORY_SPAN_ID = AttributeKey.stringKey("trajectory.span_id");
     private static final AttributeKey<String> TRAJECTORY_TRACE_ID = AttributeKey.stringKey("trajectory.trace_id");
+    private static final AttributeKey<String> TRAJECTORY_PARENT_TASK_ID = AttributeKey.stringKey("trajectory.parent_task_id");
+    private static final AttributeKey<String> TRAJECTORY_PARENT_TRACE_ID = AttributeKey.stringKey("trajectory.parent_trace_id");
 
     private final Tracer tracer;
     private final Map<String, Span> openSpans = new HashMap<>();
@@ -119,6 +121,12 @@ final class OtelSpanSink implements TrajectorySink {
         }
         if (event.spanId() != null) {
             span.setAttribute(TRAJECTORY_SPAN_ID, event.spanId());
+        }
+        if (event.parentTaskId() != null) {
+            span.setAttribute(TRAJECTORY_PARENT_TASK_ID, event.parentTaskId());
+        }
+        if (event.parentTraceId() != null) {
+            span.setAttribute(TRAJECTORY_PARENT_TRACE_ID, event.parentTraceId());
         }
         switch (event.kind()) {
             case MODEL_CALL_START -> span.setAttribute(GEN_AI_OPERATION, "chat");

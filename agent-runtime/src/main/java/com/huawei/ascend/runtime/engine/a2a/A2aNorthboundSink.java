@@ -104,6 +104,8 @@ final class A2aNorthboundSink implements TrajectorySink {
         m.put("error", e.error());
         m.put("reasoning", e.reasoning());
         m.put("finishReason", e.finishReason());
+        m.put("parentTaskId", e.parentTaskId());
+        m.put("parentTraceId", e.parentTraceId());
         m.put("schemaVersion", e.schemaVersion());
         return m;
     }
