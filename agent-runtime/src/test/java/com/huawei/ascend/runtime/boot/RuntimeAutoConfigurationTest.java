@@ -432,16 +432,18 @@ class RuntimeAutoConfigurationTest {
 
     // --- E3 tests ---
 
-    /** Default card (no security configured) must carry the X-Tenant-Id APIKey scheme. */
+    /**
+     * The default card must emit NO security — advertising one makes the card unparseable
+     * by the A2A SDK card resolver, which would render it undiscoverable. Security is opt-in.
+     */
     @Test
-    void defaultCardCarriesXTenantIdApiKeyScheme() {
+    void defaultCardEmitsNoSecurity() {
         runner.withBean("h", AgentRuntimeHandler.class, () -> new NamedHandler("agent-a"))
                 .withUserConfiguration(RuntimeAutoConfiguration.class)
                 .run(ctx -> {
                     AgentCard card = ctx.getBean(AgentCard.class);
-                    assertThat(card.securitySchemes()).containsKey(
-                            A2aExecutionConfiguration.DEFAULT_API_KEY_SCHEME_NAME);
-                    assertThat(card.securityRequirements()).isNotEmpty();
+                    assertThat(card.securitySchemes()).isNullOrEmpty();
+                    assertThat(card.securityRequirements()).isNullOrEmpty();
                 });
     }
 

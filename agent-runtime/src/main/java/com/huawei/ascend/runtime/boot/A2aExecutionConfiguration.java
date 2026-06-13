@@ -12,10 +12,8 @@ import com.huawei.ascend.runtime.engine.spi.AgentInterfaceDescriptor;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
 import com.huawei.ascend.runtime.engine.spi.AgentSkillDescriptor;
 import com.huawei.ascend.runtime.engine.spi.Redactor;
-import com.huawei.ascend.runtime.engine.spi.SecuritySchemeDescriptor;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySinkFactory;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.a2aproject.sdk.server.agentexecution.AgentExecutor;
@@ -43,14 +41,6 @@ import org.springframework.context.annotation.Configuration;
 class A2aExecutionConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(A2aExecutionConfiguration.class);
-
-    /**
-     * Default API-key scheme key name. The runtime reads this header in
-     * {@code A2aJsonRpcController} (via {@code TenantContract}), so every card
-     * advertises it unless the deployer explicitly overrides the security config.
-     */
-    static final String DEFAULT_API_KEY_SCHEME_NAME = "x-tenant-id";
-    static final String DEFAULT_API_KEY_HEADER_NAME = "X-Tenant-Id";
 
     @Bean @ConditionalOnMissingBean
     public AgentExecutor a2aAgentExecutor(ObjectProvider<AgentRuntimeHandler> handlers,
@@ -99,13 +89,11 @@ class A2aExecutionConfiguration {
      * <p>YAML overlay: each explicitly set {@code AgentCardProperties} field wins over
      * the handler-derived or default value. Null/empty fields leave the derived value.
      *
-     * <p>Security default: when neither the handler (via {@link AgentCardProvider}) nor
-     * the YAML configuration declares any security scheme, the card is published with a
-     * single default scheme — an API key in the {@code X-Tenant-Id} request header. This
-     * reflects the runtime's actual header-based tenant identification contract and ensures
-     * the card is honest about authentication requirements in non-dev deployments.
-     * Unauthenticated (no security) is a dev-only fallback; declare
-     * {@code security-schemes: []} explicitly if truly public access is intended.
+     * <p>Security: no security scheme is emitted by default. Although the runtime identifies
+     * tenants via the {@code X-Tenant-Id} header, advertising a security requirement on the
+     * card makes it unparseable by the A2A SDK card resolver (which expects a protobuf-JSON
+     * shape for security requirement scopes), so security is opt-in via explicit
+     * handler/YAML configuration only.
      *
      * <p>Capability honesty rules:
      * <ul>
@@ -196,8 +184,8 @@ class A2aExecutionConfiguration {
     /**
      * Applies the YAML-configured overlay onto the base descriptor.
      * Fields set explicitly in {@code props} replace the corresponding descriptor fields.
-     * Security default: when no security schemes are present after the overlay,
-     * a single APIKey scheme for {@code X-Tenant-Id} is injected as the honesty default.
+     * No default security scheme is injected; security is emitted only when explicitly
+     * configured (see the bean javadoc for the A2A SDK card-resolver rationale).
      */
     private static AgentCardDescriptor applyYamlOverlay(AgentCardDescriptor base,
             AgentCardProperties props, PushNotificationConfigStore pushStore) {
@@ -262,19 +250,11 @@ class A2aExecutionConfiguration {
             d = d.withIconUrl(props.getIconUrl());
         }
 
-        // Security default: when no security schemes are declared after all overlays,
-        // inject the X-Tenant-Id APIKey default so the card honestly reflects the runtime's
-        // actual tenant-header contract. Unauthenticated is a dev-only fallback.
-        if (d.securitySchemes().isEmpty()) {
-            Map<String, SecuritySchemeDescriptor> defaultSchemes = new LinkedHashMap<>();
-            defaultSchemes.put(DEFAULT_API_KEY_SCHEME_NAME,
-                    SecuritySchemeDescriptor.apiKey("header", DEFAULT_API_KEY_HEADER_NAME,
-                            "Tenant identifier passed as an HTTP request header."));
-            List<Map<String, List<String>>> defaultRequirements = List.of(
-                    Map.of(DEFAULT_API_KEY_SCHEME_NAME, List.of()));
-            d = d.withSecuritySchemes(defaultSchemes)
-                    .withSecurityRequirements(defaultRequirements);
-        }
+        // No security scheme is emitted by default. The A2A SDK card resolver parses the
+        // card via protobuf-JSON, where a security requirement's scopes must be a message
+        // object; the spec-JSON empty-scope array a default scheme would emit ("scheme": [])
+        // makes the resolver fail with "Expect message object but got: []", which renders the
+        // card undiscoverable. Security stays opt-in via explicit handler/YAML configuration.
 
         return d;
     }
