@@ -6,6 +6,7 @@ import com.huawei.ascend.runtime.common.RuntimeIdentity;
 import com.huawei.ascend.runtime.common.RuntimeMessage;
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
+import com.huawei.ascend.runtime.engine.spi.ErrorCategory;
 import com.huawei.ascend.runtime.engine.spi.TrajectoryEvent;
 import com.huawei.ascend.runtime.engine.spi.TrajectoryEvent.Kind;
 import com.huawei.ascend.runtime.engine.spi.TrajectoryMasking;
@@ -73,6 +74,41 @@ class AgentScopeRuntimeHandlerTest {
         assertThat(runStart.parentSpanId()).isNull();
         assertThat(error.parentSpanId()).isEqualTo(runStart.spanId());
         assertThat(error.error().code()).isEqualTo("X");
+    }
+
+    @Test
+    void errorCategoryMapsAgentScopeCodesCorrectly() {
+        assertThat(AgentScopeErrorCategories.categorize("AGENTSCOPE_RUNTIME_IO"))
+                .isEqualTo(ErrorCategory.CONNECTION_ERROR);
+        assertThat(AgentScopeErrorCategories.categorize("AGENTSCOPE_RUNTIME_HTTP_429"))
+                .isEqualTo(ErrorCategory.RATE_LIMITED);
+        assertThat(AgentScopeErrorCategories.categorize("AGENTSCOPE_RUNTIME_HTTP_401"))
+                .isEqualTo(ErrorCategory.INVALID_API_KEY);
+        assertThat(AgentScopeErrorCategories.categorize("AGENTSCOPE_RUNTIME_HTTP_403"))
+                .isEqualTo(ErrorCategory.INVALID_API_KEY);
+        assertThat(AgentScopeErrorCategories.categorize("AGENTSCOPE_RUNTIME_HTTP_400"))
+                .isEqualTo(ErrorCategory.INVALID_REQUEST);
+        assertThat(AgentScopeErrorCategories.categorize("AGENTSCOPE_RUNTIME_HTTP_500"))
+                .isEqualTo(ErrorCategory.SERVER_ERROR);
+        assertThat(AgentScopeErrorCategories.categorize("AGENTSCOPE_RUNTIME_PARSE"))
+                .isEqualTo(ErrorCategory.PARSE_ERROR);
+        assertThat(AgentScopeErrorCategories.categorize("AGENTSCOPE_ERROR"))
+                .isEqualTo(ErrorCategory.UNKNOWN);
+        assertThat(AgentScopeErrorCategories.categorize(null))
+                .isEqualTo(ErrorCategory.UNKNOWN);
+    }
+
+    @Test
+    void errorEventEmitsWithCategoryFromAgentScopeCode() {
+        AgentScopeAgentRuntimeHandler handler = new AgentScopeAgentRuntimeHandler("agent-scope", invocation ->
+                Stream.of(AgentScopeEvent.failed("AGENTSCOPE_RUNTIME_HTTP_429", "too many requests"),
+                        AgentScopeEvent.completed("done")));
+
+        List<TrajectoryEvent> events = runWithTrajectory(handler);
+
+        TrajectoryEvent error = events.stream().filter(e -> e.kind() == Kind.ERROR).findFirst().orElseThrow();
+        assertThat(error.error().code()).isEqualTo("AGENTSCOPE_RUNTIME_HTTP_429");
+        assertThat(error.error().category()).isEqualTo(ErrorCategory.RATE_LIMITED);
     }
 
     private static List<TrajectoryEvent> runWithTrajectory(AgentScopeAgentRuntimeHandler handler) {

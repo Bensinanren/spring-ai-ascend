@@ -74,7 +74,8 @@ abstract class AbstractAgentScopeRuntimeHandler extends AbstractAgentRuntimeHand
                 }
             }
             case FAILED -> trajectory.emit(
-                    TrajectoryDraft.error(null, result.errorCode(), result.errorMessage(), null, false));
+                    TrajectoryDraft.error(null, result.errorCode(), result.errorMessage(),
+                            AgentScopeErrorCategories.categorize(result.errorCode()), null, false));
             default -> { }
         }
     }
