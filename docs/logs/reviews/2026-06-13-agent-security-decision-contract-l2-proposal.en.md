@@ -129,6 +129,7 @@ public record SecurityEvaluationRequest(
         String sessionId,
         String taskId,
         String agentId,
+        String sourceSurface,
         String traceId,
         String spanId,
         ActionType actionType,
@@ -155,6 +156,7 @@ Rules:
 - raw sensitive data must not be placed in `redactedPreview`;
 - `inputHash` identifies the sensitive input without exposing it;
 - `traceId` / `spanId` correlate the call chain, `decisionId` identifies the policy result, and `securityEvaluationRequestId` identifies the input object submitted to the security decision chain;
+- `sourceSurface` identifies the runtime surface such as `A2A_NORTHBOUND`, `HANDLER_WRAPPER`, `HANDLER_LIFECYCLE`, `FRAMEWORK_ADAPTER`, `MEMORY_ADAPTER`, `STATE_ADAPTER`, or `A2A_REMOTE_OUTBOUND`;
 - `tenantId` and `userId` must come from trusted ingress, not from model/tool self-assertion;
 - `policyProfile` carries the deployer-selected preset such as `strict_allowlist`, `review_unknown`, `scoped_allowlist`, `least_agency_scoped`, or `regulated_prod`;
 - `delegationEnvelopeRef` points to the least-agency boundary used for this decision; it is not an NLU classification id;
@@ -168,9 +170,12 @@ public sealed interface CapabilityTarget permits
         FileTarget,
         ApiTarget,
         McpTarget,
+        A2aNorthboundTarget,
         A2aRemoteAgentTarget,
+        RuntimeControlTarget,
         SandboxTarget,
         MemoryTarget,
+        AgentStateTarget,
         ModelTarget,
         BusinessActionTarget {
 }
@@ -199,6 +204,26 @@ public record A2aRemoteAgentTarget(
         String capability,
         URI endpoint,
         Set<String> declaredSkills) implements CapabilityTarget {
+}
+
+public record A2aNorthboundTarget(
+        String method,
+        String taskId,
+        URI callbackUrl,
+        boolean includeArtifacts) implements CapabilityTarget {
+}
+
+public record RuntimeControlTarget(
+        String operation,
+        String runtimeId,
+        String taskId,
+        boolean includeHealthDetail) implements CapabilityTarget {
+}
+
+public record AgentStateTarget(
+        String checkpointerKind,
+        String keyRef,
+        String operation) implements CapabilityTarget {
 }
 ```
 
@@ -274,12 +299,27 @@ Semantics:
 
 ```text
 INGRESS
+A2A_AGENT_CARD_READ
+A2A_TASK_SEND
+A2A_TASK_STREAM
+A2A_TASK_READ
+A2A_TASK_LIST
+A2A_TASK_CANCEL
+A2A_TASK_SUBSCRIBE
+A2A_PUSH_CONFIG
+RUNTIME_START
+RUNTIME_STOP
+RUNTIME_HEALTH_READ
+RUNTIME_TASK_CANCEL
 MODEL_CALL
 TOOL_CALL
 API_CALL
 MCP_CALL
 MEMORY_READ
 MEMORY_WRITE
+STATE_READ
+STATE_WRITE
+STATE_RELEASE
 SANDBOX_ACQUIRE
 SANDBOX_EXEC
 A2A_REMOTE_AGENT_CALL
@@ -297,14 +337,15 @@ FALLBACK
 
 | Enforcement point | Action type | Required behavior |
 |---|---|---|
-| A2A ingress | `INGRESS` | validate tenant/header trust and posture |
-| handler wrapper | run-level | ensure run context has policy identity |
+| A2A northbound | `INGRESS`, `A2A_*` | validate Agent Card, send/stream/get/list/cancel/subscribe, push config, tenant/header trust, posture |
+| handler lifecycle wrapper | `RUNTIME_START`, `RUNTIME_STOP`, `RUNTIME_HEALTH_READ`, `RUNTIME_TASK_CANCEL` | enforce admin/tenant/task scope before lifecycle and cancel operations |
 | OpenJiuwen adapter | model/tool callbacks | enforce only when pre-action blocking is possible |
 | AgentScope adapter | tool/runtime/harness calls | create `SecurityEvaluationRequest` before delegated side effect |
 | SDK tool executor | `TOOL_CALL`, `API_CALL`, `FILE_*` | enforce before tool call |
 | MCP adapter | `MCP_CALL` | enforce server/tool/resource scope |
 | remote A2A outbound | `A2A_REMOTE_AGENT_CALL` | enforce remote endpoint and capability label |
 | memory adapter | `MEMORY_READ`, `MEMORY_WRITE` | enforce tenant/session/data scope |
+| agent state adapter | `STATE_READ`, `STATE_WRITE`, `STATE_RELEASE` | enforce checkpointer tenant/session key scope |
 | sandbox gateway | `SANDBOX_ACQUIRE`, `SANDBOX_EXEC` | enforce sandbox profile, fallback, audit |
 | model caller | `MODEL_CALL`, `FALLBACK` | enforce model policy and fallback equivalence |
 
@@ -387,6 +428,10 @@ Rules:
 - [ ] `DelegationEnvelopeRefRequiredTest`: R2+ research/prod requests fail closed when `delegationEnvelopeRef` is missing or invalid.
 - [ ] `DelegationEnvelopeSubsetDecisionTest`: `requestedScope` outside the envelope is denied even when native framework permission says allow.
 - [ ] `FrameworkAdapterSecurityEvaluationRequestMappingTest`: OpenJiuwen, AgentScope, and A2A adapters create expected requests.
+- [ ] `RuntimeMessageSecurityEvaluationMappingTest`: requests derived from `RuntimeMessage` / `AgentExecutionContext` carry `sourceSurface`, hash, trace, and tenant/session/task refs.
+- [ ] `A2aNorthboundActionTypeMappingTest`: Agent Card, send/stream/get/list/cancel/subscribe, and push config map to explicit `ActionType` values.
+- [ ] `RuntimeControlActionTypeMappingTest`: `AgentRuntimeHandler.start/stop/isHealthy/cancel` maps to runtime control action types and cannot bypass tenant/task/admin scope.
+- [ ] `AgentStateActionTypeMappingTest`: InMemory/Redis/OpenJiuwen checkpointer read/write/release maps to state actions.
 - [ ] `FrameworkPermissionEvidenceMappingTest`: AgentScope/OpenJiuwen/JiuwenSwarm allow/ask/deny/bypass/disabled/override is mapped as evidence, not final decision.
 - [ ] `OpaqueFrameworkSideEffectDenyTest`: opaque high-risk framework side effects are denied in research/prod.
 - [ ] `PolicyTimeoutFailClosedTest`: high-risk actions fail closed when policy times out.
@@ -404,7 +449,7 @@ Freeze impact:
 
 - update contract catalog after schema acceptance;
 - add ArchUnit dependency rule for runtime/service boundary;
-- update architecture docs only after implementation package names are accepted.
+- update architecture docs after implementation package names are finalized.
 
 ## 8. Self-Audit
 

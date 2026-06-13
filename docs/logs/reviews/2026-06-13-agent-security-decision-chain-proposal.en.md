@@ -150,20 +150,22 @@ flowchart LR
 
 | Module / artefact | Responsibility | Target state |
 |---|---|---|
-| `docs/trustworthy/agent-safety-redlines.md` | tenant, credential, external side effect, local side effect, prompt/tool injection, fallback, memory, and self-evolution redlines | accepted governance doc |
-| `docs/governance/capability-permissions.yaml` | allowlist, scope, ask, deny, sandbox, approval, budget, and audit policy for tools, files, APIs, MCP, A2A, sandbox, memory, model, and business actions | schema_shipped then runtime_loaded |
-| `docs/contracts/capability-permission-policy.v1.yaml` | contract vocabulary for `CapabilityInvocationRequest`, `CapabilityKind`, `PermissionMode`, `RiskTier`, and scope objects | schema_shipped |
-| `docs/contracts/security-decision.v1.yaml` | contract vocabulary for `SecurityEvaluationRequest`, `SecurityDecision`, decision profiles, obligations, and policy hash | schema_shipped |
-| `agent-sdk` security spec | `CapabilitySecuritySpec`, `SkillSecuritySpec`, `ToolSecuritySpec` | implemented + tests |
-| `agent-sdk` capability invocation request builder | builds `CapabilityInvocationRequest`, then maps to `SecurityEvaluationRequest` | implemented + tests |
-| `agent-runtime` `SecurityDecisionPort` | neutral outbound port, without dependency on `agent-service` implementation classes | implemented + ArchUnit purity test |
-| `agent-runtime` handler wrapper | run-level guard around `AgentRuntimeHandler.execute` | implemented + adapter tests |
+| `docs/trustworthy/agent-safety-redlines.md` | tenant, credential, external side effect, local side effect, prompt/tool injection, fallback, memory, and self-evolution redlines | governance authority |
+| `docs/governance/capability-permissions.yaml` | allowlist, scope, ask, deny, sandbox, approval, budget, and audit policy for tools, files, APIs, MCP, A2A, sandbox, memory, model, and business actions | schema-defined, then runtime-loaded |
+| `docs/contracts/capability-permission-policy.v1.yaml` | contract vocabulary for `CapabilityInvocationRequest`, `CapabilityKind`, `PermissionMode`, `RiskTier`, and scope objects | contract-defined |
+| `docs/contracts/security-decision.v1.yaml` | contract vocabulary for `SecurityEvaluationRequest`, `SecurityDecision`, decision profiles, obligations, and policy hash | contract-defined |
+| `agent-sdk` security spec | `CapabilitySecuritySpec`, `SkillSecuritySpec`, `ToolSecuritySpec` | runtime-loaded + tests |
+| `agent-sdk` capability invocation request builder | builds `CapabilityInvocationRequest`, then maps to `SecurityEvaluationRequest` | runtime-loaded + tests |
+| `agent-runtime` `SecurityDecisionPort` | neutral outbound port, without dependency on `agent-service` implementation classes | runtime-enforced + ArchUnit purity test |
+| `agent-runtime` handler wrapper | lifecycle and run-level guard around `AgentRuntimeHandler.start/stop/isHealthy/cancel/execute` | runtime-enforced + adapter tests |
+| A2A northbound guard | admission and capability decisions for Agent Card, `SendMessage`, `SendStreamingMessage`, `GetTask`, `ListTasks`, `CancelTask`, `SubscribeToTask`, and push config entry points | runtime-enforced + A2A protocol tests |
 | OpenJiuwen security rail | maps OpenJiuwen native model/tool callbacks to security evaluation request and evidence | enforce only when pre-action blocking is possible; otherwise telemetry/audit only |
 | AgentScope security wrapper | maps AgentScope event/harness/client calls to the unified decision model | implemented when the path is governed |
-| A2A remote outbound guard | decorates remote invocation outbound port with endpoint, capability, tenant, and audit policy | implemented + negative tests |
-| memory guard | protects memory read/write data scope and poisoning/write policy | implemented + memory tests |
-| `agent-service` policy engine | loads redlines, capability permissions, tenant posture, approval state, and returns decisions | implemented + policy tests |
-| audit emitter | writes high-risk decision receipts and action outcomes | minimal implemented, then durable append-only |
+| A2A remote outbound guard | decorates remote invocation outbound port with endpoint, capability, tenant, and audit policy | runtime-enforced + negative tests |
+| memory guard | protects memory read/write data scope and poisoning/write policy | runtime-enforced + memory tests |
+| agent-state guard | protects OpenJiuwen/InMemory/Redis checkpointer read/write/release and tenant/session key scope | runtime-enforced + state adapter/provider tests |
+| `agent-service` policy engine | loads redlines, capability permissions, tenant posture, approval state, and returns decisions | serviceized policy + policy tests |
+| audit emitter | writes high-risk decision receipts and action outcomes | dev sink, then durable append-only sink |
 | session security timeline | reconstructs the security decision chain by tenant/session/task/trace | initial JSONL/query endpoint, UI optional |
 
 ### 4.4 Security Redline Authority
@@ -351,12 +353,28 @@ public record SecurityEvaluationRequest(
 `ActionType`:
 
 ```text
+INGRESS
+A2A_AGENT_CARD_READ
+A2A_TASK_SEND
+A2A_TASK_STREAM
+A2A_TASK_READ
+A2A_TASK_LIST
+A2A_TASK_CANCEL
+A2A_TASK_SUBSCRIBE
+A2A_PUSH_CONFIG
+RUNTIME_START
+RUNTIME_STOP
+RUNTIME_HEALTH_READ
+RUNTIME_TASK_CANCEL
 MODEL_CALL
 TOOL_CALL
 API_CALL
 MCP_CALL
 MEMORY_READ
 MEMORY_WRITE
+STATE_READ
+STATE_WRITE
+STATE_RELEASE
 SANDBOX_ACQUIRE
 SANDBOX_EXEC
 A2A_REMOTE_AGENT_CALL
@@ -374,13 +392,14 @@ FALLBACK
 
 | Guard point | Module | Decision scope |
 |---|---|---|
-| A2A ingress guard | `agent-runtime.boot` | tenant header trust mode, posture, request admission |
-| Handler wrapper | adjacent to `agent-runtime.engine.spi` | run-level guard and lifecycle proxy |
+| A2A northbound guard | `agent-runtime.boot` / `runtime.engine.a2a` | Agent Card, task send/stream/get/list/cancel/subscribe, push config, tenant header trust mode, posture |
+| Handler lifecycle guard | adjacent to `agent-runtime.engine.spi` | `RUNTIME_START` / `RUNTIME_STOP` / `RUNTIME_HEALTH_READ` / `RUNTIME_TASK_CANCEL`, plus run-level guard around `execute` |
 | OpenJiuwen rail | `runtime.engine.openjiuwen` | model/tool callback security and trajectory mapping |
 | AgentScope wrapper | `runtime.engine.agentscope` | permission, harness, runtime-client security mapping |
 | Tool executor guard | `agent-sdk` | SDK tool invocation, egress, file, process, HTTP |
 | File/API/MCP guard | SDK/runtime adapter | scoped capability policy |
-| Memory guard | graphmemory starter / memory adapter | memory read/write policy |
+| Memory guard | `MemoryProvider` / memory adapter | memory read/write policy, retention, poisoning checks |
+| Agent-state guard | framework checkpointer adapter | checkpoint read/write/release and tenant/session key scope |
 | Sandbox guard | sandbox gateway/provider path | sandbox acquire/execute/release decision and fail-closed behavior |
 | Remote A2A guard | `runtime.engine.a2a` outbound decorator | endpoint policy, capability label, tenant, audit |
 | Trajectory/security event sink guard | runtime sink/exporter | masking and decision event emission |
@@ -492,12 +511,14 @@ This proposal is above the sandbox proposal:
 | `RiskTierPolicyMatrixTest` | dev/research/prod behavior follows R0-R5 matrix. |
 | `SecurityDecisionPortContractTest` | decisions are serializable and carry policy/audit refs. |
 | `TenantHeaderTrustModeTest` | research/prod fail closed when tenant source is not trusted. |
+| `RuntimeHandlerLifecycleGuardTest` | `start`, `stop`, `isHealthy`, and `cancel` map to runtime control actions and do not bypass security state or audit events. |
 
 ### 6.2 Integration Tests
 
 | Test | Scenario | Expected result |
 |---|---|---|
 | `HighRiskCapabilityWithoutSpecIT` | R4/R5 capability lacks `CapabilitySecuritySpec` | denied before execution in prod |
+| `A2aNorthboundSecurityGuardIT` | external Agent Card, send/stream/get/list/cancel/subscribe/push config calls | decisions enforce tenant, capability, scope, and push callback egress |
 | `ApiAllowlistEgressIT` | API call targets a non-allowlisted host | denied with `EGRESS_DECISION` |
 | `FileScopePolicyIT` | file write escapes workspace root | denied before file operation |
 | `McpScopePolicyIT` | MCP server exposes unauthorized dynamic tool | denied before MCP invocation |
@@ -520,7 +541,7 @@ Turn scenarios from `docs/trustworthy/ai-risk-control-map.md` into executable fi
 
 ### 6.4 Gate And Architecture Verification
 
-- `bash gate/check_architecture_sync.sh` passes after accepted architecture updates.
+- `bash gate/check_architecture_sync.sh` passes after architecture docs are updated.
 - Contract schemas validate.
 - ArchUnit proves `agent-runtime` does not import `agent-service` implementation classes.
 - New tests prove all high-risk capability paths call `SecurityDecisionPort`.

@@ -256,10 +256,11 @@ Core rules:
 
 | Current surface | Use in this proposal |
 |---|---|
-| `agent-runtime.engine.spi.AgentRuntimeHandler` | handler wrapper or adapter returns a parked/typed failure state before side effect |
-| `agent-runtime.engine.a2a` | maps approval-required state to A2A input-required style behavior |
+| `agent-runtime.engine.spi.AgentRuntimeHandler` | handler wrapper or adapter returns a parked/typed failure state before side effect; guarded lifecycle/cancel operations emit runtime-control security events |
+| `agent-runtime.common.RuntimeMessage` | source object for approval prompts, display summaries, and audit hashes; must be redacted before event emission |
+| `agent-runtime.engine.a2a` | maps approval-required state to A2A `INPUT_REQUIRED` / parked task style behavior |
 | `agent-bus.spi.s2c.S2cCallbackTransport` | optional callback transport for server-to-client approval prompts |
-| `agent-service` | stores approval records and audit receipts in serviceized deployments |
+| host application / `agent-service` | runtime is a library and does not own durable persistence by default; host/service stores approval records, audit receipts, and redacted artifacts |
 | `TrajectoryEvent` | remains operational telemetry and carries correlation only |
 | `SecurityDecisionEvent` | new paired security event stream for policy, approval, audit, and degradation results |
 
@@ -274,6 +275,7 @@ Approval and audit state are repository-owned. AgentScope, OpenJiuwen, and A2A m
 | AgentScope local/harness adapter | `AgentScopeEvent.interrupted(...)` and stream events can express interruption | adapter maps interruption to repository approval or typed denial only when security decision says so |
 | AgentScope remote runtime client | external runtime may expose stream event only and not repository approval semantics | repository must pause before remote runtime call if approval is required |
 | A2A remote invocation | remote task can return `INPUT_REQUIRED` and continue later | repository approval may map to A2A input-required state, but result remains in `security-approval.v1.yaml` |
+| A2A northbound task | external clients may observe `TASK_STATE_INPUT_REQUIRED` or a parked task snapshot | this is transport/product state only; approval lifecycle, expiry, denial, and resume are owned by repository approval records |
 | SDK Java/HTTP tool mapper | no native HITL, but invocation is under repository adapter control | strongest place to park before side effect and resume after approval |
 
 Constraints:
@@ -282,6 +284,7 @@ Constraints:
 - if a framework can only interrupt after an action has started, that path cannot enforce R4/R5 pre-action approval unless a wrapper, proxy, or sandbox control point is added;
 - framework cancellation and repository approval cancellation are correlated but distinct;
 - framework input-required state is not an audit receipt.
+- A2A `INPUT_REQUIRED`, `SendMessage` aggregate snapshots, SSE events, and push callbacks are not approval truth; they only carry visible state plus `approvalRef` / `decisionId`.
 
 #### Approval Boundary Under Least Agency
 
@@ -381,7 +384,7 @@ A session security timeline is reconstructed by joining:
 - audit receipts for compliance-grade evidence;
 - payload refs for redacted detail retrieval.
 
-This proposal does not require immediate DB/UI implementation. Future MCP replay or visualization surfaces can read these refs according to existing architecture rules.
+This proposal does not require immediate DB/UI implementation. Because `agent-runtime` is currently a library, durable store, retention, encryption, backup, and break-glass access are owned by the host application or `agent-service`; runtime emits structured events, calls ports, and carries refs. Future MCP replay or visualization surfaces can read these refs according to existing architecture rules.
 
 ### 4.11 Relationship To Security Decision Contract L2
 
@@ -437,6 +440,9 @@ capability-permissions.yaml activeProfile=review_unknown or regulated_prod
 - [ ] `AuditReserveBeforeActionTest`: R4/R5 action fails if audit reserve fails.
 - [ ] `AuditCommitRecoveryTest`: post-action audit commit failure creates recovery record and alert.
 - [ ] `A2aApprovalInputRequiredTest`: approval-required decision maps to a parked A2A-visible state.
+- [ ] `A2aInputRequiredNotApprovalTruthTest`: A2A `INPUT_REQUIRED`, SSE, and push callback carry approval refs but cannot replace the approval record.
+- [ ] `RuntimeLibraryNoDurableAuditStoreTest`: `agent-runtime` does not create a durable audit store by default; host/service port or test harness must be injected.
+- [ ] `RuntimeControlAuditEventTest`: guarded start/stop/health/cancel operations emit runtime-control security events and cannot create durable audit records before redaction/policy refs exist.
 - [ ] `S2cApprovalCallbackTest`: approval request can be sent through S2C callback transport when configured.
 - [ ] `SecurityTimelineJoinTest`: trajectory + security events + audit refs reconstruct one task timeline.
 
@@ -450,14 +456,14 @@ capability-permissions.yaml activeProfile=review_unknown or regulated_prod
 Freeze impact:
 
 - `audit-trail.v1.yaml` may need an extension section for decision receipts;
-- contract catalog must list `security-approval.v1.yaml` and `security-decision-event.v1.yaml` when accepted.
+- contract catalog must list `security-approval.v1.yaml` and `security-decision-event.v1.yaml` when this contract is adopted.
 
 ## 8. Self-Audit
 
 | Finding | Severity | Status | Mitigation |
 |---|---|---|---|
 | approval state may need persistent task parking beyond current runtime | P1 | open | first support in-memory/dev, then serviceized persistence |
-| A2A input-required mapping needs implementation verification | P1 | open | add integration test before marking runtime_enforced |
+| A2A input-required mapping needs implementation verification | P1 | open | add integration test before marking runtime-enforced |
 | audit storage backend is not defined here | P2 | open | this proposal defines receipt semantics; storage is implementation wave |
 
 ## Authority

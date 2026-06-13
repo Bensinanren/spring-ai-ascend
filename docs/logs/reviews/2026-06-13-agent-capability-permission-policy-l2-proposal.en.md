@@ -94,9 +94,12 @@ The allowlist answers whether the capability may be considered. Scope policy ans
 | `FILE` | file read/write/list/delete | local leakage or mutation |
 | `API` | HTTP/gRPC external API | egress, SSRF, external side effect |
 | `MCP` | MCP server tool/resource/prompt | indirect tool and data access |
+| `A2A_NORTHBOUND` | Agent Card, SendMessage, SendStreamingMessage, GetTask, ListTasks, CancelTask, SubscribeToTask, push config | external access, task visibility, cancel/subscribe, push callback egress |
 | `A2A_REMOTE_AGENT` | A2A remote agent capability | cross-agent trust and tenant propagation |
+| `RUNTIME_CONTROL` | `start`, `stop`, `isHealthy`, `cancel(taskId)` on runtime/handler surfaces | availability manipulation, cross-task interruption, health visibility |
 | `SANDBOX` | sandbox acquire/execute/file transfer | code execution and isolation |
 | `MEMORY` | memory read/write/retrieval | data leakage or memory poisoning |
+| `AGENT_STATE` | framework checkpointer, Redis/InMemory state, release | session-state leakage, tenant crossover, recovery pollution |
 | `MODEL` | model invocation/fallback | data exposure and policy bypass |
 | `BUSINESS_ACTION` | payment, approval, customer export, production change | regulated side effect |
 
@@ -276,7 +279,7 @@ Least agency adds `DelegationEnvelope` above the allowlist. It is not a tool lis
 delegationEnvelopes:
   claim_assistant_default:
     allowedTasks: ["claim_intake", "document_check", "status_query"]
-    allowedCapabilityKinds: ["TOOL", "FILE", "API", "MCP", "A2A_REMOTE_AGENT"]
+    allowedCapabilityKinds: ["TOOL", "FILE", "API", "MCP", "A2A_NORTHBOUND", "A2A_REMOTE_AGENT", "AGENT_STATE"]
     dataClasses: ["PUBLIC", "INTERNAL", "CUSTOMER_METADATA"]
     fileRoots: ["workspace/claims/${tenantId}/${sessionId}"]
     apiHosts: ["claims.internal.example.com"]
@@ -423,9 +426,12 @@ This is not the final decision. It is a capability-specific input that later map
 | `FileScope` | roots, allow/deny globs, max bytes, read/write/delete/list |
 | `ApiScope` | allowed hosts, methods, paths, headers, timeout, payload limits |
 | `McpScope` | server id, tool names, resource schemes, dynamic discovery flag, result limit |
+| `A2aNorthboundScope` | methods, agent-card visibility, task read/list/cancel/subscribe, push callback hosts, includeArtifacts |
 | `A2aScope` | remote agent id, allowed skills/capabilities, tenant propagation, timeout |
+| `RuntimeControlScope` | lifecycle methods, own-task cancel scope, admin-only start/stop, health detail visibility |
 | `SandboxScope` | sandbox profile, network profile, filesystem transfer limits |
 | `MemoryScope` | memory kind, tenant/session bounds, read/write, retention, poisoning checks |
+| `AgentStateScope` | checkpointer kind, tenant/session key pattern, read/write/release, retention, cleanup policy |
 | `ModelScope` | model id/provider, prompt data class, fallback equivalence |
 | `BusinessScope` | action name, regulated role, dual-control, amount/threshold |
 
@@ -495,7 +501,7 @@ AgentScope / OpenJiuwen / JiuwenSwarm least-privilege mechanisms do not block th
 - enums: `CapabilityKind`, `RiskTier`, `TrustTier`, `DataClass`, `SideEffect`, `EgressScope`, `PermissionMode`;
 - profile schema: `strict_allowlist`, `review_unknown`, `scoped_allowlist`, `least_agency_scoped`, `regulated_prod`, and custom profiles;
 - selector grammar: `capabilityKind`, `capability`, `serverId`, `remoteAgentId`, `host`, `path`, `filesystemRoot`, `sandboxProfile`, `agentId`, `tenantScope`;
-- scope objects: `FileScope`, `ApiScope`, `McpScope`, `A2aScope`, `SandboxScope`, `MemoryScope`, `ModelScope`, `BusinessScope`;
+- scope objects: `FileScope`, `ApiScope`, `McpScope`, `A2aNorthboundScope`, `A2aScope`, `RuntimeControlScope`, `SandboxScope`, `MemoryScope`, `AgentStateScope`, `ModelScope`, `BusinessScope`;
 - merge order: redlines > tenant deny > explicit capability policy > risk-tier default > posture default;
 - validation failures: unknown enum, illegal host/path pattern, and impossible combinations such as `mode=allow` + `R5_BUSINESS_CRITICAL`.
 
@@ -529,14 +535,18 @@ AgentScope / OpenJiuwen / JiuwenSwarm least-privilege mechanisms do not block th
 - [ ] `PermissionProfileParserTest`: validates built-in/custom profiles, timeout, and timeout action.
 - [ ] `PermissionProfileBehaviorTest`: strict allowlist denies missing capability, review_unknown enters HITL, scoped_allowlist denies scope violation, least_agency_scoped validates envelope, regulated_prod adds approval/audit.
 - [ ] `DelegationEnvelopeParserTest`: envelope task, scope, budget, timeWindow, and unknownAction parse correctly and unknown fields fail closed.
-- [ ] `DelegationEnvelopeSubsetTest`: requested FILE/API/MCP/A2A/sandbox/business scope must be a subset of the envelope.
+- [ ] `DelegationEnvelopeSubsetTest`: requested FILE/API/MCP/A2A/sandbox/state/business scope must be a subset of the envelope.
 - [ ] `CapabilityAllowlistDefaultDenyTest`: non-allowlisted capability is denied before execution.
 - [ ] `CapabilityPermissionMergeOrderTest`: redlines > tenant deny > capability policy > tier default.
 - [ ] `CapabilityInvocationRequestBuilderTest`: produces stable `argsHash` and redacted preview.
 - [ ] `FilePermissionScopeTest`: path traversal, deny globs, oversized writes are rejected.
 - [ ] `ApiPermissionScopeTest`: denied host/method/private-network is blocked.
 - [ ] `McpPermissionScopeTest`: unauthorized MCP server/tool/resource and dynamic discovery are rejected.
+- [ ] `A2aNorthboundPermissionScopeTest`: unauthorized Agent Card, task read/list/cancel/subscribe, push config, and includeArtifacts are rejected.
 - [ ] `A2aPermissionScopeTest`: unauthorized remote agent/capability is rejected and tenant propagation is required.
+- [ ] `PushCallbackEgressPolicyTest`: push callback URL must match the egress allowlist; private-network or unknown hosts are rejected.
+- [ ] `RuntimeControlPermissionScopeTest`: lifecycle start/stop requires an admin scope, health detail follows visibility policy, and task cancel is limited to authorized tenant/session/task scope.
+- [ ] `AgentStatePermissionScopeTest`: InMemory/Redis/OpenJiuwen checkpointer access must match tenant/session key scope, and `release` cleans only authorized scope.
 - [ ] `OpenJiuwenCapabilityMetadataTest`: mapped OpenJiuwen tools preserve capability metadata.
 - [ ] `AgentScopeCapabilityMetadataTest`: AgentScope mapping preserves the same metadata.
 - [ ] `FrameworkBypassCannotExpandAgencyTest`: AgentScope bypass, OpenJiuwen permission disabled, and JiuwenSwarm approval override cannot bypass the envelope.
@@ -559,7 +569,7 @@ Freeze impact:
 
 | Finding | Severity | Status | Mitigation |
 |---|---|---|---|
-| policy scope may exceed first implementation | P1 | open | mark each kind as schema_shipped, runtime_loaded, or runtime_enforced |
+| policy scope may exceed v1 implementation | P1 | open | mark each kind as contract-defined, runtime-loaded, or runtime-enforced |
 | extending `SkillSpec` / `ToolSpec` constructors has compatibility risk | P1 | open | add secondary constructors or builders |
 | some native framework actions may not expose enough metadata | P1 | open | classify as unknown and deny high-risk |
 | policy schema may become too large | P2 | open | keep core mandatory and advanced scope optional |
