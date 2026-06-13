@@ -2,6 +2,7 @@ package com.huawei.ascend.runtime.engine.a2a;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -274,12 +275,12 @@ public final class A2aRemoteAgentOutboundAdapter implements RemoteAgentInvocatio
         if (!hasText(request.parentTaskId()) && !hasText(request.parentContextId())) {
             return base;
         }
-        java.util.LinkedHashMap<String, Object> merged = new java.util.LinkedHashMap<>(base);
+        LinkedHashMap<String, Object> merged = new LinkedHashMap<>(base);
         if (hasText(request.parentTaskId())) {
-            merged.put("runtime.parent.taskId", request.parentTaskId());
+            merged.put(A2aAgentExecutor.PARENT_TASK_ID_KEY, request.parentTaskId());
         }
         if (hasText(request.parentContextId())) {
-            merged.put("runtime.parent.traceId", request.parentContextId());
+            merged.put(A2aAgentExecutor.PARENT_TRACE_ID_KEY, request.parentContextId());
         }
         return Map.copyOf(merged);
     }

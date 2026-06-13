@@ -51,6 +51,15 @@ public final class A2aAgentExecutor implements AgentExecutor {
      */
     public static final String TENANT_STATE_KEY = "tenantId";
 
+    /**
+     * Call-context metadata keys carrying the calling agent's task/context id into a remote
+     * sub-agent invocation so the sub-agent's runtime can link its run to the parent run. The
+     * outbound adapter writes them; inbound dispatch and the resume path read them — one source
+     * for both ends so the round-trip can never drift to mismatched key strings.
+     */
+    public static final String PARENT_TASK_ID_KEY = "runtime.parent.taskId";
+    public static final String PARENT_TRACE_ID_KEY = "runtime.parent.traceId";
+
     private static final Logger LOG = LoggerFactory.getLogger(A2aAgentExecutor.class);
     private static final String MDC_CONTEXT_ID = "contextId";
     private static final String MDC_TASK_ID = "taskId";
@@ -369,8 +378,8 @@ public final class A2aAgentExecutor implements AgentExecutor {
                 // can access business fields like intent, wap_userName without changing
                 // the neutral AgentExecutionContext contract.
                 mergeVariables(ctx));
-        String parentTaskId = metadata(ctx, "runtime.parent.taskId", null);
-        String parentTraceId = metadata(ctx, "runtime.parent.traceId", null);
+        String parentTaskId = metadata(ctx, PARENT_TASK_ID_KEY, null);
+        String parentTraceId = metadata(ctx, PARENT_TRACE_ID_KEY, null);
         if (parentTaskId != null || parentTraceId != null) {
             context.withParentLinkage(parentTaskId, parentTraceId);
         }

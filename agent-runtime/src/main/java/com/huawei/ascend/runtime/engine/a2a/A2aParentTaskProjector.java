@@ -137,8 +137,8 @@ final class A2aParentTaskProjector {
                 variables,
                 invocation.localConversationId(),
                 null);
-        String parentTaskId = A2aAgentExecutor.metadata(requestContext, "runtime.parent.taskId", null);
-        String parentTraceId = A2aAgentExecutor.metadata(requestContext, "runtime.parent.traceId", null);
+        String parentTaskId = A2aAgentExecutor.metadata(requestContext, A2aAgentExecutor.PARENT_TASK_ID_KEY, null);
+        String parentTraceId = A2aAgentExecutor.metadata(requestContext, A2aAgentExecutor.PARENT_TRACE_ID_KEY, null);
         if (parentTaskId != null || parentTraceId != null) {
             context.withParentLinkage(parentTaskId, parentTraceId);
         }
