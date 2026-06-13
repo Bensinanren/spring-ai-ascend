@@ -141,6 +141,22 @@ class StampingTrajectoryEmitterTest {
     }
 
     @Test
+    void maskErrorPreservesCategory() {
+        CapturingSink sink = new CapturingSink();
+        TrajectorySettings settings = new TrajectorySettings(true,
+                Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256);
+        StampingTrajectoryEmitter emitter =
+                new StampingTrajectoryEmitter(sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        // Emit an error with a non-UNKNOWN category; maskError must not lose it.
+        emitter.emit(TrajectoryDraft.error(null, "RATE_LIMIT", "quota hit",
+                ErrorCategory.RATE_LIMITED, 1, true));
+
+        TrajectoryEvent event = first(sink.events, Kind.ERROR);
+        assertThat(event.error().category()).isEqualTo(ErrorCategory.RATE_LIMITED);
+    }
+
+    @Test
     void payloadsAreMaskedAndTruncated() {
         CapturingSink sink = new CapturingSink();
         TrajectorySettings settings = new TrajectorySettings(true,

@@ -81,5 +81,6 @@ public record TrajectoryEvent(
     /** Token/latency/model telemetry, aligned to OpenTelemetry {@code gen_ai.usage.*}. */
     public record Usage(Integer inputTokens, Integer outputTokens, Double latencyMs, String model) {}
 
-    public record ErrorInfo(String code, String message) {}
+    /** Error payload. {@code category} is always non-null; use {@link ErrorCategory#UNKNOWN} when the category is not yet mapped. */
+    public record ErrorInfo(String code, String message, ErrorCategory category) {}
 }

@@ -32,5 +32,16 @@ class TrajectoryEventTest {
         assertThat(error.error().code()).isEqualTo("CODE");
         assertThat(error.attempt()).isEqualTo(2);
         assertThat(error.retryable()).isTrue();
+        // 5-arg overload always defaults to UNKNOWN so existing callers get a valid category.
+        assertThat(error.error().category()).isEqualTo(ErrorCategory.UNKNOWN);
+    }
+
+    @Test
+    void sixArgErrorOverloadPreservesExplicitCategory() {
+        TrajectoryDraft draft = TrajectoryDraft.error("model", "RATE_LIMIT", "quota exceeded",
+                ErrorCategory.RATE_LIMITED, 1, true);
+        assertThat(draft.error().category()).isEqualTo(ErrorCategory.RATE_LIMITED);
+        assertThat(draft.error().code()).isEqualTo("RATE_LIMIT");
+        assertThat(draft.error().message()).isEqualTo("quota exceeded");
     }
 }

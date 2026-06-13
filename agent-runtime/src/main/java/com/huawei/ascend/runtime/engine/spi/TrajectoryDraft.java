@@ -54,8 +54,15 @@ public record TrajectoryDraft(
         return new TrajectoryDraft(Kind.TOOL_CALL_END, "tool_call", name, null, result, null, null, null, null, null);
     }
 
-    public static TrajectoryDraft error(String name, String code, String message, Integer attempt, Boolean retryable) {
+    /** Builds an ERROR draft with an explicit category. Use when the adapter can classify the failure. */
+    public static TrajectoryDraft error(String name, String code, String message, ErrorCategory category,
+            Integer attempt, Boolean retryable) {
         return new TrajectoryDraft(Kind.ERROR, "error", name, null, null, null, attempt, retryable,
-                new ErrorInfo(code, message), null);
+                new ErrorInfo(code, message, category), null);
+    }
+
+    /** Builds an ERROR draft with {@link ErrorCategory#UNKNOWN}. Existing callers remain unchanged. */
+    public static TrajectoryDraft error(String name, String code, String message, Integer attempt, Boolean retryable) {
+        return error(name, code, message, ErrorCategory.UNKNOWN, attempt, retryable);
     }
 }

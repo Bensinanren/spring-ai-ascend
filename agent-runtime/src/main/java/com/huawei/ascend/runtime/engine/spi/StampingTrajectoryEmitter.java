@@ -178,6 +178,6 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
         }
         Object masked = TrajectoryMasking.mask(error.message(),
                 settings.maskKeyPattern(), settings.truncateChars());
-        return new ErrorInfo(error.code(), masked != null ? String.valueOf(masked) : null);
+        return new ErrorInfo(error.code(), masked != null ? String.valueOf(masked) : null, error.category());
     }
 }
