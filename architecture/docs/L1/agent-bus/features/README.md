@@ -21,6 +21,8 @@ status: draft
 | AB-F08 | Workflow Primitives | 真 bus | 设计态 | mailbox、admission、backpressure、sleep、wakeup、tick。 |
 | AB-F09 | Contract Projection | 治理能力 | 草案 | 从 human ICD/YAML 投影 schema、fixture、mock、test。 |
 | AB-F10 | Drift Check | 治理能力 | 草案 | 检查模块依赖、契约状态、生成物来源。 |
+| AB-F11 | MQ-like Forwarding Substrate | 真 bus | 设计态 | 类 MQ 的跨 service 转发底座，包含队列/主题、ack/retry、correlation、DLQ/replay、ordering/fairness、backpressure。 |
+| AB-F12 | Agent Registry / Discovery | 真 bus | 设计态 | 运行时路由所需的 agent/service/capability 注册发现索引，不拥有 agent 定义或 Task 状态。 |
 
 ## 2. 成熟度定义
 
@@ -44,6 +46,8 @@ status: draft
 | AB-F06 | 真 bus | SC-005 | cloud 到 edge | `ReflectionEnvelopeRouter` | SC-005 |
 | AB-F07 | 中立边界 | SC-003 | compute_control 内部边界 | `bus.spi.engine` | SC-003 |
 | AB-F08 | 真 bus | SC-006 | bus_state future runtime | 待定 | SC-006 |
+| AB-F11 | 真 bus | 后续 Stage | bus_state future runtime | 待定 | 待补 |
+| AB-F12 | 真 bus | 后续 Stage | bus_state registry/discovery | 待定 | 待补 |
 
 ## 4. 不进入当前实现的能力
 
@@ -54,6 +58,9 @@ status: draft
 - backpressure runtime。
 - tick engine。
 - DLQ / replay store。
+- 类 MQ 转发底座。
+- agent/service/capability registry runtime。
+- service discovery API。
 - S2C tenant 迁移代码改动。
 
 S2C tenant 迁移虽然是已接受方向，但必须进入独立切片，并在通知冲突方后施工。

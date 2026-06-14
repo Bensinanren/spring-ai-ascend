@@ -90,7 +90,59 @@ Mailbox、admission、backpressure、sleep、wakeup、tick 当前只保留设计
 - tick/rhythm 的时间源是谁。
 - 失败、重试、DLQ 的 owner 是谁。
 
-## 7. 进程断言
+## 7. 真 bus 目标态流程：类 MQ 转发
+
+真 bus 的 service-to-service 调用目标态应包含一个类似 MQ 的转发底座，但 L1 不绑定具体产品。
+
+目标态流程：
+
+| 步骤 | 参与者 | 动作 |
+|---|---|---|
+| 1 | 调用方 service | 构造跨服务 envelope，携带 tenant、trace、correlation、idempotency 和目标能力。 |
+| 2 | 真 bus | 查询 agent/service/capability 注册发现索引，选择目标 endpoint 或 topic。 |
+| 3 | 类 MQ 转发底座 | 将 envelope 投递到队列、主题或等价通道。 |
+| 4 | 目标 service | 消费 envelope，按自身 Task/Run 生命周期处理。 |
+| 5 | 真 bus | 记录 ack/retry、timeout、DLQ/replay、correlation 和审计事实。 |
+
+目标态能力：
+
+- 队列/主题抽象。
+- ack/retry。
+- correlation。
+- backpressure。
+- DLQ/replay。
+- ordering/fairness。
+- tenant-aware routing。
+
+当前状态：
+
+- 以上内容都是设计态。
+- Stage 1 harness 不实现这些能力。
+- 进入实现前需要独立 H2/H3 决策和 harness 计划。
+
+## 8. 真 bus 目标态流程：Agent 注册与发现
+
+Agent 注册与发现是 service-to-service 路由的前置能力。它回答“某个 tenant 下，哪个 service/agent/capability 可以处理这个 envelope，应路由到哪里”。
+
+目标态注册元数据至少应覆盖：
+
+- `tenantId`
+- agent id / capability id
+- service id / instance id
+- endpoint / topic / route key
+- version
+- region / deployment plane
+- health / readiness
+- load / capacity signal
+- supported contract version
+
+边界：
+
+- 注册发现只拥有运行时路由索引。
+- agent 的业务定义、代码实现、Task/Run 状态仍由对应 owner 管理。
+- 如果注册发现需要持久化，需要单独定义状态 owner、写入者、租户隔离和漂移检查。
+
+## 9. 进程断言
 
 | 断言 | 证据 |
 |---|---|
@@ -99,3 +151,5 @@ Mailbox、admission、backpressure、sleep、wakeup、tick 当前只保留设计
 | Task 状态只由 service 生命周期层更新。 | L0 boundaries 状态矩阵。 |
 | Engine terminal event 必须唯一且最后发出。 | `EnginePort` 契约和后续 harness。 |
 | S2C tenant 目标态必须进入 envelope。 | H2 决策和冲突通知记录。 |
+| 真 bus 转发底座进入实现前必须先定义 ack/retry/DLQ/ordering/backpressure。 | 后续 H2/H3 评审。 |
+| Agent 注册发现进入实现前必须先定义 owner、租户隔离、health 和 contract version 语义。 | 后续 H2/H3 评审。 |

@@ -26,6 +26,8 @@ Stage 1 的目标是给 `agent-bus` 建立第一批低风险、可执行的 harn
 - Reflection typed envelope / schema validator。
 - EnginePort terminal event harness。
 - Mailbox、admission、backpressure、tick、DLQ、ordering 等运行时 primitives。
+- 类 MQ 转发底座。
+- agent/service/capability 注册发现。
 
 ## 2. 架构边界
 
@@ -136,6 +138,7 @@ Stage 1 施工智能体不得：
 - 修改 `agent-service`、`agent-execution-engine`、`agent-client`、`agent-middleware`、`agent-evolve` 的生产代码。
 - 给 `agent-bus` 增加任何 production-scope sibling module dependency。
 - 实现 broker、runtime bus、mailbox、backpressure、tick、DLQ、ordering。
+- 实现类 MQ 转发底座、agent registry 或 service discovery API。
 - 把 Gateway 写成 Task lifecycle owner。
 - 把测试为了通过而放宽现有 envelope 校验。
 
@@ -205,3 +208,14 @@ Stage 1 完成时应满足：
 - 不修改 production behavior。
 - 不触碰 S2C tenant 迁移。
 - 测试命令已运行，或环境阻塞已明确记录。
+
+## 10. 后续阶段候选
+
+Stage 1 完成后，后续不应直接跳到完整 runtime bus 实现。建议拆成：
+
+| 阶段 | 候选范围 | 前置决策 |
+|---|---|---|
+| Stage 2 | S2C `tenantId` 契约迁移 harness | 完成冲突方通知，确认兼容策略。 |
+| Stage 3 | Agent 注册与发现设计/harness | 明确 registry owner、tenant 隔离、health、version、route key 和一致性策略。 |
+| Stage 4 | 类 MQ 转发底座设计/harness | 明确队列/主题模型、ack/retry、DLQ/replay、ordering/fairness、backpressure 和 broker 选择。 |
+| Stage 5 | Federation/reflection runtime harness | 明确跨网络 credential、routing policy、payload validation 和 failure semantics。 |

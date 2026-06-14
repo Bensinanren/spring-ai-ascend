@@ -39,6 +39,7 @@ status: draft
 | 凭证边界 | 当前没有物理 credential 绑定。 |
 | 存储边界 | bus 不拥有 Task state store。 |
 | 队列边界 | mailbox/backpressure/tick 仍是设计态。 |
+| 注册发现边界 | agent/service/capability 注册发现仍是设计态；未选择存储、健康检查、租户隔离和一致性策略。 |
 
 ## 4. S2C tenant 物理影响
 
@@ -62,5 +63,21 @@ status: draft
 - DLQ 和 replay 存储。
 - backpressure runtime。
 - tick engine runtime。
+- agent/service/capability registry runtime。
+- service discovery API。
+
+## 6. Agent 注册发现的物理问题
+
+注册发现进入实现前，至少需要回答：
+
+- 注册表是否持久化。
+- 注册信息由谁写入，谁可以删除。
+- health / readiness 由 push、pull 还是 lease 表达。
+- tenant 隔离如何保证。
+- service 与 capability 的版本兼容如何表达。
+- region / deployment plane 是否参与路由选择。
+- 注册发现是否和 broker topic / route key 绑定。
+
+这些问题没有回答前，不能把注册发现实现为 production runtime。
 
 任何引入这些内容的实现都需要新的 H2/H3 审核。
