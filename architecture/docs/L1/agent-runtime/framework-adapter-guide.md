@@ -177,7 +177,22 @@ OpenJiuwenAgentRuntimeHandler myHandler(...) {
 ```
 
 `RuntimeAutoConfiguration` 自动发现该 Bean，将其绑定到 A2A JSON-RPC 端点，并基于
-`agentId()` 生成默认 `AgentCard`（可通过实现 `AgentCardProvider` 覆盖）。
+`agentId()` + handler 能力钩子 + `AgentCardProperties` YAML overlay 组装默认 `AgentCard`
+（可通过实现 `AgentCardProvider.describe()` 返回中立 `AgentCardDescriptor` 完全覆盖）。
+
+### 3.5 Agent Card 能力声明必须诚实
+
+card 上广告的能力必须与 handler 的**实际行为**一致——A2A client 据此选择协议路径，谎报会造成兼容性 bug。能力字段默认 fail-safe（opt-in），由 handler 显式声明：
+
+| 钩子 | 默认 | 何时 override |
+|---|---|---|
+| `supportsStreaming()` | `false` | handler 真发**多帧增量**结果（`execute` 返回多元素 `Stream`）时返回 `true`；单次返回最终结果的 handler 保持 `false`（否则 client 走 `message/stream` 期待 SSE 增量帧却只收一帧，违反 A2A 协议契约） |
+| `skills()` | 空 | 声明 handler 提供的 `AgentSkillDescriptor` 列表 |
+| `defaultOutputModes()` | `["text"]` | handler 真实支持其它 mode（如 `"artifact"`）时追加 |
+
+`capabilities.pushNotifications` 由运行时按 push-store 持久性派生（默认 `InMemoryPushNotificationConfigStore` → `false`），handler 无需声明。
+
+> **security on card**：runtime 经 `X-Tenant-Id` header 识别租户，但 card 默认**不** emit security scheme——当前 A2A SDK 的 `A2ACardResolver` 以 protobuf-JSON 解析 card，无法 unmarshal 带 security 的 card（spec-JSON 的空 scope 数组 `[]` 触发 "Expect message object" 解析失败），emit 会使整张 card 不可发现。security 为 opt-in，经 `AgentCardProvider`/YAML 显式声明。
 
 ---
 

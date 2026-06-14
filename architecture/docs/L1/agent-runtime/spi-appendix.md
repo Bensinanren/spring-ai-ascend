@@ -23,7 +23,7 @@ authority: "ADR-0152 (Uniform L1 per-view mechanism + L0 mounting)"
 | `com.huawei.ascend.runtime.engine.spi.StreamAdapter` | @FunctionalInterface | 将框架原生结果流映射为引擎中立的 `Stream<AgentExecutionResult>` | 由 handler 提供，每次 execute 后调用 |
 | `com.huawei.ascend.runtime.engine.spi.StateProvider` | interface | 标记接口（继承 `AgentRuntimeProvider`），需要手动状态桥接的框架实现 | 作为 provider 的一种，通过 `handler.providers()` 返回 |
 
-Agent Card 供应接口 `AgentCardProvider` 与默认工厂 `AgentCards` 属于 A2A 协议元数据，位于协议桥包 `com.huawei.ascend.runtime.engine.a2a`（见 §2.5），不属于中立 SPI 包。
+Agent Card 供应接口 `AgentCardProvider`（返回中立 `AgentCardDescriptor`）随 ADR-0163 迁入中立 SPI 包 `com.huawei.ascend.runtime.engine.spi`（见 §2.5）；A2A SDK 类型的构造收敛到协议桥 `engine.a2a.A2aAgentCardMapper`（唯一投影点），默认工厂 `AgentCards` 亦薄化为描述符工厂。
 
 ### 1.2 辅助类与值对象（非 SPI 接口，但属于 SPI 包）
 
@@ -157,16 +157,16 @@ public final class AgentExecutionResult {
 | `FAILED` | `emitter.fail()` | FAILED | 执行失败，携带 errorCode + errorMessage |
 | `INTERRUPTED` | `emitter.requiresInput()` | INPUT_REQUIRED | 需要人工输入，prompt 文本作为提示 |
 
-### 2.5 AgentCardProvider（位于 `engine.a2a`，非中立 SPI）
+### 2.5 AgentCardProvider（位于 `engine.spi`，中立 SPI — ADR-0163）
 
 ```java
 public interface AgentCardProvider {
-    /** 返回此运行时实例暴露的 A2A Agent Card。 */
-    AgentCard agentCard();
+    /** 返回此运行时实例暴露的中立 Agent Card 描述符。 */
+    AgentCardDescriptor describe();
 }
 ```
 
-**设计理由**：将 Agent Card（A2A 元数据描述）与 `AgentRuntimeHandler`（Agent 执行逻辑）分离。一个运行时可以分别提供 Card 和 Handler 作为独立 Bean，也可以在具体业务 handler 中同时实现两个接口。Agent Card 本质是 A2A 协议元数据，提供自定义 Card 的业务方依赖 A2A spec 类型是语义本身的要求，因此 `AgentCardProvider` 与 `AgentCards` 落位协议桥包 `com.huawei.ascend.runtime.engine.a2a`，而非中立 SPI 包。
+**设计理由**：将 Agent Card（元数据描述）与 `AgentRuntimeHandler`（Agent 执行逻辑）分离。一个运行时可分别提供描述符和 Handler 作为独立 Bean，也可在业务 handler 中同时实现两个接口。**ADR-0163** 推翻 ADR-0162 的推迟决策：`AgentCardProvider` 现返回**中立** `AgentCardDescriptor`（零 `org.a2aproject` 依赖），与描述符类型同处中立 SPI 包，业务方实现自定义 Card 无需依赖 A2A spec 类型；A2A SDK 类型仅在协议桥 `engine.a2a.A2aAgentCardMapper` 这一唯一投影点构造。
 
 ### 2.6 StateProvider
 
@@ -203,7 +203,7 @@ public interface StateProvider extends AgentRuntimeProvider { }
 | `org.a2aproject.sdk.server.events.QueueManager` | interface | 任务队列管理 | `RuntimeAutoConfiguration` 装配 |
 | `org.a2aproject.sdk.server.tasks.InMemoryTaskStore` | class | Task 内存存储 | `RuntimeAutoConfiguration` 装配 |
 | `org.a2aproject.sdk.server.requesthandlers.DefaultRequestHandler` | class | 默认 RequestHandler 实现 | `RuntimeAutoConfiguration` 装配 |
-| `org.a2aproject.sdk.spec.AgentCard` | class | A2A Agent Card 模型 | `AgentCardController` + `engine.a2a` 的 `AgentCards` / `AgentCardProvider` + `engine.service` 的 `RemoteAgentCatalog`（远端卡解析）使用 |
+| `org.a2aproject.sdk.spec.AgentCard` | class | A2A Agent Card 模型 | `AgentCardController` + `engine.a2a` 的 `A2aAgentCardMapper`（唯一投影点）/ `AgentCards` + `engine.service` 的 `RemoteAgentCatalog`（远端卡解析）使用 |
 | `org.a2aproject.sdk.spec.Task` | class | A2A Task 模型 | 通过 A2A SDK 内部使用 |
 | `org.a2aproject.sdk.spec.Message` | class | A2A Message 模型 | 仅 `engine.a2a` 协议桥内部消费（`A2aAgentExecutor` / `Messages`）；SPI 侧消息载体是中立的 `common.RuntimeMessage` |
 

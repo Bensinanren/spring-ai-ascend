@@ -60,11 +60,15 @@ agent-runtime/
         │   ├── PayloadRefStore.java            # 可观测性扩展点: 超阈值载荷引用化存储接口
         │   ├── LocalFsPayloadRefStore.java     # PayloadRefStore 实现: 本地文件系统
         │   ├── TenantContract.java             # 租户隔离键名常量
+        │   ├── AgentCardProvider.java          # A2A Card 供应 SPI: describe(): AgentCardDescriptor（ADR-0163，迁自 engine.a2a）
+        │   ├── AgentCardDescriptor.java        # 中立 Card 数据模型（零 org.a2aproject）+ Skill/Capabilities/Interface/SecurityScheme/Signature 嵌套描述符
         │   └── package-info.java
-        │   # 注: AgentCardProvider / AgentCards 属于 A2A 协议元数据，位于 engine.a2a（见下）
         │
         ├── a2a/                      # A2A SDK 桥接层
-        │   └── A2aAgentExecutor.java # 实现 A2A SDK AgentExecutor，桥接 A2A 协议与 SPI
+        │   ├── A2aAgentExecutor.java     # 实现 A2A SDK AgentExecutor，桥接 A2A 协议与 SPI
+        │   ├── A2aAgentCardMapper.java   # 唯一 A2A 投影点: AgentCardDescriptor → A2A AgentCard
+        │   ├── AgentCards.java           # 薄描述符工厂（保留 pre-ADR-0163 调用点）
+        │   └── BuildVersion.java         # 从构建属性/manifest 解析版本（避免字面量版本号）
         │
         ├── openjiuwen/               # openJiuwen ReAct Agent 适配器
         │   ├── OpenJiuwenAgentRuntimeHandler.java       # 抽象基类
@@ -172,7 +176,7 @@ agent-runtime/
 | `PayloadRefStore` / `LocalFsPayloadRefStore` | interface / class | 可观测性管道扩展点：超阈值载荷引用化存储（非 shipped SPI，见注） |
 | `TenantContract` | final class | 租户隔离键名常量 |
 
-> `AgentCardProvider` 与 `AgentCards` 属于 A2A 协议元数据，位于 `engine.a2a`，不属于本 SPI 包。`Redactor` 与 `PayloadRefStore` 因包边界原因位于 `engine.spi`，是可观测性管道扩展点，不计入核心 shipped SPI 数量（核心 shipped SPI 仍为 `AgentRuntimeHandler` + `MemoryProvider` + `StreamAdapter` + `AgentCardProvider` 共 4 个）。
+> `AgentCardProvider`（返回中立 `AgentCardDescriptor`）随 ADR-0163 迁入 `engine.spi`；A2A SDK 类型仅在 `engine.a2a.A2aAgentCardMapper` 这一唯一投影点构造。`Redactor` 与 `PayloadRefStore` 因包边界原因位于 `engine.spi`，是可观测性管道扩展点，不计入核心 shipped SPI 数量（核心 shipped SPI 仍为 `AgentRuntimeHandler` + `MemoryProvider` + `StreamAdapter` + `AgentCardProvider` 共 4 个）。
 
 ### 3.2 扩展原则：组合优于继承
 
@@ -219,7 +223,7 @@ public class RuntimeAutoConfiguration {
     // 业务层装配
     @Bean AgentExecutor           // A2aAgentExecutor(primary AgentRuntimeHandler)
     @Bean RequestHandler          // DefaultRequestHandler
-    @Bean AgentCard               // 来自 AgentCardProvider 或默认生成
+    @Bean AgentCard               // A2aAgentCardMapper 投影 AgentCardProvider.describe() 或默认描述符
 }
 ```
 
