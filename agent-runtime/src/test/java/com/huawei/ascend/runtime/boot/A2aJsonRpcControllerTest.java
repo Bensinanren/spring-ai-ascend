@@ -14,10 +14,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.a2aproject.sdk.grpc.StreamResponse;
 import org.a2aproject.sdk.grpc.utils.JSONRPCUtils;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.A2ARequest;
+import org.a2aproject.sdk.jsonrpc.common.wrappers.CancelTaskResponse;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.CreateTaskPushNotificationConfigRequest;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.DeleteTaskPushNotificationConfigRequest;
+import org.a2aproject.sdk.jsonrpc.common.wrappers.GetTaskResponse;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.GetTaskPushNotificationConfigRequest;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.ListTaskPushNotificationConfigsRequest;
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageResponse;
 import org.a2aproject.sdk.server.ServerCallContext;
 import org.a2aproject.sdk.server.requesthandlers.RequestHandler;
 import org.a2aproject.sdk.server.tasks.BasePushNotificationSender;
@@ -200,6 +203,70 @@ class A2aJsonRpcControllerTest {
     }
 
     @Test
+    void getTaskReturnsProtoNakedTaskReadableByA2aSdkClient() throws Exception {
+        A2aJsonRpcController controller =
+                new A2aJsonRpcController(new TaskLookupRequestHandler(), new RuntimeAccessProperties());
+
+        Object response = controller.handle("""
+                {"jsonrpc":"2.0","id":"get-1","method":"GetTask","params":{"id":"task-1"}}
+                """, null);
+
+        String json = (String) ((ResponseEntity<?>) response).getBody();
+        JsonNode root = readTree(json);
+        assertThat(root.path("id").asText()).isEqualTo("get-1");
+        assertThat(root.path("result").path("id").asText()).isEqualTo("task-1");
+        assertThat(root.path("result").has("task"))
+                .as("GetTask returns proto Task directly; only SendMessage/stream payloads use result.task")
+                .isFalse();
+
+        GetTaskResponse parsed = (GetTaskResponse) JSONRPCUtils.parseResponseBody(json, "GetTask");
+        assertThat(parsed.getResult().id()).isEqualTo("task-1");
+    }
+
+    @Test
+    void cancelTaskReturnsProtoNakedTaskReadableByA2aSdkClient() throws Exception {
+        A2aJsonRpcController controller =
+                new A2aJsonRpcController(new TaskLookupRequestHandler(), new RuntimeAccessProperties());
+
+        Object response = controller.handle("""
+                {"jsonrpc":"2.0","id":"cancel-1","method":"CancelTask","params":{"id":"task-1"}}
+                """, null);
+
+        String json = (String) ((ResponseEntity<?>) response).getBody();
+        JsonNode root = readTree(json);
+        assertThat(root.path("id").asText()).isEqualTo("cancel-1");
+        assertThat(root.path("result").path("id").asText()).isEqualTo("task-1");
+        assertThat(root.path("result").has("task"))
+                .as("CancelTask returns proto Task directly; only SendMessage/stream payloads use result.task")
+                .isFalse();
+
+        CancelTaskResponse parsed = (CancelTaskResponse) JSONRPCUtils.parseResponseBody(json, "CancelTask");
+        assertThat(parsed.getResult().id()).isEqualTo("task-1");
+    }
+
+    @Test
+    void sendMessageBlockingKeepsProtoPayloadWrapperReadableByA2aSdkClient() throws Exception {
+        A2aJsonRpcController controller =
+                new A2aJsonRpcController(new BlockingMessageRequestHandler(), new RuntimeAccessProperties());
+
+        Object response = controller.handle("""
+                {"jsonrpc":"2.0","id":"send-1","method":"SendMessage","params":{"message":{"role":"ROLE_USER","parts":[{"text":"ping"}],"messageId":"message-1"}}}
+                """, null);
+
+        String json = (String) ((ResponseEntity<?>) response).getBody();
+        JsonNode root = readTree(json);
+        assertThat(root.path("id").asText()).isEqualTo("send-1");
+        assertThat(root.path("result").path("message").path("messageId").asText()).isEqualTo("message-2");
+        assertThat(root.path("result").has("message")).isTrue();
+        assertThat(root.path("result").has("id"))
+                .as("SendMessage returns proto SendMessageResponse oneof payload, not a naked Message")
+                .isFalse();
+
+        SendMessageResponse parsed = (SendMessageResponse) JSONRPCUtils.parseResponseBody(json, "SendMessage");
+        assertThat(((Message) parsed.getResult()).messageId()).isEqualTo("message-2");
+    }
+
+    @Test
     void midStreamFailureEndsWithJsonRpcErrorFrame() throws Exception {
         A2aJsonRpcController controller = new A2aJsonRpcController(new FailAfterFirstEventRequestHandler(), new RuntimeAccessProperties());
         A2ARequest<?> request = JSONRPCUtils.parseRequestBody("""
@@ -327,6 +394,38 @@ class A2aJsonRpcControllerTest {
             listed.set(true);
             lastContext.set(context);
             return new org.a2aproject.sdk.jsonrpc.common.wrappers.ListTasksResult(List.of());
+        }
+    }
+
+    private static final class TaskLookupRequestHandler extends SingleEventRequestHandler {
+        @Override
+        public Task onGetTask(TaskQueryParams params, ServerCallContext context) {
+            return task(params.id());
+        }
+
+        @Override
+        public Task onCancelTask(CancelTaskParams params, ServerCallContext context) {
+            return task(params.id());
+        }
+
+        private static Task task(String id) {
+            return Task.builder()
+                    .id(id)
+                    .contextId("ctx-1")
+                    .status(new TaskStatus(TaskState.TASK_STATE_COMPLETED))
+                    .metadata(Map.of("source", "test"))
+                    .build();
+        }
+    }
+
+    private static final class BlockingMessageRequestHandler extends SingleEventRequestHandler {
+        @Override
+        public EventKind onMessageSend(MessageSendParams params, ServerCallContext context) {
+            return Message.builder()
+                    .role(Message.Role.ROLE_AGENT)
+                    .messageId("message-2")
+                    .parts(List.<Part<?>>of(new TextPart("pong")))
+                    .build();
         }
     }
 
