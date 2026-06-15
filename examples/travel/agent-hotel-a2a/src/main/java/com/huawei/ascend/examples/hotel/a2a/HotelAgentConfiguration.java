@@ -15,6 +15,7 @@ import org.a2aproject.sdk.spec.AgentInterface;
 import org.a2aproject.sdk.spec.AgentProvider;
 import org.a2aproject.sdk.spec.AgentSkill;
 import org.a2aproject.sdk.spec.TransportProtocol;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -83,8 +84,8 @@ public class HotelAgentConfiguration {
     }
 
     @Bean
-    AgentRuntimeHandler hotelAgentHandler(HotelPlanningAgent agent, MemoryProvider memoryProvider) {
-        return new HotelAgentHandler(AGENT_ID, agent, memoryProvider);
+    AgentRuntimeHandler hotelAgentHandler(HotelPlanningAgent agent, ObjectProvider<MemoryProvider> memoryProvider) {
+        return new HotelAgentHandler(AGENT_ID, agent, memoryProvider.getIfAvailable());
     }
 
     @Bean

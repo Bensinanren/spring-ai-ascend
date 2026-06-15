@@ -58,7 +58,7 @@ final class HotelAgentHandler implements AgentRuntimeHandler {
     HotelAgentHandler(String agentId, HotelPlanningAgent agent, MemoryProvider memoryProvider) {
         this.agentId = agentId;
         this.agent = Objects.requireNonNull(agent, "agent");
-        this.memoryProvider = Objects.requireNonNull(memoryProvider, "memoryProvider");
+        this.memoryProvider = memoryProvider;
     }
 
     @Override
@@ -81,7 +81,7 @@ final class HotelAgentHandler implements AgentRuntimeHandler {
                 context.getScope().taskId(),
                 query.length());
         try {
-            memoryProvider.init(context);
+            initMemory(context);
             String enrichedQuery = prependRecall(context, query);
             String markdown = agent.chat(enrichedQuery);
             saveTurn(context, query, markdown);
@@ -104,6 +104,9 @@ final class HotelAgentHandler implements AgentRuntimeHandler {
 
     private String prependRecall(AgentExecutionContext context, String query) {
         if (query == null || query.isBlank()) {
+            return query;
+        }
+        if (memoryProvider == null) {
             return query;
         }
         List<MemoryHit> hits = memoryProvider.search(context, query, RECALL_LIMIT);
@@ -129,6 +132,9 @@ final class HotelAgentHandler implements AgentRuntimeHandler {
     }
 
     private void saveTurn(AgentExecutionContext context, String originalQuery, String assistantReply) {
+        if (memoryProvider == null) {
+            return;
+        }
         List<MemoryRecord> records = new ArrayList<>(2);
         if (originalQuery != null && !originalQuery.isBlank()) {
             records.add(new MemoryRecord(UUID.randomUUID().toString(), "user", originalQuery, Map.of()));
@@ -138,6 +144,12 @@ final class HotelAgentHandler implements AgentRuntimeHandler {
         }
         if (!records.isEmpty()) {
             memoryProvider.save(context, records);
+        }
+    }
+
+    private void initMemory(AgentExecutionContext context) {
+        if (memoryProvider != null) {
+            memoryProvider.init(context);
         }
     }
 
