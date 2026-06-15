@@ -42,12 +42,12 @@ class AgentStateInMemoryController {
     @PostMapping("/sample/state/save")
     Map<String, Object> save(@RequestBody StateRequest request) {
         String stateKey = normalizeStateKey(request.stateKey());
-        String input = request.input() == null ? "" : request.input();
-        String answer = request.answer() == null ? "" : request.answer();
-        AgentSessionApi session = new AgentSessionApi(stateKey);
-        checkpointer.preAgentExecute(session.getInner(), Map.of("input", input));
-        session.updateState(Map.of("turn", request.turn(), "answer", answer));
-        checkpointer.postAgentExecute(session.getInner());
+        String userInput = request.input() == null ? "" : request.input();
+        String agentAnswer = request.answer() == null ? "" : request.answer();
+        AgentSessionApi stateSession = new AgentSessionApi(stateKey);
+        checkpointer.preAgentExecute(stateSession.getInner(), Map.of("input", userInput));
+        stateSession.updateState(Map.of("turn", request.turn(), "answer", agentAnswer));
+        checkpointer.postAgentExecute(stateSession.getInner());
         return Map.of("stateKey", stateKey, "exists", checkpointer.sessionExists(stateKey));
     }
 
@@ -58,9 +58,9 @@ class AgentStateInMemoryController {
 
     @GetMapping("/sample/state/load")
     Map<String, Object> load(@RequestParam(defaultValue = "demo-state") String stateKey) {
-        AgentSessionApi session = new AgentSessionApi(stateKey);
-        checkpointer.preAgentExecute(session.getInner(), Map.of());
-        return Map.of("stateKey", stateKey, "exists", checkpointer.sessionExists(stateKey), "state", session.dumpState());
+        AgentSessionApi restoredSession = new AgentSessionApi(stateKey);
+        checkpointer.preAgentExecute(restoredSession.getInner(), Map.of());
+        return Map.of("stateKey", stateKey, "exists", checkpointer.sessionExists(stateKey), "state", restoredSession.dumpState());
     }
 
     @DeleteMapping("/sample/state/{stateKey}")

@@ -68,34 +68,34 @@ class MemoryInMemoryController {
 
     @PostMapping("/sample/memory/remember")
     Map<String, Object> remember(@RequestBody MemoryRequest request) {
-        AgentExecutionContext context = context(request.stateKey(), request.text());
-        memoryProvider.init(context);
-        memoryProvider.save(context, List.of(new MemoryProvider.MemoryRecord(
+        AgentExecutionContext executionContext = buildExecutionContext(request.stateKey(), request.text());
+        memoryProvider.init(executionContext);
+        memoryProvider.save(executionContext, List.of(new MemoryProvider.MemoryRecord(
                 null, "assistant", request.text(), Map.of("source", "curl"))));
         return Map.of(
-                "stateKey", context.getAgentStateKey(),
-                "records", memoryProvider.records(context));
+                "stateKey", executionContext.getAgentStateKey(),
+                "records", memoryProvider.records(executionContext));
     }
 
     @PostMapping("/sample/memory/ask")
     Map<String, Object> ask(@RequestBody MemoryRequest request) {
-        AgentExecutionContext context = context(request.stateKey(), request.text());
-        List<?> rawResults = handler.execute(context).toList();
+        AgentExecutionContext executionContext = buildExecutionContext(request.stateKey(), request.text());
+        List<?> agentOutputs = handler.execute(executionContext).toList();
         return Map.of(
-                "stateKey", context.getAgentStateKey(),
+                "stateKey", executionContext.getAgentStateKey(),
                 "query", request.text(),
-                "rawResults", rawResults,
-                "memoryHits", memoryProvider.search(context, request.text(), 5),
-                "records", memoryProvider.records(context));
+                "agentOutputs", agentOutputs,
+                "memoryHits", memoryProvider.search(executionContext, request.text(), 5),
+                "records", memoryProvider.records(executionContext));
     }
 
     @GetMapping("/sample/memory/records")
     Map<String, Object> records(@RequestParam(defaultValue = "demo-user") String stateKey) {
-        AgentExecutionContext context = context(stateKey, "");
-        return Map.of("stateKey", stateKey, "records", memoryProvider.records(context));
+        AgentExecutionContext executionContext = buildExecutionContext(stateKey, "");
+        return Map.of("stateKey", stateKey, "records", memoryProvider.records(executionContext));
     }
 
-    private static AgentExecutionContext context(String stateKey, String text) {
+    private static AgentExecutionContext buildExecutionContext(String stateKey, String text) {
         RuntimeIdentity identity =
                 new RuntimeIdentity("sample-tenant", "sample-user", "sample-session", "sample-task",
                         "middleware-memory-inmemory-agent");

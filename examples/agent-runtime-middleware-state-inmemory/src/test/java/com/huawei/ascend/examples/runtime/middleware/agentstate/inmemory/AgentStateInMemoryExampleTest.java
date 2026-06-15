@@ -14,40 +14,40 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class AgentStateInMemoryExampleTest {
-    private Checkpointer original;
+    private Checkpointer originalCheckpointer;
 
     @BeforeEach
     void captureOriginalCheckpointer() {
-        original = CheckpointerFactory.getCheckpointer();
+        originalCheckpointer = CheckpointerFactory.getCheckpointer();
     }
 
     @AfterEach
     void restoreOriginalCheckpointer() {
-        CheckpointerFactory.setDefaultCheckpointer(original);
+        CheckpointerFactory.setDefaultCheckpointer(originalCheckpointer);
     }
 
     @Test
     void inMemoryCheckpointerPersistsAndReleasesAgentSession() {
-        Checkpointer checkpointer = OpenJiuwenCheckpointerConfigurer.setInMemoryDefault();
+        Checkpointer inMemoryCheckpointer = OpenJiuwenCheckpointerConfigurer.setInMemoryDefault();
         String sessionId = "in-memory-state-" + UUID.randomUUID();
-        AgentSessionApi session = new AgentSessionApi(sessionId);
+        AgentSessionApi savedSession = new AgentSessionApi(sessionId);
 
-        checkpointer.preAgentExecute(session.getInner(), Map.of("input", "ping"));
-        session.updateState(Map.of("turn", 1, "answer", "pong"));
-        checkpointer.postAgentExecute(session.getInner());
+        inMemoryCheckpointer.preAgentExecute(savedSession.getInner(), Map.of("input", "ping"));
+        savedSession.updateState(Map.of("turn", 1, "answer", "pong"));
+        inMemoryCheckpointer.postAgentExecute(savedSession.getInner());
 
-        assertThat(checkpointer).isInstanceOf(InMemoryCheckpointer.class);
-        assertThat(checkpointer.sessionExists(sessionId)).isTrue();
+        assertThat(inMemoryCheckpointer).isInstanceOf(InMemoryCheckpointer.class);
+        assertThat(inMemoryCheckpointer.sessionExists(sessionId)).isTrue();
 
-        AgentSessionApi restored = new AgentSessionApi(sessionId);
-        checkpointer.preAgentExecute(restored.getInner(), Map.of());
-        Map<?, ?> globalState = (Map<?, ?>) restored.dumpState().get("global_state");
+        AgentSessionApi restoredSession = new AgentSessionApi(sessionId);
+        inMemoryCheckpointer.preAgentExecute(restoredSession.getInner(), Map.of());
+        Map<?, ?> restoredGlobalState = (Map<?, ?>) restoredSession.dumpState().get("global_state");
 
-        assertThat(globalState.get("turn")).isEqualTo(1);
-        assertThat(globalState.get("answer")).isEqualTo("pong");
+        assertThat(restoredGlobalState.get("turn")).isEqualTo(1);
+        assertThat(restoredGlobalState.get("answer")).isEqualTo("pong");
 
-        checkpointer.release(sessionId);
+        inMemoryCheckpointer.release(sessionId);
 
-        assertThat(checkpointer.sessionExists(sessionId)).isFalse();
+        assertThat(inMemoryCheckpointer.sessionExists(sessionId)).isFalse();
     }
 }

@@ -94,7 +94,7 @@ curl -s -X POST http://localhost:18081/sample/memory/ask \
 期望响应：
 
 - `memoryHits` 中包含 `the user prefers green tea`，说明 memory rail 使用同一个 `stateKey` 检索到了长期记忆。
-- `rawResults` 中是模型真实返回结果，正常情况下应能回答用户偏好是 `green tea`。
+- `agentOutputs` 中是模型真实返回结果，正常情况下应能回答用户偏好是 `green tea`。
 - `records` 中包含本轮用户输入和 assistant 输出，说明执行后触发了 `MemoryProvider.save(...)`。
 
 说明：本样例的 InMemory provider 使用简单字符串匹配和词重叠打分，不做向量语义检索；因此 curl 示例的用户输入和记忆内容都包含 `user/prefer` 这类关键词，确保测试团队能稳定观察到记忆命中。

@@ -39,9 +39,9 @@ class MemoryInMemoryExampleTest {
                 Boolean.parseBoolean(envOrDefault("SAA_SAMPLE_OPENJIUWEN_SSL_VERIFY", "false")),
                 provider);
 
-        List<?> rawResults = handler.execute(greenTeaUserContext).toList();
+        List<?> agentOutputs = handler.execute(greenTeaUserContext).toList();
 
-        assertThat(rawResults).isNotEmpty();
+        assertThat(agentOutputs).isNotEmpty();
         assertThat(provider.search(greenTeaUserContext, "black coffee", 3)).isEmpty();
         assertThat(provider.search(greenTeaUserContext, "green tea", 3))
                 .first()
@@ -49,7 +49,7 @@ class MemoryInMemoryExampleTest {
         assertThat(provider.records(greenTeaUserContext))
                 .extracting(MemoryProvider.MemoryRecord::content)
                 .contains("the user prefers green tea", "green tea");
-        assertThat(judgeAnswer(rawResults)).contains("PASS");
+        assertThat(judgeAnswer(agentOutputs)).contains("PASS");
     }
 
     private static MemoryProvider.MemoryRecord record(String content) {
@@ -65,9 +65,9 @@ class MemoryInMemoryExampleTest {
         return hasText(value) ? value : fallback;
     }
 
-    private static String judgeAnswer(List<?> rawResults) throws Exception {
-        String answer = rawResults.toString();
-        Map<String, Object> request = Map.of(
+    private static String judgeAnswer(List<?> agentOutputs) throws Exception {
+        String agentAnswer = agentOutputs.toString();
+        Map<String, Object> judgeRequest = Map.of(
                 "model", envOrDefault("SAA_SAMPLE_LLM_MODEL", "deepseek-chat"),
                 "temperature", 0,
                 "max_tokens", 16,
@@ -81,22 +81,22 @@ class MemoryInMemoryExampleTest {
 
                                 Answer:
                                 %s
-                                """.formatted(answer))));
-        HttpRequest httpRequest = HttpRequest.newBuilder()
+                                """.formatted(agentAnswer))));
+        HttpRequest judgeHttpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(chatCompletionsUrl(envOrDefault(
                         "SAA_SAMPLE_OPENJIUWEN_API_BASE", "https://api.deepseek.com"))))
                 .header("Authorization", "Bearer " + System.getenv("SAA_SAMPLE_LLM_API_KEY"))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(request)))
+                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(judgeRequest)))
                 .build();
-        HttpResponse<String> response = HTTP.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isBetween(200, 299);
-        JsonNode content = JSON.readTree(response.body())
+        HttpResponse<String> judgeResponse = HTTP.send(judgeHttpRequest, HttpResponse.BodyHandlers.ofString());
+        assertThat(judgeResponse.statusCode()).isBetween(200, 299);
+        JsonNode judgeContent = JSON.readTree(judgeResponse.body())
                 .path("choices")
                 .path(0)
                 .path("message")
                 .path("content");
-        return content.asText();
+        return judgeContent.asText();
     }
 
     private static String chatCompletionsUrl(String apiBase) {

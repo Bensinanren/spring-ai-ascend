@@ -72,32 +72,32 @@ class MemoryMem0Controller {
 
     @PostMapping("/sample/memory/remember")
     Map<String, Object> remember(@RequestBody MemoryRequest request) {
-        AgentExecutionContext context = context(request.stateKey(), request.text());
-        memoryProvider.save(context, List.of(new MemoryProvider.MemoryRecord(
+        AgentExecutionContext executionContext = buildExecutionContext(request.stateKey(), request.text());
+        memoryProvider.save(executionContext, List.of(new MemoryProvider.MemoryRecord(
                 null, "assistant", request.text(), Map.of("source", "curl"))));
-        return Map.of("stateKey", context.getAgentStateKey(), "saved", true);
+        return Map.of("stateKey", executionContext.getAgentStateKey(), "saved", true);
     }
 
     @PostMapping("/sample/memory/ask")
     Map<String, Object> ask(@RequestBody MemoryRequest request) {
-        AgentExecutionContext context = context(request.stateKey(), request.text());
-        List<?> rawResults = handler.execute(context).toList();
+        AgentExecutionContext executionContext = buildExecutionContext(request.stateKey(), request.text());
+        List<?> agentOutputs = handler.execute(executionContext).toList();
         return Map.of(
-                "stateKey", context.getAgentStateKey(),
+                "stateKey", executionContext.getAgentStateKey(),
                 "query", request.text(),
-                "rawResults", rawResults,
-                "hits", memoryProvider.search(context, request.text(), 5));
+                "agentOutputs", agentOutputs,
+                "hits", memoryProvider.search(executionContext, request.text(), 5));
     }
 
     @GetMapping("/sample/memory/search")
     Map<String, Object> search(
             @RequestParam(defaultValue = "demo-user") String stateKey,
             @RequestParam(defaultValue = "green tea") String query) {
-        AgentExecutionContext context = context(stateKey, query);
-        return Map.of("stateKey", stateKey, "query", query, "hits", memoryProvider.search(context, query, 5));
+        AgentExecutionContext executionContext = buildExecutionContext(stateKey, query);
+        return Map.of("stateKey", stateKey, "query", query, "hits", memoryProvider.search(executionContext, query, 5));
     }
 
-    private static AgentExecutionContext context(String stateKey, String text) {
+    private static AgentExecutionContext buildExecutionContext(String stateKey, String text) {
         RuntimeIdentity identity =
                 new RuntimeIdentity("sample-tenant", "sample-user", "sample-session", "sample-task",
                         "middleware-memory-mem0-agent");

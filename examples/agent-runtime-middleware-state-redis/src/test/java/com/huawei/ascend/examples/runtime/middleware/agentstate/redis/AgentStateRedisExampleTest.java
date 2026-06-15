@@ -17,16 +17,16 @@ import org.junit.jupiter.api.Test;
 
 @Tag("manual")
 class AgentStateRedisExampleTest {
-    private Checkpointer original;
+    private Checkpointer originalCheckpointer;
 
     @BeforeEach
     void captureOriginalCheckpointer() {
-        original = CheckpointerFactory.getCheckpointer();
+        originalCheckpointer = CheckpointerFactory.getCheckpointer();
     }
 
     @AfterEach
     void restoreOriginalCheckpointer() {
-        CheckpointerFactory.setDefaultCheckpointer(original);
+        CheckpointerFactory.setDefaultCheckpointer(originalCheckpointer);
     }
 
     @Test
@@ -36,27 +36,27 @@ class AgentStateRedisExampleTest {
 
         Checkpointer redisCheckpointer = new RedisCheckpointer.Provider()
                 .create(Map.of("connection", Map.of("url", redisUrl)));
-        Checkpointer installed = OpenJiuwenCheckpointerConfigurer.setDefault(redisCheckpointer);
+        Checkpointer installedCheckpointer = OpenJiuwenCheckpointerConfigurer.setDefault(redisCheckpointer);
         String sessionId = "redis-state-" + UUID.randomUUID();
-        AgentSessionApi session = new AgentSessionApi(sessionId);
+        AgentSessionApi savedSession = new AgentSessionApi(sessionId);
 
-        installed.preAgentExecute(session.getInner(), Map.of("input", "ping"));
-        session.updateState(Map.of("turn", 1, "answer", "pong"));
-        installed.postAgentExecute(session.getInner());
+        installedCheckpointer.preAgentExecute(savedSession.getInner(), Map.of("input", "ping"));
+        savedSession.updateState(Map.of("turn", 1, "answer", "pong"));
+        installedCheckpointer.postAgentExecute(savedSession.getInner());
 
-        assertThat(installed).isSameAs(redisCheckpointer);
-        assertThat(installed.sessionExists(sessionId)).isTrue();
+        assertThat(installedCheckpointer).isSameAs(redisCheckpointer);
+        assertThat(installedCheckpointer.sessionExists(sessionId)).isTrue();
 
-        AgentSessionApi restored = new AgentSessionApi(sessionId);
-        installed.preAgentExecute(restored.getInner(), Map.of());
-        Map<?, ?> globalState = (Map<?, ?>) restored.dumpState().get("global_state");
+        AgentSessionApi restoredSession = new AgentSessionApi(sessionId);
+        installedCheckpointer.preAgentExecute(restoredSession.getInner(), Map.of());
+        Map<?, ?> restoredGlobalState = (Map<?, ?>) restoredSession.dumpState().get("global_state");
 
-        assertThat(globalState.get("turn")).isEqualTo(1);
-        assertThat(globalState.get("answer")).isEqualTo("pong");
+        assertThat(restoredGlobalState.get("turn")).isEqualTo(1);
+        assertThat(restoredGlobalState.get("answer")).isEqualTo("pong");
 
-        installed.release(sessionId);
+        installedCheckpointer.release(sessionId);
 
-        assertThat(installed.sessionExists(sessionId)).isFalse();
+        assertThat(installedCheckpointer.sessionExists(sessionId)).isFalse();
     }
 
     private static boolean hasText(String value) {

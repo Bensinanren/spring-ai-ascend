@@ -125,7 +125,7 @@ curl -s -X POST http://localhost:18082/sample/memory/ask \
 期望响应：
 
 - `hits` 包含 Mem0 返回的记忆。
-- `rawResults` 中是模型真实返回结果，正常情况下应能回答用户偏好是 `green tea`。
+- `agentOutputs` 中是模型真实返回结果，正常情况下应能回答用户偏好是 `green tea`。
 
 ---
 

@@ -27,10 +27,10 @@ class MemoryMem0ExampleTest {
         assumeTrue(hasText(baseUrl), "Set SAA_SAMPLE_MEM0_BASE_URL to run the real Mem0 example");
         assumeTrue(hasText(System.getenv("SAA_SAMPLE_LLM_API_KEY")),
                 "Set SAA_SAMPLE_LLM_API_KEY to run the real LLM example");
-        Mem0RestMemoryProvider provider = new Mem0RestMemoryProvider(
+        Mem0RestMemoryProvider memoryProvider = new Mem0RestMemoryProvider(
                 baseUrl, System.getenv("SAA_SAMPLE_MEM0_API_KEY"), false, envOrDefault("SAA_SAMPLE_MEM0_API_MODE", "oss"));
-        AgentExecutionContext context = MiddlewareTestFixtures.context("mem0-state-" + System.nanoTime());
-        provider.save(context, List.of(new MemoryProvider.MemoryRecord(null, "assistant",
+        AgentExecutionContext greenTeaUserContext = MiddlewareTestFixtures.context("mem0-state-" + System.nanoTime());
+        memoryProvider.save(greenTeaUserContext, List.of(new MemoryProvider.MemoryRecord(null, "assistant",
                 "the user prefers green tea", Map.of("source", "test"))));
         SampleMem0OpenJiuwenHandler handler = new SampleMem0OpenJiuwenHandler(
                 "openjiuwen-simple-agent",
@@ -39,15 +39,15 @@ class MemoryMem0ExampleTest {
                 envOrDefault("SAA_SAMPLE_OPENJIUWEN_API_BASE", "https://api.deepseek.com"),
                 envOrDefault("SAA_SAMPLE_LLM_MODEL", "deepseek-chat"),
                 Boolean.parseBoolean(envOrDefault("SAA_SAMPLE_OPENJIUWEN_SSL_VERIFY", "false")),
-                provider);
+                memoryProvider);
 
-        List<?> rawResults = handler.execute(context).toList();
+        List<?> agentOutputs = handler.execute(greenTeaUserContext).toList();
 
-        assertThat(rawResults).isNotEmpty();
-        assertThat(provider.search(context, "green tea", 5))
+        assertThat(agentOutputs).isNotEmpty();
+        assertThat(memoryProvider.search(greenTeaUserContext, "green tea", 5))
                 .extracting(MemoryProvider.MemoryHit::content)
                 .anySatisfy(content -> assertThat(content).containsIgnoringCase("green tea"));
-        assertThat(judgeAnswer(rawResults)).contains("PASS");
+        assertThat(judgeAnswer(agentOutputs)).contains("PASS");
     }
 
     private static boolean hasText(String value) {
@@ -59,9 +59,9 @@ class MemoryMem0ExampleTest {
         return hasText(value) ? value : fallback;
     }
 
-    private static String judgeAnswer(List<?> rawResults) throws Exception {
-        String answer = rawResults.toString();
-        Map<String, Object> request = Map.of(
+    private static String judgeAnswer(List<?> agentOutputs) throws Exception {
+        String agentAnswer = agentOutputs.toString();
+        Map<String, Object> judgeRequest = Map.of(
                 "model", envOrDefault("SAA_SAMPLE_LLM_MODEL", "deepseek-chat"),
                 "temperature", 0,
                 "max_tokens", 16,
@@ -75,22 +75,22 @@ class MemoryMem0ExampleTest {
 
                                 Answer:
                                 %s
-                                """.formatted(answer))));
-        HttpRequest httpRequest = HttpRequest.newBuilder()
+                                """.formatted(agentAnswer))));
+        HttpRequest judgeHttpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(chatCompletionsUrl(envOrDefault(
                         "SAA_SAMPLE_OPENJIUWEN_API_BASE", "https://api.deepseek.com"))))
                 .header("Authorization", "Bearer " + System.getenv("SAA_SAMPLE_LLM_API_KEY"))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(request)))
+                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(judgeRequest)))
                 .build();
-        HttpResponse<String> response = HTTP.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isBetween(200, 299);
-        JsonNode content = JSON.readTree(response.body())
+        HttpResponse<String> judgeResponse = HTTP.send(judgeHttpRequest, HttpResponse.BodyHandlers.ofString());
+        assertThat(judgeResponse.statusCode()).isBetween(200, 299);
+        JsonNode judgeContent = JSON.readTree(judgeResponse.body())
                 .path("choices")
                 .path(0)
                 .path("message")
                 .path("content");
-        return content.asText();
+        return judgeContent.asText();
     }
 
     private static String chatCompletionsUrl(String apiBase) {
