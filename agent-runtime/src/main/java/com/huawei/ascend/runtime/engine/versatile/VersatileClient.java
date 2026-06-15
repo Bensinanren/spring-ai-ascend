@@ -36,6 +36,10 @@ public class VersatileClient {
     private static final Logger LOG = LoggerFactory.getLogger(VersatileClient.class);
 
     private static final String POISON = "__VERSATILE_STREAM_END__";
+    static final String CONNECTION_CLOSED_EVENT =
+            "data:{\"event\":\"connection_closed\",\"data\":{\"reason\":\"eof\"}}";
+    static final String CONNECTION_CLOSED_ERROR_EVENT =
+            "data:{\"event\":\"connection_closed\",\"data\":{\"reason\":\"error\"}}";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final HttpClient httpClient;
@@ -111,6 +115,7 @@ public class VersatileClient {
                     String errorBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
                     upstreamError.set(new VersatileClientException(
                             "HTTP " + statusCode + ": " + errorBody));
+                    safeOffer(queue, CONNECTION_CLOSED_ERROR_EVENT);
                     safeOffer(queue, POISON);
                     return;
                 }
@@ -120,14 +125,18 @@ public class VersatileClient {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         if (!line.isEmpty()) {
-                            LOG.debug("versatile sse line len={}", line.length());
+                            LOG.info("versatile sse received: {}", line);
                             safeOffer(queue, line);
                         }
                     }
+                    // Normal EOF — emit connection_closed before poison
+                    LOG.info("versatile sse stream ended normally — injecting connection_closed");
+                    safeOffer(queue, CONNECTION_CLOSED_EVENT);
                 }
             } catch (Exception e) {
                 LOG.warn("versatile upstream error: {}", e.getMessage());
                 upstreamError.set(e);
+                safeOffer(queue, CONNECTION_CLOSED_ERROR_EVENT);
             } finally {
                 safeOffer(queue, POISON);
             }

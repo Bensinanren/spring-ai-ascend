@@ -1,5 +1,6 @@
 package com.huawei.ascend.runtime.engine.a2a;
 
+import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -85,8 +86,8 @@ public final class A2aRemoteAgentOutboundAdapter implements RemoteAgentInvocatio
     public List<RemoteAgentInvocationService.RemoteAgentResult> invoke(
             RemoteAgentInvocationService.RemoteAgentRequest request,
             Consumer<RemoteAgentInvocationService.RemoteAgentResult> eventConsumer) {
-        LOG.info("remote agent invocation start remoteAgentId={} remoteTaskId={} messageLen={}",
-                request.remoteAgentId(), request.remoteTaskId(), request.message().length());
+        LOG.info("remote agent invocation start remoteAgentId={} remoteTaskId={} message={}",
+                request.remoteAgentId(), request.remoteTaskId(), request.message());
         ClientTransport transport = obtainTransport(request.remoteAgentId());
         if (transport == null) {
             LOG.warn("remote agent invocation rejected: no transport for remoteAgentId={}",
@@ -274,7 +275,8 @@ public final class A2aRemoteAgentOutboundAdapter implements RemoteAgentInvocatio
                     Messages.text(message),
                     message.taskId(),
                     message.contextId(),
-                    message.metadata());
+                    message.metadata(),
+                    targetFromMetadata(message.metadata()));
         }
         if (event instanceof TaskArtifactUpdateEvent artifactUpdate) {
             Artifact artifact = artifactUpdate.artifact();
@@ -283,7 +285,8 @@ public final class A2aRemoteAgentOutboundAdapter implements RemoteAgentInvocatio
                     artifact == null ? "" : Messages.text(artifact.parts()),
                     artifactUpdate.taskId(),
                     artifactUpdate.contextId(),
-                    artifactUpdate.metadata());
+                    artifactUpdate.metadata(),
+                    targetFromMetadata(artifactUpdate.metadata()));
         }
         if (event instanceof TaskStatusUpdateEvent statusUpdate) {
             return statusResult(statusUpdate.status(), statusUpdate.taskId(), statusUpdate.contextId(),
@@ -292,24 +295,41 @@ public final class A2aRemoteAgentOutboundAdapter implements RemoteAgentInvocatio
         return null;
     }
 
+    private static final String TARGET_METADATA_KEY = "a2a.target";
+
+    private static AgentExecutionResult.Target targetFromMetadata(Map<String, Object> metadata) {
+        if (metadata == null) return AgentExecutionResult.Target.BOTH;
+        Object value = metadata.get(TARGET_METADATA_KEY);
+        if (value == null) return AgentExecutionResult.Target.BOTH;
+        try {
+            return AgentExecutionResult.Target.valueOf(String.valueOf(value));
+        } catch (IllegalArgumentException e) {
+            return AgentExecutionResult.Target.BOTH;
+        }
+    }
+
     private static RemoteAgentInvocationService.RemoteAgentResult statusResult(
             TaskStatus status, String taskId, String contextId, Map<String, Object> metadata) {
         TaskState state = status == null ? null : status.state();
         String text = status == null ? "" : Messages.text(status.message());
+        // Extract target from status message metadata (set by remote A2aResultRouter)
+        AgentExecutionResult.Target target = status != null && status.message() != null
+                ? targetFromMetadata(status.message().metadata())
+                : AgentExecutionResult.Target.BOTH;
         if (state == TaskState.TASK_STATE_INPUT_REQUIRED) {
             return new RemoteAgentInvocationService.RemoteAgentResult(
                     RemoteAgentInvocationService.RemoteAgentResult.Type.INPUT_REQUIRED,
-                    text, taskId, contextId, metadata);
+                    text, taskId, contextId, metadata, target);
         }
         if (state == TaskState.TASK_STATE_COMPLETED) {
             return new RemoteAgentInvocationService.RemoteAgentResult(
                     RemoteAgentInvocationService.RemoteAgentResult.Type.COMPLETED,
-                    text, taskId, contextId, metadata);
+                    text, taskId, contextId, metadata, target);
         }
         if (state != null && state.isFinal()) {
             return new RemoteAgentInvocationService.RemoteAgentResult(
                     RemoteAgentInvocationService.RemoteAgentResult.Type.FAILED,
-                    text, taskId, contextId, metadata);
+                    text, taskId, contextId, metadata, target);
         }
         return null;
     }

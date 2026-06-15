@@ -245,7 +245,7 @@ class OpenJiuwenAgentRuntimeHandlerTest {
     }
 
     @Test
-    void openJiuwenExternalMemoryProviderAdapterDelegatesToRuntimeMemoryProvider() {
+    void openJiuwenExternalMemoryProviderAdapterDelegatesToRuntimeMemoryProvider() throws Exception {
         AgentExecutionContext context = context(Map.of(AgentExecutionContext.AGENT_STATE_KEY_VARIABLE, "order-42"));
         FakeMemoryProvider memoryProvider = new FakeMemoryProvider();
         OpenJiuwenExternalMemoryProviderAdapter adapter =

@@ -164,13 +164,13 @@ public final class A2aAgentExecutor implements AgentExecutor {
             LOG.info("[A2A] task state=WORKING taskId={}", taskId);
 
             String inputText = extractText(ctx);
-            LOG.info("[A2A] input parsed taskId={} textChars={}", taskId, inputText.length());
+            LOG.info("[A2A] input parsed taskId={} textChars={} inputText={}", taskId, inputText.length(), inputText);
 
             if (remote.isRemoteContinuation(ctx)) {
                 runRemoteSegment(taskId, cancelled,
                         () -> remote.continueRemote(ctx, emitter, taskId, artifactId, firstArtifact, cancelled,
                                 resumeConsumer(ctx, flowRef), northboundDelivery));
-                LOG.info("[A2A] execute finish taskId={} durationMs={}",
+                LOG.info("[A2A] execute finish (remote continuation) taskId={} durationMs={}",
                         taskId, (System.nanoTime() - startedNanos) / 1_000_000L);
                 return;
             }
@@ -309,9 +309,10 @@ public final class A2aAgentExecutor implements AgentExecutor {
             Iterator<AgentExecutionResult> iterator = results.iterator();
             while (!cancelled.get() && iterator.hasNext()) {
                 AgentExecutionResult result = iterator.next();
+                String outputContent = result.outputContent();
                 LOG.info("[A2A] result taskId={} type={} outputChars={}",
                         taskId, result.type(),
-                        result.outputContent() != null ? result.outputContent().length() : 0);
+                        outputContent != null ? outputContent.length() : 0);
                 RouteDecision decision = A2aResultRouter.route(result, emitter, taskId, artifactId,
                         firstArtifact, remoteInvocationAllowed);
                 if (decision.stop()) {
@@ -320,7 +321,12 @@ public final class A2aAgentExecutor implements AgentExecutor {
             }
             // A cancel observed here already moved the task to CANCELED; emitting
             // a drained-completion would fight the terminal the client just saw.
-            return cancelled.get() ? RouteDecision.terminal() : RouteDecision.drained();
+            if (cancelled.get()) {
+                LOG.info("[A2A] handler stream cancelled taskId={}", taskId);
+                return RouteDecision.terminal();
+            }
+            LOG.info("[A2A] handler stream drained without terminal — falling back to complete taskId={}", taskId);
+            return RouteDecision.drained();
         } catch (RuntimeException e) {
             if (cancelled.get()) {
                 return RouteDecision.terminal();
@@ -393,7 +399,12 @@ public final class A2aAgentExecutor implements AgentExecutor {
         }
         String sessionId = ctx.getContextId() != null ? ctx.getContextId() : ctx.getTaskId();
         vars.put(AgentExecutionContext.AGENT_STATE_KEY_VARIABLE, sessionId);
-        return Map.copyOf(vars);
+        Map<String, Object> merged = Map.copyOf(vars);
+        LOG.info("[A2A] request received taskId={} sessionId={} textLen={} metadataKeys={} metadata={}",
+                ctx.getTaskId(), sessionId,
+                ctx.getMessage() != null ? Messages.text(ctx.getMessage()).length() : 0,
+                merged.keySet(), merged);
+        return merged;
     }
 
     private static String extractText(RequestContext ctx) {
