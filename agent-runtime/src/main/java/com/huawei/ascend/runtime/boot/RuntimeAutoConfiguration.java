@@ -6,6 +6,9 @@ import com.huawei.ascend.runtime.engine.a2a.AgentCardProvider;
 import com.huawei.ascend.runtime.engine.a2a.RemoteAgentCardCache;
 import com.huawei.ascend.runtime.engine.a2a.RemoteAgentInvocationService;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
+import com.huawei.ascend.runtime.engine.spi.CostCalculator;
+import com.huawei.ascend.runtime.engine.spi.PatternRedactor;
+import com.huawei.ascend.runtime.engine.spi.Redactor;
 import com.huawei.ascend.runtime.engine.spi.TrajectoryMasking;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySettings;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySinkFactory;
@@ -152,8 +155,12 @@ public class RuntimeAutoConfiguration {
         if (!properties.isEnabled()) {
             return TrajectorySettings.off();
         }
+        Redactor redactor = properties.getRedact().isEnabled() ? new PatternRedactor() : Redactor.NONE;
+        CostCalculator costCalculator = properties.getPricing().isEnabled()
+                ? new TableCostCalculator(properties.getPricing().getModels())
+                : CostCalculator.NONE;
         return new TrajectorySettings(true, compileMaskPattern(properties.getMask().getKeyPattern()),
-                properties.getMask().getTruncateChars(), properties.getSampleRate());
+                properties.getMask().getTruncateChars(), properties.getSampleRate(), redactor, costCalculator);
     }
 
     /**

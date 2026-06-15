@@ -235,4 +235,78 @@ class StampingTrajectoryEmitterTest {
         assertThat(runStart.parentTaskId()).isNull();
         assertThat(runStart.parentTraceId()).isNull();
     }
+
+    @Test
+    void patternRedactorScrubsCreditCardInArgs() {
+        CapturingSink sink = new CapturingSink();
+        TrajectorySettings settings = new TrajectorySettings(true,
+                Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256, 1.0,
+                new PatternRedactor(), CostCalculator.NONE);
+        StampingTrajectoryEmitter emitter =
+                new StampingTrajectoryEmitter(sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        // Visa test card number embedded in a string arg
+        emitter.emit(TrajectoryDraft.toolCallStart("pay", "charge 4111 1111 1111 1111 now"));
+
+        TrajectoryEvent event = first(sink.events, Kind.TOOL_CALL_START);
+        assertThat(String.valueOf(event.args())).doesNotContain("4111 1111 1111 1111");
+        assertThat(String.valueOf(event.args())).contains("***");
+    }
+
+    @Test
+    void faultyRedactorFailsClosedToRedactedMarker() {
+        CapturingSink sink = new CapturingSink();
+        Redactor faultyRedactor = value -> { throw new RuntimeException("redactor broke"); };
+        TrajectorySettings settings = new TrajectorySettings(true,
+                Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256, 1.0,
+                faultyRedactor, CostCalculator.NONE);
+        StampingTrajectoryEmitter emitter =
+                new StampingTrajectoryEmitter(sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        emitter.emit(TrajectoryDraft.toolCallStart("x", "sensitive payload"));
+
+        // Fail-closed: payload is replaced with the redaction marker, not leaked
+        assertThat(String.valueOf(first(sink.events, Kind.TOOL_CALL_START).args())).isEqualTo("***");
+    }
+
+    @Test
+    void costCalculatorEnrichesUsageOnModelCallEnd() {
+        CapturingSink sink = new CapturingSink();
+        CostCalculator fixedCalculator = usage -> {
+            if (usage == null) return null;
+            return new TrajectoryEvent.Usage(usage.inputTokens(), usage.outputTokens(),
+                    usage.latencyMs(), usage.model(), "openai", 9999L);
+        };
+        TrajectorySettings settings = new TrajectorySettings(true,
+                Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256, 1.0,
+                Redactor.NONE, fixedCalculator);
+        StampingTrajectoryEmitter emitter =
+                new StampingTrajectoryEmitter(sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        TrajectoryEvent.Usage rawUsage = new TrajectoryEvent.Usage(100, 50, null, "gpt-4o", null, null);
+        emitter.emit(TrajectoryDraft.modelCallEnd(rawUsage, "stop", null));
+
+        TrajectoryEvent event = first(sink.events, Kind.MODEL_CALL_END);
+        assertThat(event.usage().provider()).isEqualTo("openai");
+        assertThat(event.usage().costMicros()).isEqualTo(9999L);
+    }
+
+    @Test
+    void faultyCostCalculatorFailsSafePreservingOriginalUsage() {
+        CapturingSink sink = new CapturingSink();
+        CostCalculator faultyCalc = usage -> { throw new RuntimeException("calc broke"); };
+        TrajectorySettings settings = new TrajectorySettings(true,
+                Pattern.compile(TrajectoryMasking.DEFAULT_KEY_PATTERN), 256, 1.0,
+                Redactor.NONE, faultyCalc);
+        StampingTrajectoryEmitter emitter =
+                new StampingTrajectoryEmitter(sink, SCOPE, settings, EnumSet.allOf(Kind.class));
+
+        TrajectoryEvent.Usage rawUsage = new TrajectoryEvent.Usage(10, 5, null, "gpt-4o", null, null);
+        emitter.emit(TrajectoryDraft.modelCallEnd(rawUsage, "stop", null));
+
+        // Fail-safe: the original usage is preserved, not dropped
+        TrajectoryEvent event = first(sink.events, Kind.MODEL_CALL_END);
+        assertThat(event.usage().inputTokens()).isEqualTo(10);
+        assertThat(event.usage().outputTokens()).isEqualTo(5);
+    }
 }

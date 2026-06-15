@@ -75,13 +75,14 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
         if (!publish) {
             return;
         }
-        Object args = TrajectoryMasking.mask(draft.args(),
-                settings.maskKeyPattern(), settings.truncateChars());
-        Object result = TrajectoryMasking.mask(draft.result(),
-                settings.maskKeyPattern(), settings.truncateChars());
-        Object reasoning = TrajectoryMasking.mask(draft.reasoning(),
-                settings.maskKeyPattern(), settings.truncateChars());
+        Object args = redact(TrajectoryMasking.mask(draft.args(),
+                settings.maskKeyPattern(), settings.truncateChars()));
+        Object result = redact(TrajectoryMasking.mask(draft.result(),
+                settings.maskKeyPattern(), settings.truncateChars()));
+        Object reasoning = redact(TrajectoryMasking.mask(draft.reasoning(),
+                settings.maskKeyPattern(), settings.truncateChars()));
         ErrorInfo error = maskError(draft.error());
+        TrajectoryEvent.Usage usage = enrichUsage(draft.usage());
         sink.accept(new TrajectoryEvent(
                 seq++,
                 kind,
@@ -97,7 +98,7 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
                 draft.name(),
                 args,
                 result,
-                draft.usage(),
+                usage,
                 draft.attempt(),
                 draft.retryable(),
                 error,
@@ -202,8 +203,32 @@ public final class StampingTrajectoryEmitter implements TrajectoryEmitter {
         if (error == null || error.message() == null) {
             return error;
         }
-        Object masked = TrajectoryMasking.mask(error.message(),
-                settings.maskKeyPattern(), settings.truncateChars());
+        Object masked = redact(TrajectoryMasking.mask(error.message(),
+                settings.maskKeyPattern(), settings.truncateChars()));
         return new ErrorInfo(error.code(), masked != null ? String.valueOf(masked) : null, error.category());
+    }
+
+    /** Value-level redaction on top of key masking; fail-closed so a faulty redactor cannot leak. */
+    private Object redact(Object masked) {
+        if (masked == null) {
+            return null;
+        }
+        try {
+            return settings.redactor().redact(masked);
+        } catch (RuntimeException e) {
+            return Redactor.REDACTED;
+        }
+    }
+
+    /** Fill model-call provider/cost; a faulty calculator leaves the usage untouched. */
+    private TrajectoryEvent.Usage enrichUsage(TrajectoryEvent.Usage usage) {
+        if (usage == null) {
+            return null;
+        }
+        try {
+            return settings.costCalculator().enrich(usage);
+        } catch (RuntimeException e) {
+            return usage;
+        }
     }
 }
