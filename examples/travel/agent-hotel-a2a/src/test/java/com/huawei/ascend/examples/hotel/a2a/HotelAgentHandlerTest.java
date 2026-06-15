@@ -116,21 +116,19 @@ class HotelAgentHandlerTest {
     @Test
     void searchReturnsRecentMemoryWhenTextSimilarityMisses() {
         HotelInMemoryMemoryProvider memoryProvider = new HotelInMemoryMemoryProvider();
-        AgentExecutionContext firstTurn = context("\u5317\u4eac\u56fd\u8d38600\u4ee5\u5185\u4e09\u661f\u9152\u5e97");
+        AgentExecutionContext firstTurn = context("北京国贸600以内三星酒店");
         memoryProvider.init(firstTurn);
         memoryProvider.save(firstTurn, List.of(new MemoryRecord(
                 "memory-1",
                 "assistant",
-                "\u57ce\u5e02\u5317\u4eac\uff0c\u4ef7\u683c600\u4ee5\u5185\uff0c\u56fd\u8d38\u9644\u8fd1\uff0c\u4e09\u661f\u4ee5\u4e0a",
+                "城市北京，价格600以内，国贸附近，三星以上",
                 Map.of())));
 
-        AgentExecutionContext recallTurn = context(
-                "\u8fd8\u662f\u6309\u4e4b\u524d\u7684\u9700\u6c42\uff0c\u6362\u62106\u670825\u65e5\u5165\u4f4f");
+        AgentExecutionContext recallTurn = context("还是按之前的需求，换成6月25日入住");
 
-        assertThat(memoryProvider.search(recallTurn,
-                "\u8fd8\u662f\u6309\u4e4b\u524d\u7684\u9700\u6c42\uff0c\u6362\u62106\u670825\u65e5\u5165\u4f4f", 5))
+        assertThat(memoryProvider.search(recallTurn, "还是按之前的需求，换成6月25日入住", 5))
                 .extracting(MemoryProvider.MemoryHit::content)
-                .contains("\u57ce\u5e02\u5317\u4eac\uff0c\u4ef7\u683c600\u4ee5\u5185\uff0c\u56fd\u8d38\u9644\u8fd1\uff0c\u4e09\u661f\u4ee5\u4e0a");
+                .contains("城市北京，价格600以内，国贸附近，三星以上");
     }
 
     private static AgentExecutionContext context(String userText) {
