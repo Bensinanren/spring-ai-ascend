@@ -13,7 +13,7 @@ dependency:
   - process.md
   - physical.md
   - spi-appendix.md
-  - features/README.md
+  - ../../../version-scope/agent-runtime-release-features.cn.md
 ---
 
 # agent-runtime L1 架构概览
