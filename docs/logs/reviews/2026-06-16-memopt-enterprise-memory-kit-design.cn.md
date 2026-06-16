@@ -1,6 +1,12 @@
 # MemOpt 企业级记忆 —— kit 范式 + 闭源引擎(形态 C)设计稿
 
-状态:草案(设计评审稿,未进架构-of-record)。成熟后可提升为正式 ADR。
+> **⚠️ 已重构(2026-06-16)**:与需求方对齐后,架构调整为**两层 kit**——
+> **A2A 共享记忆**是独立中间件 kit(模块 `a2a-shared-memory/`,本次已落地,27/27),
+> **MemOpt** 退化为其**可插拔后端之一**(form C 闭源引擎 + gRPC,属后续后端阶段)。
+> 本文中"MemOpt 承载 A2A 共享记忆"的旧表述以 **[ADR-0162](../../adr/0162-a2a-shared-memory.yaml)** 为准。
+> 本文保留为设计推演历史;形态 C / gRPC / 闭源引擎部分迁移到 MemOpt 后端阶段。
+
+状态:草案(设计评审稿,未进架构-of-record;已被上方重构说明与 ADR-0162 取代主体)。
 日期:2026-06-16
 关联:`docs/governance/contracts/architecture-design.md`(设计阶段契约)、`financial/kit`(kit 范式范本)、collaboration 工作区(A2A 协作引擎,A2A 共享记忆的承载)。
 

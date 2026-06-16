@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    A2A shared-memory kit. NOT a platform reactor module: it is a middleware the
+    way an external integrator consumes it, and is not in root <modules>. The kit
+    (run-scoped blackboard with ownership + append-log, cross-run experience,
+    run-end hook, dual-mode observability) is transport/agent-neutral so it runs
+    deterministically offline; it binds to A2A agents via the agent-runtime A2A
+    context (contextId) through a thin support class. A pluggable SharedMemoryStore
+    SPI lets an enterprise backend (e.g. the MemOpt engine) sit behind it later —
+    this module does NOT depend on MemOpt.
+  -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.0.5</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.huawei.ascend</groupId>
+  <artifactId>a2a-shared-memory</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+  <name>a2a-shared-memory</name>
+  <description>A2A multi-agent shared memory kit: run-scoped blackboard (ownership + append-log) + cross-run experience, bound to the A2A contextId; pluggable backend SPI.</description>
+
+  <properties>
+    <java.version>21</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+    <!-- Runtime Ops metrics (a2amem.ops / a2amem.op.latency / a2amem.degraded).
+         No-op when no MeterRegistry is bound (e.g. the offline eval). -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-core</artifactId>
+    </dependency>
+
+    <!-- A2A binding only: read the A2A contextId/tenant off the runtime's neutral
+         execution context. provided — the host runtime already supplies it; the kit
+         core stays usable without it. -->
+    <dependency>
+      <groupId>com.huawei.ascend</groupId>
+      <artifactId>agent-runtime</artifactId>
+      <version>0.2.0-SNAPSHOT</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Asserting log levels of the dual-mode observer in tests. -->
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

@@ -1,5 +1,5 @@
 id: ADR-0162
-title: "A2A multi-agent shared memory — two-layer (run-scoped blackboard + cross-run experience) on an independent MemOpt engine (kit paradigm, server-sovereign closed engine [form C], gRPC contract, ownership write model)"
+title: "A2A multi-agent shared memory — two-layer (run-scoped blackboard + cross-run experience) as an independent middleware kit on the A2A contextId, with a pluggable backend SPI (MemOpt engine optional, later)"
 status: proposed
 date: 2026-06-16
 level: L1
@@ -10,47 +10,49 @@ authors:
   - kevin
 extends: []
 relates_to:
-  - ADR-0161   # AgentRuntimeHandler lifecycle — recorded that MemoryProvider's service-level counterpart lands "with the first real memory middleware, owned per the owns-vs-borrows rule"; this ADR is that first real memory middleware.
+  - ADR-0161   # AgentRuntimeHandler lifecycle — noted MemoryProvider's service-level counterpart lands "with the first real memory middleware"; A2A shared memory is a memory middleware, kept independent of the platform.
 supersedes: []
 context: |
   Two gaps motivate this ADR.
 
     1. COLLABORATION CARRIES NO SHARED KNOWLEDGE. The A2A multi-agent
-       collaboration engine routes sub-tasks (distribute / hand-over / reclaim /
+       collaboration routes sub-tasks (distribute / hand-over / reclaim /
        validate) and passes each task's payload, but agents accumulate no shared
-       context: when task hands over A -> B, B loses what A concluded, and a
+       context: when a task hands over A -> B, B loses what A concluded, and a
        conclusion one agent discovers is invisible to the others. Hand-over and
        distribution move work, not knowledge.
 
-    2. MEMORY IS PER-USER ONLY. The runtime `MemoryProvider` SPI is scoped to a
-       single user/agent execution. There is no place for memory shared ACROSS
-       the agents of one collaboration, nor for collaboration experience that
-       persists ACROSS runs.
+    2. NO MEMORY SHARED ACROSS AGENTS / RUNS. The runtime `MemoryProvider` SPI is
+       scoped to a single user/agent execution. There is no place for memory
+       shared ACROSS the agents of one collaboration, nor for collaboration
+       experience that persists ACROSS runs.
 
   Constraints the design must hold:
     * Runtime (production), not developer-time, memory.
-    * Enterprise IP: the memory engine's algorithms (distillation, ranking,
-      indexing, storage tiering) must NOT ship as source, but must be callable.
-    * Bank scale: per-user memory must be privacy-isolated and cost-bounded at
-      ~10^8 MAU; shared/experience memory must isolate per tenant.
-    * Must not couple the platform to any one memory backend, and must not
-      depend on the (un-merged) collaboration module to build.
+    * Bank scale: shared/experience memory must isolate per tenant; experience
+      must never leak a customer's private data across collaborations.
+    * Must not couple the platform to any one memory backend, and must build on
+      `main` WITHOUT depending on the (separately-merging) collaboration engine.
+    * Delivered as MIDDLEWARE in the project's `kit` paradigm (the A2A shared
+      memory is itself a kit; a heavier enterprise memory engine — "MemOpt" — is
+      a SEPARATE kit middleware that can sit behind it as a backend, later).
 
-  Prior art in-repo: the example `DoushuaiRestMemoryProvider` already
-  demonstrates the consumption shape we want — a thin, resilient client
-  (fail-open + circuit breaker + per-call timeout + scope) bridging a small
-  contract to an out-of-process memory engine. This ADR generalises that shape
-  into a first-class, independent memory engine.
+  Prior art in-repo: the example `DoushuaiRestMemoryProvider` demonstrates the
+  consumption shape we reuse — a thin, resilient client (fail-open + scope) over
+  a small contract to an out-of-process memory engine.
 decision: |
-  Introduce A2A shared memory as the first capability of MemOpt — an
-  INDEPENDENT enterprise memory engine, delivered in the `kit` paradigm
-  (mirroring `financial/kit`: an extend-a-base facade with batteries and
-  composable rails). Decisions locked with the requirement owner 2026-06-16:
+  Build A2A shared memory as an INDEPENDENT middleware kit module
+  `a2a-shared-memory/` (sibling to `agent-runtime`, package
+  `com.huawei.ascend.a2a.memory`), in the `kit` paradigm (mirroring
+  `financial/kit`: a facade + composable rails + safe defaults + a PLUGGABLE
+  backend SPI). It binds to A2A agents through the agent-runtime A2A context; it
+  does NOT depend on MemOpt or on the collaboration engine. Decisions locked with
+  the requirement owner 2026-06-16:
 
     1. TWO LAYERS.
        (a) Run-scoped blackboard (working memory) — shared context the agents of
-           one collaboration read/write while it runs; key = tenantId + the
-           collaboration-root id (the A2A contextId / collaboration token).
+           one collaboration read/write while it runs; key = tenantId + the A2A
+           contextId (surfaced on the runtime as RuntimeIdentity.sessionId()).
        (b) Cross-run experience memory — distilled, durable "what collaboration
            patterns/conclusions worked", recalled by future collaborations;
            key = tenantId + signature, where signature = capability-set +
@@ -63,73 +65,69 @@ decision: |
        keys stay read-only (A's conclusions are immutable to B).
 
     3. CONFLICT = APPEND-LOG + PROVENANCE. Each write appends (value,
-       writerAgentId, ts); reads return latest by default and can pull history.
-       Nothing is silently overwritten — auditable, as a bank requires.
+       writerAgentId, version, ts); reads return latest by default and can pull
+       history. Nothing is silently overwritten — auditable, as a bank requires.
 
     4. EXPERIENCE IS PII-STRIPPED. Cross-run experience is tenant-shared, so the
        distillation MUST strip user PII before record — it retains
        collaboration-pattern knowledge only, never a customer's private data.
 
-    5. EXPERIENCE DISTILLATION TRIGGER = the collaboration coordinator's
-       run-end hook (it has the whole-run view). MemOpt exposes the hook SPI;
-       the collaboration engine calls it. Dependency points collaboration ->
-       MemOpt, never the reverse, so MemOpt stays independent and builds without
-       the (un-merged) collaboration module.
+    5. EXPERIENCE DISTILLATION TRIGGER = the collaboration coordinator's run-end
+       hook (it has the whole-run view). The kit exposes a hook SPI; the
+       collaboration engine calls it. Dependency points collaboration -> shared
+       memory, never the reverse, so the kit stays independent and builds without
+       the (separately-merging) collaboration module.
 
-    6. DISTRIBUTION = FORM C (server-sovereign closed engine). The engine ships
-       as an on-prem container (source never leaves), fronted by a versioned
-       wire contract; the open kit client is the only thing customers code
-       against. Chosen over SaaS (bank data residency) and an in-process
-       obfuscated jar (decompilable).
+    6. A2A BINDING. Agents reach the blackboard via the A2A contextId: a thin
+       support class (`A2aSharedMemory.forContext(AgentExecutionContext, store)`)
+       keys the blackboard by RuntimeIdentity.sessionId()+tenantId and attributes
+       writes to RuntimeIdentity.agentId(). This is the ONLY place that touches
+       agent-runtime (provided scope); the kit core stays agent-neutral.
 
-    7. TRANSPORT = gRPC + protobuf (`memopt.v1`): strong-typed contract, HTTP/2
-       multiplexing, native server-streaming (blackboard Subscribe, large
-       recall) and mTLS/deadlines; Java engine is a first-class gRPC citizen and
-       the platform already carries protobuf tooling. An optional thin HTTP/JSON
-       gateway is allowed for debugging only.
+    7. PLUGGABLE BACKEND SPI. The kit defines a `SharedMemoryStore` SPI and ships
+       a default in-process implementation (offline-eval-able, scales to
+       thousands of concurrent collaborations over one partitioned store — see
+       ScaleTest). Production backends (redis, or the closed MemOpt engine) plug
+       in behind this SPI WITHOUT changing the kit or the agents.
 
-    8. SECURITY. gRPC over mTLS; tenant/identity injected server-side via gRPC
-       metadata (client-supplied scope is routing, not a trust boundary); the
-       engine enforces tenant isolation (Rule R-J / P-J). Ownership and
-       capability-scoped visibility are enforced server-side.
+    8. MEMOPT IS A SEPARATE, LATER BACKEND (not this deliverable). The enterprise
+       engine "MemOpt" — its own kit middleware — may implement `SharedMemoryStore`
+       as a server-sovereign closed engine (form C: on-prem container, source
+       never leaves) fronted by a versioned gRPC `memopt.v1` contract over mTLS,
+       with tenant/identity injected server-side. That belongs to the backend
+       phase and is explicitly OUT OF SCOPE here; the kit neither contains nor
+       depends on it.
 
-    9. MODULE SHAPE. MemOpt is a new first-class module `memopt/`, sibling to
-       `agent-runtime`, package `com.huawei.ascend.memopt`. It does NOT
-       reverse-depend on agent-runtime; the runtime coupling is isolated in a
-       thin `memopt-runtime-adapter` that implements `MemoryProvider`. Batteries
-       are composable rails: ScopeIsolation, Privacy (incl. experience PII
-       strip), Cost (distillation / cap / cold-hot tiering), Audit (dev/runtime
-       dual-mode observability).
-
-  Phasing: (1) A2A shared memory contract + kit facade + in-memory backend +
-  Coordinator-hook integration (prototype, eval-able offline); (2) per-user
-  long-term memory; (3) the closed Java engine container + mTLS. This ADR
-  governs phase 1's contract and module boundary.
+  Phasing: (1) THIS ADR — A2A shared-memory kit (two-layer + ownership +
+  append-log + PII + hook + A2A binding + in-process backend + dual-mode
+  observability), eval-able offline; (2) collaboration engine integration via the
+  run-end hook (lands when that engine merges); (3) MemOpt backend (closed Java
+  engine + gRPC + mTLS) behind the SharedMemoryStore SPI.
 consequences: |
   POSITIVE.
     * Collaboration becomes genuinely collaborative: agents share conclusions
-      within a run and reuse experience across runs, enriching hand-over /
-      distribution / reclaim / validation.
-    * The memory engine's IP stays closed (container, source never leaves) yet
-      callable through an open, versioned, strongly-typed contract.
-    * MemOpt is independent and builds on main without the un-merged
-      collaboration module; integration is a one-way hook.
+      within a run (by A2A contextId) and reuse experience across runs, enriching
+      hand-over / distribution / reclaim / validation.
+    * The shared-memory capability is a self-contained middleware kit: builds on
+      `main`, independent of both MemOpt and the collaboration engine; integrates
+      with each through a one-way SPI/hook.
     * Per-tenant isolation + PII-stripped experience keep a bank-scale,
-      multi-tenant deployment private; cost levers are first-class rails.
+      multi-tenant deployment private; cost levers are composable rails.
+    * The pluggable backend SPI keeps the door open for redis / the closed MemOpt
+      engine without touching agents or the kit.
 
   NEGATIVE / accepted.
-    * A new module + a new gRPC contract surface to own and version.
+    * A new module + a new SPI surface to own and version.
     * Cross-run experience adds a distillation + PII-scrubbing step whose recall
       quality depends on the signature definition (capability-set + task-type),
       which will need tuning against real collaborations.
     * Ownership + append-log raise storage cost vs last-writer; accepted for
       auditability.
-    * The closed-engine container is an operational artifact the customer must
-      run on-prem; the kit fails open if it is absent or unhealthy.
+    * Real over-the-A2A-wire sharing is exercised via the agent-runtime execution
+      context (binding + tests); a booted two-runtime e2e is a follow-up.
 
-  GOVERNANCE FOLLOW-UPS (before this ADR can move proposed -> accepted as a
-  governed architecture change): register `memopt` in the architecture graph,
-  add `docs/dfx/memopt.yaml` (five DFX dimensions), declare the kit/contract SPI
-  in `module-metadata.yaml#spi_packages` + `docs/contracts/contract-catalog.md`,
-  and pass gates G-1 / G-2 / G-8. Tracked in the design draft
-  docs/logs/reviews/2026-06-16-memopt-enterprise-memory-kit-design.cn.md.
+  GOVERNANCE FOLLOW-UPS (before proposed -> accepted as a governed architecture
+  change): register `a2a-shared-memory` in the architecture graph, add
+  `docs/dfx/a2a-shared-memory.yaml` (five DFX dimensions), declare the kit/SPI in
+  `module-metadata.yaml#spi_packages` + `docs/contracts/contract-catalog.md`, and
+  pass gates G-1 / G-2 / G-8.
