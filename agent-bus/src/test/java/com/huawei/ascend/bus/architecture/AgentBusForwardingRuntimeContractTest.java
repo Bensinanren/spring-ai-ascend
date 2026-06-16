@@ -1,7 +1,9 @@
 package com.huawei.ascend.bus.architecture;
 
+import com.huawei.ascend.bus.forwarding.runtime.ForwardingDispatchLoop;
 import com.huawei.ascend.bus.forwarding.runtime.ForwardingDispatcherWorker;
 import com.huawei.ascend.bus.forwarding.runtime.ForwardingStateMachine;
+import com.huawei.ascend.bus.forwarding.spi.ForwardingDeliveryPort;
 import com.huawei.ascend.bus.forwarding.spi.ForwardingDeliveryResult;
 import com.huawei.ascend.bus.forwarding.spi.ForwardingEnvelope;
 import com.huawei.ascend.bus.forwarding.spi.ForwardingFailureCode;
@@ -29,6 +31,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -78,7 +81,7 @@ class AgentBusForwardingRuntimeContractTest {
     private static final Path SCHEMA = Path.of(
             "../docs/architecture/l0/05-contracts/machine-readable/agent-bus-forwarding-runtime.v1.yaml");
     private static final Path PERSISTENCE = Path.of(
-            "../architecture/docs/L2/agent-bus/forwarding-persistence.md");
+            "../architecture/L2-Low-Level-Design/agent-bus/forwarding-persistence.md");
 
     private static final long NOW = 1_700_000_000_000L;
     private static final String SOURCE_SERVICE = "svc-src";
@@ -472,6 +475,215 @@ class AgentBusForwardingRuntimeContractTest {
         delivery.put("msg-w-exp", ForwardingDeliveryResult.expired());
         worker.runOnce("tenant-a", NOW, 10, LEASE_OWNER, LEASE_UNTIL);
         assertThat(outbox.statusOf(exp.messageId(), "tenant-a")).isEqualTo(EXPIRED);
+    }
+
+    /**
+     * Slice 1 (MI10-001): a record reclaimed by another worker mid-tick (between
+     * claim and ack) makes the worker's ack trip the lease guard with
+     * {@code OWNER_MISMATCH}. The worker treats that as "skip this record" —
+     * counted as {@code skipped} — and the tick keeps going, never aborting on a
+     * single reclaimed record.
+     */
+    @Test
+    void worker_skips_record_when_lease_reclaimed_mid_tick() {
+        InMemoryForwardingOutbox outbox = new InMemoryForwardingOutbox();
+        ForwardingEnvelope env = envelope("msg-skip", "tenant-a");
+        outbox.enqueue(env, SOURCE_SERVICE, TARGET_SERVICE, NOW);
+
+        // mid-delivery reclaim: worker-2 claims the record worker-1 is dispatching
+        // at a later instant where worker-1's short lease has expired, so worker-1's
+        // subsequent markAcked trips OWNER_MISMATCH.
+        ForwardingDeliveryPort reclaimingDelivery = new ForwardingDeliveryPort() {
+            @Override
+            public ForwardingDeliveryResult deliver(ForwardingOutboxRecord record, long nowMillisEpoch) {
+                outbox.claimDue("tenant-a", nowMillisEpoch + 1_000, 10, "worker-2",
+                        nowMillisEpoch + 1_000 + 30_000);
+                return ForwardingDeliveryResult.acked();
+            }
+        };
+        ForwardingDispatcherWorker worker =
+                new ForwardingDispatcherWorker(outbox, outbox, reclaimingDelivery);
+
+        // worker-1 claims with a short lease (NOW + 500), then runs the tick
+        ForwardingDispatcherWorker.DispatchTickResult tick =
+                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 500);
+
+        assertThat(tick.claimed()).isEqualTo(1);
+        assertThat(tick.acked())
+                .as("the reclaimed record is not acked by the stale worker")
+                .isZero();
+        assertThat(tick.skipped())
+                .as("the reclaimed record is counted as skipped, not an aborted tick")
+                .isEqualTo(1);
+        // the record survives, still DISPATCHING, now owned by worker-2
+        assertThat(outbox.statusOf(env.messageId(), "tenant-a")).isEqualTo(DISPATCHING);
+    }
+
+    /**
+     * Slice 2 (MI10-002): when the remaining lease TTL drops below the policy
+     * threshold, the worker renews before delivery — so a long {@code deliver}
+     * does not outlive the lease. The renewed {@code leaseUntil} is observable
+     * at delivery time.
+     */
+    @Test
+    void worker_renews_short_lease_before_delivery() {
+        InMemoryForwardingOutbox outbox = new InMemoryForwardingOutbox();
+        ForwardingEnvelope env = envelope("msg-renew", "tenant-a");
+        outbox.enqueue(env, SOURCE_SERVICE, TARGET_SERVICE, NOW);
+
+        long[] observedLeaseUntil = {0};
+        ForwardingDeliveryPort observingDelivery = new ForwardingDeliveryPort() {
+            @Override
+            public ForwardingDeliveryResult deliver(ForwardingOutboxRecord record, long nowMillisEpoch) {
+                observedLeaseUntil[0] = outbox.recordOf(record.messageId(), "tenant-a")
+                        .lease().leaseUntilMillisEpoch();
+                return ForwardingDeliveryResult.acked();
+            }
+        };
+        // renew when remaining TTL < 1000; extend by 30000
+        ForwardingDispatcherWorker worker = new ForwardingDispatcherWorker(
+                outbox, outbox, observingDelivery,
+                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000));
+
+        // worker-1 claims with a short lease (NOW + 500); remaining 500 < 1000 -> renew
+        ForwardingDispatcherWorker.DispatchTickResult tick =
+                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 500);
+
+        assertThat(tick.claimed()).isEqualTo(1);
+        assertThat(tick.acked()).isEqualTo(1);
+        assertThat(observedLeaseUntil[0])
+                .as("the short lease was renewed before delivery (NOW+500 extended by 30000)")
+                .isEqualTo(NOW + 500 + 30_000);
+        assertThat(outbox.statusOf(env.messageId(), "tenant-a")).isEqualTo(ACKED);
+    }
+
+    /**
+     * Slice 2 (MI10-002): a lease whose remaining TTL is already above the policy
+     * threshold is not renewed — the worker keeps the caller's leaseUntil.
+     */
+    @Test
+    void worker_does_not_renew_when_lease_sufficient() {
+        InMemoryForwardingOutbox outbox = new InMemoryForwardingOutbox();
+        ForwardingEnvelope env = envelope("msg-norenew", "tenant-a");
+        outbox.enqueue(env, SOURCE_SERVICE, TARGET_SERVICE, NOW);
+
+        long[] observedLeaseUntil = {0};
+        ForwardingDeliveryPort observingDelivery = new ForwardingDeliveryPort() {
+            @Override
+            public ForwardingDeliveryResult deliver(ForwardingOutboxRecord record, long nowMillisEpoch) {
+                observedLeaseUntil[0] = outbox.recordOf(record.messageId(), "tenant-a")
+                        .lease().leaseUntilMillisEpoch();
+                return ForwardingDeliveryResult.acked();
+            }
+        };
+        ForwardingDispatcherWorker worker = new ForwardingDispatcherWorker(
+                outbox, outbox, observingDelivery,
+                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000));
+
+        // worker-1 claims with a long lease (NOW + 60000); remaining 60000 >= 1000 -> no renew
+        ForwardingDispatcherWorker.DispatchTickResult tick =
+                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 60_000);
+
+        assertThat(tick.acked()).isEqualTo(1);
+        assertThat(observedLeaseUntil[0])
+                .as("a sufficient lease is not renewed: leaseUntil stays NOW+60000")
+                .isEqualTo(NOW + 60_000);
+    }
+
+    /**
+     * Slice 2 (MI10-002): if {@code renewLease} returns {@code false} (the lease
+     * was reclaimed / is no longer held between claim and the renewal attempt),
+     * the worker skips the record — like a {@link ForwardingLeaseException} — and
+     * never delivers it.
+     */
+    @Test
+    void worker_skips_when_lease_renew_fails() {
+        InMemoryForwardingOutbox outbox = new InMemoryForwardingOutbox();
+        ForwardingEnvelope env = envelope("msg-renewfail", "tenant-a");
+        outbox.enqueue(env, SOURCE_SERVICE, TARGET_SERVICE, NOW);
+
+        InMemoryForwardingDelivery delivery = new InMemoryForwardingDelivery();
+        delivery.put("msg-renewfail", ForwardingDeliveryResult.acked());
+        // claimPort whose renewLease always fails — simulates the lease reclaimed by
+        // another owner between claim and the renewal attempt
+        ForwardingOutboxClaimPort failingRenew = new ForwardingOutboxClaimPort() {
+            @Override
+            public List<ForwardingOutboxRecord> claimDue(String tenantId, long nowMillisEpoch,
+                                                          int limit, String leaseOwner,
+                                                          long leaseUntilMillisEpoch) {
+                return outbox.claimDue(tenantId, nowMillisEpoch, limit, leaseOwner, leaseUntilMillisEpoch);
+            }
+            @Override
+            public boolean renewLease(ForwardingMessageId id, String tenantId, String leaseOwner,
+                                      long leaseUntilMillisEpoch) {
+                return false;
+            }
+            @Override
+            public boolean releaseLease(ForwardingMessageId id, String tenantId, String leaseOwner) {
+                return outbox.releaseLease(id, tenantId, leaseOwner);
+            }
+        };
+        ForwardingDispatcherWorker worker = new ForwardingDispatcherWorker(
+                failingRenew, outbox, delivery,
+                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000));
+
+        // short lease (NOW + 500) triggers renewal, which fails -> skip, never deliver
+        ForwardingDispatcherWorker.DispatchTickResult tick =
+                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 500);
+
+        assertThat(tick.claimed()).isEqualTo(1);
+        assertThat(tick.acked())
+                .as("delivery is skipped when the renewal fails")
+                .isZero();
+        assertThat(tick.skipped()).isEqualTo(1);
+        assertThat(outbox.statusOf(env.messageId(), "tenant-a"))
+                .as("the record is left DISPATCHING for its true owner / next reclaim")
+                .isEqualTo(DISPATCHING);
+    }
+
+    /**
+     * Slice 3 (MI10-004): the dispatch loop drives {@code runOnce} ticks purely
+     * from an injected {@link ForwardingDispatchLoop.TickSource} — no clock, no
+     * scheduler, no thread. It runs ticks until the source stops, aggregates the
+     * counts (self-consistent, like a single tick), and triggers the
+     * {@link ForwardingDispatchLoop.IdleStrategy} on a tick that claims nothing.
+     */
+    @Test
+    void dispatch_loop_drives_ticks_from_injected_source_until_it_stops() {
+        InMemoryForwardingOutbox outbox = new InMemoryForwardingOutbox();
+        InMemoryForwardingDelivery delivery = new InMemoryForwardingDelivery();
+        ForwardingEnvelope env1 = envelope("msg-loop-1", "tenant-a");
+        ForwardingEnvelope env2 = envelope("msg-loop-2", "tenant-a");
+        outbox.enqueue(env1, SOURCE_SERVICE, TARGET_SERVICE, NOW);
+        outbox.enqueue(env2, SOURCE_SERVICE, TARGET_SERVICE, NOW);
+        delivery.put("msg-loop-1", ForwardingDeliveryResult.acked());
+        delivery.put("msg-loop-2", ForwardingDeliveryResult.acked());
+        ForwardingDispatcherWorker worker = new ForwardingDispatcherWorker(outbox, outbox, delivery);
+
+        // three instants then stop; limit 1 per tick -> 2 productive ticks + 1 idle tick
+        long[] instants = {NOW, NOW + 1_000, NOW + 2_000};
+        int[] cursor = {0};
+        int[] idleHits = {0};
+        ForwardingDispatchLoop.TickSource source = () ->
+                cursor[0] >= instants.length
+                        ? OptionalLong.empty()
+                        : OptionalLong.of(instants[cursor[0]++]);
+        ForwardingDispatchLoop.IdleStrategy idle = tick -> idleHits[0]++;
+
+        ForwardingDispatchLoop loop = new ForwardingDispatchLoop(worker, source, idle);
+        ForwardingDispatcherWorker.DispatchTickResult agg =
+                loop.run("tenant-a", 1, LEASE_OWNER, 30_000);
+
+        assertThat(agg.claimed())
+                .as("two records claimed across the two productive ticks")
+                .isEqualTo(2);
+        assertThat(agg.acked()).isEqualTo(2);
+        assertThat(agg.skipped()).isZero();
+        assertThat(idleHits[0])
+                .as("the third tick (no due records) triggered the idle strategy exactly once")
+                .isEqualTo(1);
+        assertThat(outbox.statusOf(env1.messageId(), "tenant-a")).isEqualTo(ACKED);
+        assertThat(outbox.statusOf(env2.messageId(), "tenant-a")).isEqualTo(ACKED);
     }
 
     @Test

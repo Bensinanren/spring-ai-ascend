@@ -180,3 +180,23 @@ DoD：
 如果 DB / migration 归属没有得到人类确认，则 Stage 10 仍然必须完成 1-3（worker 运行态），不应回退成纯文档阶段。worker 运行态是 Stage 9 lease guard 的必要补充——guard 会抛异常，worker 必须正确处理，否则真实并发下第一次 lease 竞态就中断投递。
 
 测试基线：当前 129 tests green；Stage 10 完成后应保持 green 并新增 worker 运行态 harness（lease-skip、续约、计数自洽）。构建命令见 `build-env-maven-via-settings-xml`（system mvn + settings.xml + Red Hat JDK 21）。
+
+## 7. 执行记录
+
+Stage 10 已按 §4 切片执行完成（dispatch-loop runtime）：
+
+- **切片 1（MI10-001）**：`ForwardingDispatcherWorker.runOnce` 的 per-record 处理（deliver → mark*）外包 try-catch `ForwardingLeaseException`，捕获后 skip 该 record；`DispatchTickResult` 增 `skipped` 字段并校验 `claimed == acked + retried + dlqd + expired + skipped`，tick 不因 lease 竞态中断。harness：`worker_skips_record_when_lease_reclaimed_mid_tick`。
+- **切片 2（MI10-002）**：`DispatchLeasePolicy` record（`renewBeforeExpiryMillis` / `leaseExtensionMillis`），deliver 前检查剩余 lease TTL，低于阈值则 `claimPort.renewLease(...)`；renew 返回 false（lease 被 reclaim / 不再 DISPATCHING）同 skip；不续约且超 TTL 则 ACK 失败为 lease guard 拒绝。harness：`worker_renews_short_lease_before_delivery` / `worker_does_not_renew_when_lease_sufficient` / `worker_skips_when_lease_renew_fails`。
+- **切片 3（MI10-004）**：`ForwardingDispatchLoop` 纯 Java 骨架（`TickSource` / `IdleStrategy` 注入，无 clock / scheduler / 线程），聚合 `DispatchTickResult` 满足与单 tick 相同的自洽不变量。harness：`dispatch_loop_drives_ticks_from_injected_source_until_it_stops`。
+- **切片 4（MI10-005）**：DB / migration 归属经人类再确认为 **路径 B**（不引入 JDBC / Flyway）；DDL / SQL 仍 contract / draft；真实持久化 deferred 后续阶段。
+- **切片 5**：L1 × 4（README / development / process / physical）+ L2 × 2（forwarding-outbox-inbox / forwarding-persistence）+ ICD + yaml + decision.md §8 + 本 plan §7 执行记录同步。
+
+> MI10-003（`DispatchTickResult` 可观测）由 MI10-001 的 `skipped` 字段 + 自洽校验收口，不单列行为测试。
+
+验收：
+
+- **134 tests green**（`AgentBusForwardingRuntimeContractTest` 34 个：29 基准 + Stage 10 worker_skips + 3 续约 + dispatch_loop），`AgentBusForwardingSpiPurityTest` / `AgentBusDependencyBoundaryTest` green。
+- 生产代码仍纯 Java（无 JDBC / broker client / scheduler / 线程），由 ArchUnit 强制。
+- 路径 B：不引入 JDBC / Flyway；DDL / SQL 仍 contract / draft；in-memory lease-guard harness 作行为替身。
+
+后续 deferred：真实持久化实现（JDBC adapter / Flyway migration 归属 / lease store 物理实现 / polling / 并发抢占原语 / backpressure 参数 / 真实投递绑定 / 接入 agent-runtime 受控调用路径 / 数据库产品 + RLS 确认）。

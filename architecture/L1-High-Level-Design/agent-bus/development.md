@@ -18,7 +18,7 @@ agent-bus/
   src/main/java/com/huawei/ascend/bus/
     forwarding/
       spi/        # C3 转发运行态领域模型 + 端口 + record 模型 + claim/lease + delivery（Stage 7 + Stage 8，纯 Java）
-      runtime/    # C3 转发状态机 + dispatcher worker（Stage 7 + Stage 8，纯 Java）
+      runtime/    # C3 转发状态机 + dispatcher worker + dispatch loop（Stage 7 + Stage 8 + Stage 10，纯 Java）
     spi/
       engine/
       federation/
@@ -44,7 +44,7 @@ agent-bus/
 | `bus.spi.federation` | 跨网络 federation gateway | SPI 已存在，运行时实现待定 |
 | `bus.spi.engine` | service-engine 中立执行边界和相关基础类型 | SPI 已存在，被 engine/service 消费 |
 | `bus.forwarding.spi` | C3 转发运行态领域模型（envelope / route handle / status / failure code / receipt）+ outbox / inbox / dispatcher 端口；Stage 8 增 record 模型（outbox / inbox / lease）+ claim / lease 端口 + delivery 端口 | 纯 Java 已落地（Stage 7 + Stage 8），真实 JDBC 持久化 deferred Stage 9+ |
-| `bus.forwarding.runtime` | C3 转发状态机（outbox / inbox 转换表）+ Stage 8 dispatcher worker（claim / deliver / ack / retry） | 纯 Java 状态机 + worker skeleton 已落地，真实投递绑定 deferred Stage 9+ |
+| `bus.forwarding.runtime` | C3 转发状态机（outbox / inbox 转换表）+ Stage 8 dispatcher worker（claim / deliver / ack / retry）+ Stage 10 dispatch loop（lease 异常恢复 / 续约 / 调度责任，`TickSource` / `IdleStrategy` 注入） | 纯 Java 状态机 + worker + dispatch loop 已落地，真实投递绑定 deferred 后续阶段 |
 
 ## 3. 依赖规则
 
@@ -71,7 +71,7 @@ agent-bus/
 | ingress 测试 | 暂缺 | 需要补 required fields、trace、tenant、response status |
 | federation 测试 | 暂缺 | 需要补 broker-agnostic 和 ingress carrier type |
 | reflection 测试 | 暂缺 | 需要决定 map validator 或 typed record |
-| `AgentBusForwardingRuntimeContractTest` | C3 outbox / inbox 记录字段、唯一键、去重键、禁止字段、状态机、失败码；Stage 8 增 record source/target、claim / lease 语义、dispatcher worker、persistence 纯度；Stage 9 增 lease-owner guarded mutation、record 不变量、failure-code 分类、SQL contract | 7 契约（方法名镜像 ICD）+ Stage 7 / Stage 8 / Stage 9 行为，29 tests 已 green |
+| `AgentBusForwardingRuntimeContractTest` | C3 outbox / inbox 记录字段、唯一键、去重键、禁止字段、状态机、失败码；Stage 8 增 record source/target、claim / lease 语义、dispatcher worker、persistence 纯度；Stage 9 增 lease-owner guarded mutation、record 不变量、failure-code 分类、SQL contract；Stage 10 增 worker lease 异常恢复 skip、lease 续约、dispatch loop | 7 契约（方法名镜像 ICD）+ Stage 7 / Stage 8 / Stage 9 / Stage 10 行为，34 tests 已 green |
 | `AgentBusForwardingSpiPurityTest` | forwarding 生产代码纯 Java（无 Spring / JDBC / broker client） | 10 纯度 + 1 活跃度守卫，已 green（Stage 8 新增 record / claim / delivery / worker 均满足） |
 
 ## 5. 生成物边界
@@ -107,7 +107,7 @@ Stage 2 已完成的迁移（commit `d894f494`）：
 
 本迁移已通知所有冲突方（CN-001..CN-007）；不改变 `agent-runtime` 对 Task lifecycle 的所有权。
 
-## 7. C3 转发运行态（Stage 7 最小骨架 → Stage 8 持久化准备 → Stage 9 lease-safe）
+## 7. C3 转发运行态（Stage 7 最小骨架 → Stage 8 持久化准备 → Stage 9 lease-safe → Stage 10 dispatch-loop runtime）
 
 C3（database outbox / inbox）已最终确认为类 MQ 转发的生产候选路径（裁决见 [`agent-bus-forwarding-runtime-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)，`adopted-c3`）。Stage 7 交付最小可测运行态骨架；Stage 8 补齐持久化准备（[`forwarding-persistence`](../../L2-Low-Level-Design/agent-bus/forwarding-persistence.md)）。
 

@@ -102,10 +102,23 @@ target_module: agent-bus
 `ForwardingDispatcherWorker`（runtime 包，纯 Java）是 claim / deliver / ack / retry 半边生命周期，与 `ForwardingDispatcher`（accept / enqueue 网关角色）分离（MI8-003）。单次同步 tick `runOnce`：
 
 1. `claimDue` 声明到期记录（已原子迁移到 `DISPATCHING` 并 stamped lease）。
-2. 逐条调用抽象 `ForwardingDeliveryPort.deliver(record, now)`，仅消费 `routeHandle`（**不**暴露物理 endpoint）。
-3. 按 `ForwardingDeliveryResult.outcome()` 路由：`ACKED → markAcked`、`RETRY_SCHEDULED → scheduleRetry`（更新 attemptCount / nextAttemptAt / lastFailureCode）、`DLQ → moveToDlq`、`EXPIRED → markExpired`。
+2. **Stage 10（MI10-002）**：deliver 前按 `DispatchLeasePolicy` 检查剩余 lease TTL——低于阈值则 `claimPort.renewLease(...)` 续约；renew 返回 false（lease 已被 reclaim / 不再 DISPATCHING）则 skip 该 record，不投递。
+3. 逐条调用抽象 `ForwardingDeliveryPort.deliver(record, now)`，仅消费 `routeHandle`（**不**暴露物理 endpoint）。
+4. 按 `ForwardingDeliveryResult.outcome()` 路由：`ACKED → markAcked`、`RETRY_SCHEDULED → scheduleRetry`（更新 attemptCount / nextAttemptAt / lastFailureCode）、`DLQ → moveToDlq`、`EXPIRED → markExpired`。
+5. **Stage 10（MI10-001）**：deliver / mark* 包在 per-record try-catch `ForwardingLeaseException` 中——lease guard 拒绝（reclaim / stale / foreign / expired owner）时 skip 该 record，tick 继续其余 record。`DispatchTickResult(claimed, acked, retried, dlqd, expired, skipped)` 校验 `claimed == acked + retried + dlqd + expired + skipped`，保证计数自洽、可观测。
 
-边界：worker 无线程、无 scheduler、无 registry、无 transport；真实 polling cadence / threading / backpressure / 具体 delivery 绑定 deferred Stage 9+。worker 不写 Task execution state。fake delivery（`InMemoryForwardingDelivery`）仅在 test fixture，让 ACK / RETRY / DLQ / EXPIRED 在无网络下可被 harness 覆盖。
+边界：worker 无线程、无 scheduler、无 registry、无 transport；真实 polling cadence / threading / backpressure / 具体 delivery 绑定 deferred 后续阶段。worker 不写 Task execution state。fake delivery（`InMemoryForwardingDelivery`）仅在 test fixture，让 ACK / RETRY / DLQ / EXPIRED 与 lease 续约 / skip 路径在无网络下可被 harness 覆盖。
+
+> **in-memory vs JDBC**：in-memory lease harness 按 owner（不按 `lease_until` 过期）裁决 lease-guarded mutation；故"renew-or-lose-the-ack"（`WHERE lease_until > now`）是 §7.2 的 SQL contract，不在 in-memory 断言。lease 续约的"renew 后超 TTL 仍丢 ack"语义同样由 §7.2 SQL 编码，真实 adapter 落地后补 Testcontainers 覆盖。
+
+### 5.1 dispatch 调度责任（Stage 10，MI10-004）
+
+`runOnce` 是单次 tick；谁驱动循环、idle 退避、并发分片，是调用方（`agent-runtime` 受控路径 / 真实 scheduler）的责任，不进 `agent-bus`。Stage 10 交付纯 Java `ForwardingDispatchLoop` 骨架，把这份责任契约化：
+
+- `TickSource`（注入下一 tick 时刻；`OptionalLong.empty()` 表示停止）——loop 不持有 clock，可被 fixed-rate executor / scheduler bean / 测试驱动。
+- `IdleStrategy`（空 tick 退避；`NO_BACKOFF` 为 no-op）——loop 不 sleep，退避策略外部注入。
+- 聚合 `DispatchTickResult`（满足与单 tick 相同的自洽不变量）。
+- loop 无线程、无 scheduler、无 transport、无 clock——真实 polling cadence / threading / 并发 worker 分片是调用方决策，deferred 后续阶段。claim / lease 已防多 worker 重复投递（§4），分片只减少空 claim。
 
 ## 6. MI8 决策（Stage 8 计划 §2 收口）
 
@@ -304,6 +317,27 @@ Stage 9 DoD 自检：
 - ✓ failure-code 分类明确，retry/dlq 路由在构造期被分类约束（harness 覆盖）。
 - ✓ DB / migration 归属：路径 B——归属未由人类确认，不引入 JDBC / Flyway；交付完整 DDL CHECK 约束 + claim / state-update SQL contract + in-memory lease harness。
 - ✓ 未引入生产数据库依赖；DDL / SQL 仍标注为 contract / draft（§2 护栏不变）。
+
+## 12. Stage 10 决策（dispatch-loop runtime）
+
+Stage 10（MI10-001..005）把 Stage 9 的 lease-safe 底座接入 worker 运行态，使 dispatcher worker 从 skeleton 推进为「正确处理 lease 生命周期」的可运行 dispatch loop；DB / migration 归属经人类再确认为 **路径 B**（不引入 JDBC / Flyway；DDL / SQL 仍 contract / draft）。真实持久化（JDBC adapter / Flyway / 真实投递绑定）deferred 后续阶段，独立批次处理。
+
+| MI | 决策 | 落点 |
+|---|---|---|
+| MI10-001 | per-record try-catch `ForwardingLeaseException` → skip（兑现 `ForwardingLeaseException` javadoc 的 skip 承诺），tick 不因 lease 竞态中断；`DispatchTickResult` 增 `skipped` 并校验 `claimed == acked + retried + dlqd + expired + skipped` | `ForwardingDispatcherWorker.runOnce`（try-catch + skipped）；`DispatchTickResult` 6 字段 + 自洽校验；`worker_skips_record_when_lease_reclaimed_mid_tick` |
+| MI10-002 | lease 续约契约：deliver 前按 `DispatchLeasePolicy`（renewBeforeExpiryMillis / leaseExtensionMillis）检查剩余 TTL，不足则 `renewLease`；renew 返回 false 同 skip；不续约且超 TTL 则 ack 失败为 lease guard 拒绝 | `DispatchLeasePolicy` record；`runOnce` deliver 前续约；`worker_renews_short_lease_before_delivery` / `worker_does_not_renew_when_lease_sufficient` / `worker_skips_when_lease_renew_fails` |
+| MI10-004 | dispatch 调度责任定义：`ForwardingDispatchLoop` 骨架（`TickSource` / `IdleStrategy` 注入，无 clock / scheduler / 线程）；`runOnce` 调用契约写入 §5.1 / javadoc | `ForwardingDispatchLoop`；`dispatch_loop_drives_ticks_from_injected_source_until_it_stops` |
+| MI10-005 | DB / migration 归属经人类再确认为 **路径 B** | 本文档 §2 / §11；decision.md §8；plan §7；不引入 JDBC / Flyway |
+
+> MI10-003（`DispatchTickResult` 可观测）由 MI10-001 的 `skipped` 字段 + 自洽校验收口，不单列行为测试。
+
+Stage 10 DoD 自检：
+
+- ✓ worker lease 异常恢复：reclaimed record 不中断 tick，计入 skipped（harness 覆盖）。
+- ✓ lease 续约：长 deliver 前按阈值 renew；renew 失败 / 不续约超 TTL 明确失败（harness 覆盖）。
+- ✓ `DispatchTickResult` 可观测：skipped + 计数自洽（构造校验 + harness）。
+- ✓ dispatch 调度责任：`ForwardingDispatchLoop` 无 scheduler / 线程，trigger 注入，harness 覆盖。
+- ✓ DB / migration 归属：路径 B 再确认（人类裁决，Stage 10 切片 4）；不引入 JDBC / Flyway；DDL / SQL 仍 contract / draft。
 
 相关文档：
 
