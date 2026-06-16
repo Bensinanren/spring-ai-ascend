@@ -410,7 +410,7 @@ capabilities:
     l0_decision: docs/adr/0020-runlifecycle-spi-and-runstatus-formal-dfa.md
     implementation: null
     tests: []
-    allowed_claim: "Design only — the `RunLifecycle` SPI (resume/retry/cancel orchestration) remains design-only for W2; it is a DIFFERENT surface from the shipped W1 HTTP cancel edge. The HTTP cancel route POST /v1/runs/{runId}/cancel IS shipped in agent-service RunController.java#cancel and is independently re-authorized by Rule R-J.b at the HTTP boundary. Shipped W0/W1 run-owner semantics are 200 success, 404 not_found for missing or cross-tenant run ownership, 409 illegal_state_transition for illegal state changes, and idempotent same-terminal recancel returns 200. HTTP 403 tenant_mismatch is reserved for JWT/header tenant-claim mismatch today and the ADR-0108/0116 future widening. At W2 the SPI will materialize as the in-process resume/retry/cancel orchestration layer used by the async scheduler; until then orchestrator-level cancellation is handled by SyncOrchestrator's existing handoff to RunStateMachine."
+    allowed_claim: "Design only — the `RunLifecycle` SPI (resume/retry/cancel orchestration) remains design-only for W2. The HTTP cancel route POST /v1/runs/{runId}/cancel and RunController.java were removed by ADR-0159 consolidation (agent-service is a skeleton façade). The real HTTP surface is A2A JSON-RPC (A2aJsonRpcController). At W2 the SPI will materialize as the in-process resume/retry/cancel orchestration layer used by the async scheduler."
 
   run_state_change_audit_log:
     status: design_accepted
@@ -443,7 +443,7 @@ capabilities:
     l0_decision: docs/adr/0108-tenant-reauth-widening-and-graph-isolation.yaml
     implementation: null
     tests: []
-    allowed_claim: "Design only — Rule R-J sub-clause .b cancel re-auth surface widened to GET /v1/runs/{runId} (W1) and POST /v1/runs/{runId}/resume (W2); background consumers (orchestrator resume tick, S2C-callback receiver, watchdog) require WARN+ audit on tenant mismatch. 403 tenant_mismatch instead of 404 (eliminates existence-oracle). Audit MDC shape shared with cancel + spawn-acyclicity + graph-tenant-mismatch."
+    allowed_claim: "Design only — the /v1/runs REST surface was removed by ADR-0159 consolidation. Rule R-J sub-clause .b re-auth surface remains design-only; background consumers (orchestrator resume tick, S2C-callback receiver, watchdog) require WARN+ audit on tenant mismatch. Audit MDC shape shared with cancel + spawn-acyclicity + graph-tenant-mismatch."
 
   graph_tenant_isolation:
     status: design_accepted
