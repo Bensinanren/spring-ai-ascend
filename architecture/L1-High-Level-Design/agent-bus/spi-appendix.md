@@ -2,12 +2,12 @@
 level: L1
 module: agent-bus
 view: development
-status: draft
+status: active
 ---
 
 # agent-bus SPI 附录
 
-> 命名说明：本文架构语义（职责拆分、所有权）使用 L0 逻辑名 `agent-runtime` / `agent-core`（当前实现/兼容落点分别为 `agent-service` / `agent-execution-engine`）；当前代码路径、Maven artifact、`module-metadata.yaml`、forbidden dependencies 仍保留旧名。完整映射见 [`README.md`](README.md)「命名说明」。
+> 命名说明：本文架构语义（职责拆分、所有权）使用 L0 逻辑名 `agent-runtime` / `agent-core`。`agent-runtime` 已落地为同名模块（原 `agent-service` 已重命名为 `agent-runtime`）；`agent-core` 当前实现落点为 `agent-execution-engine`。完整映射见 [`README.md`](README.md)「命名说明」。
 
 ## 1. 已接受 SPI 清单
 
@@ -44,7 +44,7 @@ status: draft
 - `tenantId` 是 required field（compact constructor 校验非 null、非 blank）。
 - YAML 契约 `s2c-callback.v1.yaml#request.required_fields`、Java record、`S2cCallbackEnvelopeLibraryTest`、`contract-catalog.md`、治理模板 `contract-catalog.md.j2` 已同步。
 - registry 绑定作为兼容路径保留，但不替代 envelope 内 tenant scope（S2C-TENANT-005）。
-- runtime 侧构造点（当前实现落点 `agent-service` / `agent-execution-engine` / `agent-client`）尚未落地，随 runtime 实现波次补齐；Stage 2 只迁移契约与 harness，不改 Task lifecycle 所有权（S2C-TENANT-006）。
+- runtime 侧构造点（`agent-runtime` / `agent-execution-engine` / `agent-client`）尚未落地，随 runtime 实现波次补齐；Stage 2 只迁移契约与 harness，不改 Task lifecycle 所有权（S2C-TENANT-006）。
 
 ## 4. SPI 纯度
 

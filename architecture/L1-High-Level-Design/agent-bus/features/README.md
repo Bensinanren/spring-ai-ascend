@@ -2,7 +2,7 @@
 level: L1
 module: agent-bus
 view: development
-status: draft
+status: active
 ---
 
 # agent-bus L1 Feature Catalog
@@ -21,7 +21,7 @@ status: draft
 | AB-F08 | Workflow Primitives | 真 bus | 设计态 | mailbox、admission、backpressure、sleep、wakeup、tick。 |
 | AB-F09 | Contract Projection | 治理能力 | 草案 | 从 human ICD/YAML 投影 schema、fixture、mock、test。 |
 | AB-F10 | Drift Check | 治理能力 | 草案 | 检查模块依赖、契约状态、生成物来源。 |
-| AB-F11 | MQ-like Forwarding Substrate | 真 bus | C3 最小骨架（Stage 7） | 类 MQ 的跨 runtime 转发底座，包含队列/主题、ack/retry、correlation、DLQ/replay、ordering/fairness、backpressure；broker-agnostic 转发语义见 [`ICD-Agent-Bus-Forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)，C3 运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)（消费 Stage 3 route handle，不改 lifecycle owner，大载荷走 data reference；Stage 7 已落纯 Java 领域模型 / 端口 / 状态机 + in-memory 测试替身，真实持久化 deferred Stage 8）。 |
+| AB-F11 | MQ-like Forwarding Substrate | 真 bus | C3 最小骨架（Stage 7） | 类 MQ 的跨 runtime 转发底座，包含队列/主题、ack/retry、correlation、DLQ/replay、ordering/fairness、backpressure；broker-agnostic 转发语义见 [`ICD-Agent-Bus-Forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)，C3 运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)（消费 Stage 3 route handle，不改 lifecycle owner，大载荷走 data reference；Stage 7 已落纯 Java 领域模型 / 端口 / 状态机 + in-memory 测试替身，真实持久化 deferred Stage 8）。 |
 | AB-F12 | Agent Registry / Discovery | 真 bus | 设计态 | 运行时路由所需的 agent/service/capability 注册发现索引，不拥有 agent 定义或 Task 状态。 |
 
 ## 2. 成熟度定义
@@ -59,7 +59,7 @@ status: draft
 - backpressure runtime。
 - tick engine。
 - DLQ / replay store。
-- 类 MQ 转发底座（Stage 7 已落 C3 最小骨架：纯 Java 领域模型 / 端口 / 状态机 + 非生产 in-memory 测试替身，真实持久化 / broker 绑定仍 deferred；Stage 4 转发语义见 [`ICD-Agent-Bus-Forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)；Stage 7 运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)；Stage 6 候选裁决见 [`agent-bus-forwarding-runtime-decision`](../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)，默认采用 C3）。
+- 类 MQ 转发底座（Stage 7 已落 C3 最小骨架：纯 Java 领域模型 / 端口 / 状态机 + 非生产 in-memory 测试替身，真实持久化 / broker 绑定仍 deferred；Stage 4 转发语义见 [`ICD-Agent-Bus-Forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)；Stage 7 运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)；Stage 6 候选裁决见 [`agent-bus-forwarding-runtime-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)，默认采用 C3）。
 - agent/service/capability registry runtime。
 - service discovery API。
 - runtime-side S2C construction binding / schema validation runtime（契约层迁移已完成）。

@@ -2,7 +2,7 @@
 level: L1
 module: agent-bus
 view: development
-status: draft
+status: active
 ---
 
 # agent-bus 开发视图
@@ -33,7 +33,7 @@ agent-bus/
       s2c/
 ```
 
-> 命名说明：本文架构语义（所有权）使用 L0 逻辑名 `agent-runtime`（当前实现/兼容落点：`agent-service`）；forbidden dependencies 列表与 runtime 构造点引用保留当前 artifact 名。完整映射见 [`README.md`](README.md)「命名说明」。
+> 命名说明：本文架构语义（所有权）使用 L0 逻辑名 `agent-runtime`（已落地为同名模块，原 `agent-service` 已重命名）；forbidden dependencies 列表与 runtime 构造点引用使用当前 artifact 名。完整映射见 [`README.md`](README.md)「命名说明」。
 
 ## 2. 包职责
 
@@ -55,7 +55,7 @@ agent-bus/
 
 `agent-bus` 生产代码禁止：
 
-- 依赖 `agent-service`。
+- 依赖 `agent-runtime`。
 - 依赖 `agent-execution-engine`。
 - 依赖 `agent-client`。
 - 依赖 `agent-middleware`。
@@ -101,7 +101,7 @@ Stage 2 已完成的迁移（commit `d894f494`）：
 
 仍待后续波次补齐（不改 Task lifecycle 所有权，S2C-TENANT-006）：
 
-- 构造 `S2cCallbackEnvelope` 的 runtime 侧构造点（当前实现落点：`agent-service`）。
+- 构造 `S2cCallbackEnvelope` 的 runtime 侧构造点（`agent-runtime`）。
 - runtime-side schema validation integration。
 - downstream 文档与治理模板的剩余同步。
 
@@ -109,7 +109,7 @@ Stage 2 已完成的迁移（commit `d894f494`）：
 
 ## 7. C3 转发运行态（Stage 7 最小骨架 → Stage 8 持久化准备 → Stage 9 lease-safe）
 
-C3（database outbox / inbox）已最终确认为类 MQ 转发的生产候选路径（裁决见 [`agent-bus-forwarding-runtime-decision`](../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)，`adopted-c3`）。Stage 7 交付最小可测运行态骨架；Stage 8 补齐持久化准备（[`forwarding-persistence`](../../L2/agent-bus/forwarding-persistence.md)）。
+C3（database outbox / inbox）已最终确认为类 MQ 转发的生产候选路径（裁决见 [`agent-bus-forwarding-runtime-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)，`adopted-c3`）。Stage 7 交付最小可测运行态骨架；Stage 8 补齐持久化准备（[`forwarding-persistence`](../../L2-Low-Level-Design/agent-bus/forwarding-persistence.md)）。
 
 **已落地（生产代码，纯 Java）：**
 

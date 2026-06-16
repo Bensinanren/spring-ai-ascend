@@ -1,7 +1,7 @@
 ---
 level: L1
 module: agent-bus
-status: draft
+status: active
 source_review_packet: docs/architecture/l0/10-governance/review-packets/agent-bus-architecture-review-draft.md
 covers_views: [logical, process, development, physical, scenarios]
 ---
@@ -22,12 +22,11 @@ covers_views: [logical, process, development, physical, scenarios]
 
 | L0 逻辑模块 | 当前实现 / 兼容落点 |
 |---|---|
-| `agent-runtime` | `agent-service/` 目录、Maven artifact `agent-service` |
+| `agent-runtime` | `agent-runtime/` 目录、Maven artifact `agent-runtime`（原 `agent-service` 已重命名并入） |
 | `agent-core` | `agent-execution-engine/` 目录、Maven artifact `agent-execution-engine` |
 
 - 架构语义（生命周期 owner、参与者、状态归属、跨模块关系）优先使用 L0 逻辑名 `agent-runtime` / `agent-core`。
-- 当前代码路径、Maven artifact、`module-metadata.yaml`、forbidden dependencies 等代码事实仍保留旧名 `agent-service` / `agent-execution-engine`。
-- 仓库当前**没有** `agent-runtime/` 或 `agent-core/` 目录；这是命名收敛，不是目录重命名。
+- `agent-runtime` 已落地为同名模块（原 `agent-service` 已重命名为 `agent-runtime`）；`agent-core` 当前实现落点仍为 `agent-execution-engine/`。
 
 ## 视图文件
 
@@ -59,7 +58,7 @@ covers_views: [logical, process, development, physical, scenarios]
 
 ## Agent 注册发现契约（Stage 3 设计态）
 
-Agent / Service / Capability 注册与发现的完整设计态契约见 [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md)。Stage 3 边界（HD3-001..007）：
+Agent / Service / Capability 注册与发现的完整设计态契约见 [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md)。Stage 3 边界（HD3-001..007）：
 
 - `agent-bus` 只拥有 runtime route index，不拥有 agent 定义或 Task 状态。
 - registry key 强制包含 `tenantId`，禁止跨 tenant fallback。
@@ -68,7 +67,7 @@ Agent / Service / Capability 注册与发现的完整设计态契约见 [`ICD-Ag
 
 ## 类 MQ 转发契约（Stage 4 设计态）
 
-类 MQ 转发底座的完整设计态契约见 [`ICD-Agent-Bus-Forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)。Stage 4 边界（HD4）：
+类 MQ 转发底座的完整设计态契约见 [`ICD-Agent-Bus-Forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)。Stage 4 边界（HD4）：
 
 - 转发语义 broker-agnostic：不绑定具体 broker / MQ 产品，产品选择 deferred 到 Stage 5。
 - forwarding envelope 通过 `routeHandle` 消费 Stage 3 discovery result，不直接暴露或绕过物理 endpoint。
@@ -78,7 +77,7 @@ Agent / Service / Capability 注册与发现的完整设计态契约见 [`ICD-Ag
 
 ## C3 转发运行态（Stage 7 最小骨架 → Stage 8 持久化准备 → Stage 9 lease-safe）
 
-Stage 7 按 Stage 6 裁决采用 **C3（database outbox / inbox）** 作为类 MQ 转发的生产候选路径，交付 C3 的最小可测运行态骨架（非完整持久化实现）。运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)，L2 技术设计见 [`forwarding-outbox-inbox.md`](../../L2/agent-bus/forwarding-outbox-inbox.md)。Stage 7 边界：
+Stage 7 按 Stage 6 裁决采用 **C3（database outbox / inbox）** 作为类 MQ 转发的生产候选路径，交付 C3 的最小可测运行态骨架（非完整持久化实现）。运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)，L2 技术设计见 [`forwarding-outbox-inbox.md`](../../L2-Low-Level-Design/agent-bus/forwarding-outbox-inbox.md)。Stage 7 边界：
 
 - 落地纯 Java 领域模型与端口：`ForwardingEnvelope` / `ForwardingRouteHandle` / `ForwardingMessageId` / `ForwardingStatus` / `ForwardingFailureCode` / `ForwardingReceipt`，以及 `ForwardingOutboxPort` / `ForwardingInboxPort` / `ForwardingDispatcher` 三个端口和纯状态机 `ForwardingStateMachine`。
 - envelope 强制 tenant 隔离（`tenantId` 必须等于 `routeHandle.tenantScope`，违例报 `tenant_mismatch`）与 MI5-003 方案 B 的 `payloadRef` 条件必填（DATA_BEARING 必填、CONTROL_ONLY 可选）；envelope / receipt 不携带 payload body / token stream / Task execution state / physical endpoint。
@@ -88,7 +87,7 @@ Stage 7 按 Stage 6 裁决采用 **C3（database outbox / inbox）** 作为类 M
 
 ### Stage 8：C3 持久化准备（record 模型 / claim / lease / worker / schema 草案）
 
-Stage 8 在 Stage 7 最小骨架上完成 C3 最终确认（`adopted-c3`）并推进为可落真实持久化的运行态底座（[`forwarding-persistence.md`](../../L2/agent-bus/forwarding-persistence.md)）。组件边界拆清：
+Stage 8 在 Stage 7 最小骨架上完成 C3 最终确认（`adopted-c3`）并推进为可落真实持久化的运行态底座（[`forwarding-persistence.md`](../../L2-Low-Level-Design/agent-bus/forwarding-persistence.md)）。组件边界拆清：
 
 - **ForwardingDispatcher**（accept / enqueue 网关角色）：接受 envelope，写 outbox，返回同步 ack；不驱动投递（MI8-003）。
 - **ForwardingOutboxPort**（写入 + 状态迁移 + 状态查询）：enqueue / mark* / statusOf；`sourceServiceId` / `targetServiceId` 写入 record（MI8-002）。
@@ -100,7 +99,7 @@ Stage 8 边界：补齐 record 模型（`ForwardingOutboxRecord` / `ForwardingIn
 
 ### Stage 9：C3 lease-safe / persistence-ready（lease-owner guarded mutation / record 不变量 / failure-code 分类）
 
-Stage 9 在 Stage 8 持久化准备上补齐**并发安全**与**约束完整性**（[`forwarding-persistence.md §11`](../../L2/agent-bus/forwarding-persistence.md)），收口 MI9-001..006：
+Stage 9 在 Stage 8 持久化准备上补齐**并发安全**与**约束完整性**（[`forwarding-persistence.md §11`](../../L2-Low-Level-Design/agent-bus/forwarding-persistence.md)），收口 MI9-001..006：
 
 - **MI9-001 lease-owner guarded mutation**：`markAcked` / `scheduleRetry` / `moveToDlq` / `markExpired` 全部带 `leaseOwner`；`markDispatching` 移除（DISPATCHING 只经 `claimDue` 进入）；stale / foreign / expired owner 改状态抛 `ForwardingLeaseException`（RECORD_NOT_FOUND / NO_LEASE / OWNER_MISMATCH / NOT_DISPATCHING）。
 - **MI9-002 lease 生命周期闭环**：ACKED / DLQ / EXPIRED / RETRY_SCHEDULED 清 lease；仅 DISPATCHING 持 lease。
@@ -112,25 +111,25 @@ DB / migration 归属未由人类确认 → **路径 B**：不引入 JDBC / Flyw
 
 ## 阶段记录
 
-- Stage 1 harness 计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-harness.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-harness.md)。
-- Stage 1 评审与 Stage 2 计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-review-and-stage2-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-review-and-stage2-plan.md)。
-- Stage 2 评审与 Stage 3 计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage2-review-and-stage3-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage2-review-and-stage3-plan.md)。
-- Stage 1 follow-up 评审与 Stage 3 执行计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-followups-review-and-stage3-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-followups-review-and-stage3-plan.md)。
-- Stage 3 评审与后续收口计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage3-review-and-followup-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage3-review-and-followup-plan.md)。
-- Stage 3 收口评审与 Stage 4 计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage3-close-review-and-stage4-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage3-close-review-and-stage4-plan.md)。
-- Stage 4 评审与 Stage 5 计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage4-review-and-stage5-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage4-review-and-stage5-plan.md)。
-- Stage 5 评审与 Stage 6 计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage5-review-and-stage6-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage5-review-and-stage6-plan.md)。
-- Stage 6 评审与 Stage 7 大批次计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage6-review-and-stage7-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage6-review-and-stage7-plan.md)。
-- Stage 7 评审与 Stage 8 计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage7-review-and-stage8-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage7-review-and-stage8-plan.md)。
-- Stage 8 评审与 Stage 9 计划：[`../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage8-review-and-stage9-plan.md`](../../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage8-review-and-stage9-plan.md)。
+- Stage 1 harness 计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-harness.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-harness.md)。
+- Stage 1 评审与 Stage 2 计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-review-and-stage2-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-review-and-stage2-plan.md)。
+- Stage 2 评审与 Stage 3 计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage2-review-and-stage3-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage2-review-and-stage3-plan.md)。
+- Stage 1 follow-up 评审与 Stage 3 执行计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-followups-review-and-stage3-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage1-followups-review-and-stage3-plan.md)。
+- Stage 3 评审与后续收口计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage3-review-and-followup-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage3-review-and-followup-plan.md)。
+- Stage 3 收口评审与 Stage 4 计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage3-close-review-and-stage4-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage3-close-review-and-stage4-plan.md)。
+- Stage 4 评审与 Stage 5 计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage4-review-and-stage5-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage4-review-and-stage5-plan.md)。
+- Stage 5 评审与 Stage 6 计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage5-review-and-stage6-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage5-review-and-stage6-plan.md)。
+- Stage 6 评审与 Stage 7 大批次计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage6-review-and-stage7-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage6-review-and-stage7-plan.md)。
+- Stage 7 评审与 Stage 8 计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage7-review-and-stage8-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage7-review-and-stage8-plan.md)。
+- Stage 8 评审与 Stage 9 计划：[`../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage8-review-and-stage9-plan.md`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage8-review-and-stage9-plan.md)。
 
 ## 后续工作
 
 - 补齐 S2C tenant 迁移后的 runtime-side construction binding / schema validation / downstream 文档同步。
 - 为 ingress、federation、reflection 增加契约测试计划。
 - 为本目录生成 graphify 输入和漂移检查 manifest。
-- Stage 5 运行态候选方案评审：见 [`../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-candidates.md`](../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-candidates.md)（候选评审，不绑定产品；Stage 4 设计态契约见上方「类 MQ 转发契约」章节）。
-- Stage 6 运行态候选裁决：见 [`../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md`](../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)（已采用 C3，`adopted-c3`；Stage 8 最终确认，后续变更需 ADR / review packet）。
+- Stage 5 运行态候选方案评审：见 [`../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-candidates.md`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-candidates.md)（候选评审，不绑定产品；Stage 4 设计态契约见上方「类 MQ 转发契约」章节）。
+- Stage 6 运行态候选裁决：见 [`../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)（已采用 C3，`adopted-c3`；Stage 8 最终确认，后续变更需 ADR / review packet）。
 - Stage 7 C3 转发运行态最小骨架已落地（领域模型 + 端口 + 状态机 + in-memory 测试替身 + harness）；115 tests green。
 - Stage 8 C3 持久化准备已落地：record 模型 + claim / lease 端口 + dispatcher worker skeleton + 抽象 delivery 端口 + schema / migration 草案（DDL 草稿未执行）+ in-memory lease harness；收口 MI8-001..005；122 tests green。真实 JDBC adapter / Flyway migration / 真实投递绑定 deferred Stage 9+（§6 护栏：数据库产品 / migration 归属未确认前不引入生产数据库依赖）。计划见上方「阶段记录」。
 - Stage 9 C3 lease-safe / persistence-ready 已落地（MI9-001..006）：lease-owner guarded mutation、lease 生命周期闭环、record 条件不变量（Java + DDL CHECK + harness）、failure-code classification、claim / state-update SQL contract；DB / migration 归属未确认 → 路径 B（不引入 JDBC / Flyway）；129 tests green。计划见上方「阶段记录」。

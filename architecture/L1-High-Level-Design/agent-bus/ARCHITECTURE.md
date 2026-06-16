@@ -2,7 +2,7 @@
 level: L1
 module: agent-bus
 view: architecture
-status: draft
+status: active
 source_review_packet: docs/architecture/l0/10-governance/review-packets/agent-bus-architecture-review-draft.md
 ---
 
@@ -12,9 +12,9 @@ source_review_packet: docs/architecture/l0/10-governance/review-packets/agent-bu
 
 `agent-bus` 是平台的跨平面通信与治理模块。它负责定义和承载跨边界 envelope、SPI 和治理规则，使外部请求、服务间调用、客户端能力回调、federation、reflection 等流量不直接穿透模块边界。
 
-它不是 Task 生命周期中心。Task 创建、状态持久化、suspend/resume、Task hierarchy 和 service API 仍由 `agent-runtime`（当前实现/兼容落点：`agent-service`）拥有。`agent-bus` 负责的是“流量如何跨边界进入、离开、转发、关联和治理”。
+它不是 Task 生命周期中心。Task 创建、状态持久化、suspend/resume、Task hierarchy 和 service API 仍由 `agent-runtime` 拥有。`agent-bus` 负责的是“流量如何跨边界进入、离开、转发、关联和治理”。
 
-> 命名说明：本文架构语义（所有权、参与者、状态归属）使用 L0 逻辑名 `agent-runtime` / `agent-core`（当前实现/兼容落点分别为 `agent-service` / `agent-execution-engine`）；当前代码路径、Maven artifact、`module-metadata.yaml`、forbidden dependencies 仍保留旧名。完整映射见 [`README.md`](README.md)「命名说明」。仓库当前没有 `agent-runtime/` 或 `agent-core/` 目录。
+> 命名说明：本文架构语义（所有权、参与者、状态归属）使用 L0 逻辑名 `agent-runtime` / `agent-core`。`agent-runtime` 已落地为同名模块（原 `agent-service` 已重命名为 `agent-runtime`）；`agent-core` 当前实现落点为 `agent-execution-engine`。完整映射见 [`README.md`](README.md)「命名说明」。
 
 ## 2. 两块逻辑职责
 
@@ -31,7 +31,7 @@ H2 已接受 `agent-bus` 内部分为两个逻辑子模块：
 
 | 目标态能力 | 职责 | 当前状态 |
 |---|---|---|
-| 类 MQ 转发底座 | 提供跨 runtime 的异步转发、队列/主题抽象、correlation、ack/retry、backpressure、DLQ/replay、ordering/fairness 等运行时语义。 | C3 最小骨架（Stage 7）；Stage 4 broker-agnostic 转发语义 ICD（[`ICD-Agent-Bus-Forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)）+ Stage 7 C3 运行态契约（[`ICD-Agent-Bus-Forwarding-Runtime`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)）；Stage 7 已落纯 Java 领域模型 / 端口 / 状态机 + 非生产 in-memory 测试替身，真实持久化 / broker 绑定 deferred Stage 8。 |
+| 类 MQ 转发底座 | 提供跨 runtime 的异步转发、队列/主题抽象、correlation、ack/retry、backpressure、DLQ/replay、ordering/fairness 等运行时语义。 | C3 最小骨架（Stage 7）；Stage 4 broker-agnostic 转发语义 ICD（[`ICD-Agent-Bus-Forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)）+ Stage 7 C3 运行态契约（[`ICD-Agent-Bus-Forwarding-Runtime`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)）；Stage 7 已落纯 Java 领域模型 / 端口 / 状态机 + 非生产 in-memory 测试替身，真实持久化 / broker 绑定 deferred Stage 8。 |
 | Agent 注册与发现 | 维护运行时路由所需的 agent/service/capability 注册发现索引，包括实例、租户、能力、版本、region、endpoint、health、负载等路由元数据。 | 设计态；当前没有注册表实现或发现 API。 |
 
 这里的注册发现只服务于运行时路由和治理，不拥有 agent 的业务定义、Task 生命周期或执行状态。
@@ -55,7 +55,7 @@ W2 workflow primitives 只保留设计态，不进入自动实现范围。它们
 | Runtime 与 Core | `EnginePort` 是中立边界；`agent-runtime` 驱动，`agent-core` 实现，bus 提供 SPI home。 |
 | Client 到 Runtime | `agent-client` 不直接依赖 compute_control 内部模块；通过 `IngressGateway` 进入。 |
 | Runtime 到 Client | 通过 `S2cCallbackTransport` 派发 S2C callback；envelope 必须显式携带 `tenantId`（Stage 2 契约层已迁移）。 |
-| Runtime 到 Runtime | 由真 bus 负责跨服务调用治理；当前以 federation/reflection 等 SPI 和契约事实表达；类 MQ 转发语义（Stage 4 设计态）消费 Stage 3 route handle，不改远端 Task lifecycle owner，大载荷走 data reference path（见 [`ICD-Agent-Bus-Forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)）。 |
+| Runtime 到 Runtime | 由真 bus 负责跨服务调用治理；当前以 federation/reflection 等 SPI 和契约事实表达；类 MQ 转发语义（Stage 4 设计态）消费 Stage 3 route handle，不改远端 Task lifecycle owner，大载荷走 data reference path（见 [`ICD-Agent-Bus-Forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)）。 |
 | 物理 bus | broker、ordering、DLQ、mailbox fairness 等运行时实现未进入当前切片。 |
 | 注册发现 | 真 bus 目标态需要 agent/service/capability 注册发现；已在 Stage 3 形成设计态 ICD 与 harness；仍不进入 runtime 实现。 |
 
@@ -68,7 +68,7 @@ W2 workflow primitives 只保留设计态，不进入自动实现范围。它们
 | 契约目录 | `docs/contracts/contract-catalog.md` |
 | 具体契约 | `docs/contracts/ingress-envelope.v1.yaml`、`s2c-callback.v1.yaml`、`engine-port.v1.yaml`、`federation-envelope.v1.yaml`、`reflection-envelope.v1.yaml` |
 | L0 边界 | `architecture/L0-Top-Level-Design/boundaries.md`、`architecture/L0-Top-Level-Design/views.md` |
-| 相关 L1 | `architecture/L1-High-Level-Design/agent-service/**` |
+| 相关 L1 | `architecture/L1-High-Level-Design/agent-runtime/**` |
 | 当前代码 | `agent-bus/src/main/java/com/huawei/ascend/bus/spi/**` |
 | 当前测试 | `agent-bus/src/test/java/**` |
 
@@ -78,7 +78,7 @@ S2C `tenantId` 契约层迁移已完成（Stage 2，commit `d894f494`，Rule R-C
 
 剩余事项为 runtime 侧，随后续波次推进（不改 Task lifecycle 所有权，见 `development.md` §6）：
 
-- `agent-runtime`（当前实现落点：`agent-service`）与 `agent-core`（当前实现落点：`agent-execution-engine`）的 envelope 构造点绑定。
+- `agent-runtime` 与 `agent-core`（当前实现落点：`agent-execution-engine`）的 envelope 构造点绑定。
 - runtime-side schema validation integration。
 - downstream 文档与治理模板的剩余同步。
 

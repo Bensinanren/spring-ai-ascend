@@ -2,7 +2,7 @@
 level: L1
 module: agent-bus
 view: logical
-status: draft
+status: active
 ---
 
 # agent-bus 逻辑视图
@@ -18,7 +18,7 @@ status: draft
 
 Gateway 和真 bus 共享一个原则：它们治理跨边界流量，但不拥有业务 Task 生命周期。
 
-> 命名说明：本文架构语义（所有权、参与者、状态归属、跨模块关系）使用 L0 逻辑名 `agent-runtime` / `agent-core`（当前实现/兼容落点分别为 `agent-service` / `agent-execution-engine`）；当前代码路径、Maven artifact、`module-metadata.yaml`、forbidden dependencies 仍保留旧名。完整映射见 [`README.md`](README.md)「命名说明」。
+> 命名说明：本文架构语义（所有权、参与者、状态归属、跨模块关系）使用 L0 逻辑名 `agent-runtime` / `agent-core`。`agent-runtime` 已落地为同名模块（原 `agent-service` 已重命名为 `agent-runtime`）；`agent-core` 当前实现落点为 `agent-execution-engine`。完整映射见 [`README.md`](README.md)「命名说明」。
 
 ## 2. 逻辑元素
 
@@ -87,7 +87,7 @@ Stage 2 已完成 `S2cCallbackEnvelope` 的 tenant 迁移（commit `d894f494`）
 - 真 bus 和 federation 场景不能依赖单个 service runtime 的隐式 registry。
 - 审计、重放、DLQ 和跨服务排查需要从 envelope 本身看到 tenant。
 
-剩余影响：`agent-runtime`（当前实现落点：`agent-service`）侧的构造点和 runtime-side schema validation integration 仍待后续波次（不改变 Task lifecycle 所有权，见 `development.md` §6）。Agent 注册发现的 tenant 隔离语义在 [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) 中规定：registry key 必须包含 `tenantId`，跨 tenant fallback 显式失败。
+剩余影响：`agent-runtime` 侧的构造点和 runtime-side schema validation integration 仍待后续波次（不改变 Task lifecycle 所有权，见 `development.md` §6）。Agent 注册发现的 tenant 隔离语义在 [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) 中规定：registry key 必须包含 `tenantId`，跨 tenant fallback 显式失败。
 
 ## 6. 逻辑风险
 
@@ -100,7 +100,7 @@ Stage 2 已完成 `S2cCallbackEnvelope` 的 tenant 迁移（commit `d894f494`）
 
 ## 7. Agent 注册发现契约
 
-Agent 注册与发现的完整设计态契约见 [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md)。核心裁决（HD3-001..007）：
+Agent 注册与发现的完整设计态契约见 [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md)。核心裁决（HD3-001..007）：
 
 - `agent-bus` 只拥有 runtime route index，不拥有 agent 定义或 Task 状态。
 - registry key = `(tenantId, agentId|serviceId, capability)`，`tenantId` 是强制维度，禁止跨 tenant fallback。
@@ -112,7 +112,7 @@ Agent 注册与发现的完整设计态契约见 [`ICD-Agent-Registry-Discovery`
 
 ## 8. 类 MQ 转发契约（Stage 4 设计态）
 
-类 MQ 转发底座的完整设计态契约见 [`ICD-Agent-Bus-Forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)。核心边界（HD4）：
+类 MQ 转发底座的完整设计态契约见 [`ICD-Agent-Bus-Forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)。核心边界（HD4）：
 
 - 转发语义 broker-agnostic：不绑定具体 broker / MQ 产品，产品选择 deferred 到 Stage 5。
 - forwarding envelope 通过 `routeHandle` 消费 Stage 3 的 discovery result，不直接暴露或绕过物理 endpoint。
@@ -122,7 +122,7 @@ Agent 注册与发现的完整设计态契约见 [`ICD-Agent-Registry-Discovery`
 
 ## 9. C3 转发运行态最小骨架（Stage 7）
 
-Stage 7 按 Stage 6 裁决，落地 C3（database outbox / inbox）的最小可测运行态骨架。运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)，L2 技术设计见 [`forwarding-outbox-inbox.md`](../../L2/agent-bus/forwarding-outbox-inbox.md)。逻辑落点：
+Stage 7 按 Stage 6 裁决，落地 C3（database outbox / inbox）的最小可测运行态骨架。运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)，L2 技术设计见 [`forwarding-outbox-inbox.md`](../../L2-Low-Level-Design/agent-bus/forwarding-outbox-inbox.md)。逻辑落点：
 
 - 发送方持久 outbox：唯一键 `(tenantId, messageId)`，幂等 enqueue，状态机驱动 `PENDING → DISPATCHING → {ACKED | RETRY_SCHEDULED → DISPATCHING | DLQ | EXPIRED}`。
 - 接收方持久 inbox：去重键 `(tenantId, messageId, consumerServiceId)`，重复到达返回 `DUPLICATE_SUPPRESSED` 不变更，`RECEIVED → {CONSUMED | REJECTED}`。

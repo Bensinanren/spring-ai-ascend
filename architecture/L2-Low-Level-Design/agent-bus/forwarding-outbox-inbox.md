@@ -12,13 +12,13 @@ target_module: agent-bus
 
 # agent-bus L2 技术设计：类 MQ 转发 outbox / inbox（C3 运行态承载）
 
-> 命名说明：本设计架构语义（参与模块、所有权、边界）使用 L0 逻辑名 `agent-runtime` / `agent-core`（当前实现 / 兼容落点分别为 `agent-service` / `agent-execution-engine`）；代码路径、Maven artifact、`module-metadata.yaml`、forbidden dependencies 仍保留旧名。
+> 命名说明：本设计架构语义（参与模块、所有权、边界）使用 L0 逻辑名 `agent-runtime` / `agent-core`。`agent-runtime` 已落地为同名模块（原 `agent-service` 已重命名）；`agent-core` 当前实现落点为 `agent-execution-engine`。
 
 ## 1. 目标
 
-为 `agent-bus` 的 runtime-to-runtime 类 MQ 转发提供一个 **durable、可审计、tenant-scoped、broker-agnostic** 的最小底座（候选 C3，database outbox / inbox，见 [`decision`](../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)）。
+为 `agent-bus` 的 runtime-to-runtime 类 MQ 转发提供一个 **durable、可审计、tenant-scoped、broker-agnostic** 的最小底座（候选 C3，database outbox / inbox，见 [`decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md)）。
 
-本 L2 把 Stage 4 的设计态转发语义（[`ICD-Agent-Bus-Forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)）投影为：
+本 L2 把 Stage 4 的设计态转发语义（[`ICD-Agent-Bus-Forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)）投影为：
 
 - 可直接落地的组件边界与端口接口。
 - outbox / inbox 两套状态机（含触发条件、终态、失败码）。

@@ -2,12 +2,12 @@
 level: L1
 module: agent-bus
 view: scenarios
-status: draft
+status: active
 ---
 
 # agent-bus 场景视图
 
-> 命名说明：本文参与者与所有权使用 L0 逻辑名 `agent-runtime` / `agent-core`（当前实现/兼容落点分别为 `agent-service` / `agent-execution-engine`）；当前代码路径、Maven artifact、`module-metadata.yaml`、forbidden dependencies 仍保留旧名。完整映射见 [`README.md`](README.md)「命名说明」。
+> 命名说明：本文参与者与所有权使用 L0 逻辑名 `agent-runtime` / `agent-core`。`agent-runtime` 已落地为同名模块（原 `agent-service` 已重命名为 `agent-runtime`）；`agent-core` 当前实现落点为 `agent-execution-engine`。完整映射见 [`README.md`](README.md)「命名说明」。
 
 ## SC-001：client 创建或操作 Task
 
@@ -93,7 +93,7 @@ status: draft
 |---|---|
 | 参与者 | service/agent、registry（agent-bus view） |
 | 入口 | registry register（设计态） |
-| 契约 | [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
+| 契约 | [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
 | 流程 | service 上线时把可路由能力注册到 registry，entry 含 `tenantId`、`agentId`/`serviceId`、`capability`、`routeKey`、`contractVersion`/`capabilityVersion`、`endpoint`、`lease`。 |
 | 成功结果 | entry 可见，持有有效 lease。 |
 | 失败结果 | 必填字段缺失（尤其 `tenantId`）→ register rejected。 |
@@ -106,7 +106,7 @@ status: draft
 |---|---|
 | 参与者 | gateway/真 bus、registry |
 | 入口 | registry discover（设计态） |
-| 契约 | [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
+| 契约 | [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
 | 流程 | gateway/真 bus 用 `tenantId` + `capability`（+ 可选 version/health 过滤）查询 registry，拿到候选 route handle + health + version。 |
 | 成功结果 | 返回零或多个候选；调用方据 health/weight 选择，用 route handle 路由。 |
 | 失败结果 | `entry_not_found`、`registry_unavailable`。 |
@@ -119,7 +119,7 @@ status: draft
 |---|---|
 | 参与者 | gateway/真 bus、registry |
 | 入口 | registry discover（设计态） |
-| 契约 | [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
+| 契约 | [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
 | 流程 | 目标 entry 存在但 health degraded/unhealthy，或 lease 已过期。 |
 | 成功结果 | unhealthy target 仍可见但显式标注 health 状态；调用方据 health 决策（降级、重试、放弃）。 |
 | 失败结果 | `lease_expired`（entry 不可见）、`health_unavailable`（entry unhealthy）。 |
@@ -132,7 +132,7 @@ status: draft
 |---|---|
 | 参与者 | gateway/真 bus、registry |
 | 入口 | registry discover（设计态） |
-| 契约 | [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
+| 契约 | [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
 | 流程 | 调用方查询要求某 `contractVersion`/`capabilityVersion`，但无匹配 entry。 |
 | 成功结果 | 无匹配时显式返回 `version_unavailable`，不静默返回错误版本。 |
 | 失败结果 | `version_unavailable`。 |
@@ -145,7 +145,7 @@ status: draft
 |---|---|
 | 参与者 | gateway/真 bus、registry |
 | 入口 | registry discover（设计态） |
-| 契约 | [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
+| 契约 | [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) |
 | 流程 | 调用方 tenant 上下文与 query `tenantId` 不一致，或试图发现他 tenant 的 capability。 |
 | 成功结果 | 不适用。 |
 | 失败结果 | `tenant_isolation_violation`（cross-tenant query rejected），禁止跨 tenant fallback。 |
@@ -158,7 +158,7 @@ status: draft
 |---|---|
 | 参与者 | 调用方 `agent-runtime`、真 bus（转发底座）、接收方 `agent-runtime` |
 | 入口 | forwarding（设计态） |
-| 契约 | [`ICD-Agent-Bus-Forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md) |
+| 契约 | [`ICD-Agent-Bus-Forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md) |
 | 流程 | 调用方据 Stage 3 discovery 返回的 route handle 构造 forwarding envelope（`tenantId`、`traceId`、`correlationId`、`idempotencyKey`、`routeHandle`、`capability`、`deadline`；`payloadRef` 条件必填），转发底座投递，接收方按自身 Task/Run lifecycle 处理。 |
 | 成功结果 | 同步 ack（已落队）或异步完成（接收方处理后回传 outcome）。 |
 | 失败结果 | `route_not_found`、`tenant_mismatch`、`delivery_timeout`、`receiver_unavailable`、`backpressure_rejected`、`duplicate_suppressed`。 |

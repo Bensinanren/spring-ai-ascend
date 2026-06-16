@@ -4,7 +4,7 @@ module: agent-bus
 view: development
 status: draft
 source_decision: docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md
-source_l2_runtime: architecture/docs/L2/agent-bus/forwarding-outbox-inbox.md
+source_l2_runtime: architecture/L2-Low-Level-Design/agent-bus/forwarding-outbox-inbox.md
 source_icd_runtime: docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md
 source_icd_design: docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md
 target_module: agent-bus
@@ -12,7 +12,7 @@ target_module: agent-bus
 
 # agent-bus L2 技术设计：C3 持久化（outbox / inbox schema、claim / lease、migration 草案）
 
-> 命名说明：本设计架构语义使用 L0 逻辑名 `agent-runtime` / `agent-core`（当前实现 / 兼容落点分别为 `agent-service` / `agent-execution-engine`）；代码路径、Maven artifact、`module-metadata.yaml`、forbidden dependencies 仍保留旧名。
+> 命名说明：本设计架构语义使用 L0 逻辑名 `agent-runtime` / `agent-core`。`agent-runtime` 已落地为同名模块（原 `agent-service` 已重命名）；`agent-core` 当前实现落点为 `agent-execution-engine`。
 
 ## 1. 目标
 

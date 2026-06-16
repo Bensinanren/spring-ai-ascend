@@ -2,7 +2,7 @@
 level: L1
 module: agent-bus
 view: process
-status: draft
+status: active
 ---
 
 # agent-bus 进程视图
@@ -14,9 +14,9 @@ status: draft
 进程视图中的所有流程都遵守两条规则：
 
 - 进入或跨越边界的请求必须带有可追踪的 envelope。
-- 状态机最终决策仍回到对应 owner，例如 Task 状态回到 `agent-runtime`（当前实现/兼容落点：`agent-service`）。
+- 状态机最终决策仍回到对应 owner，例如 Task 状态回到 `agent-runtime`。
 
-> 命名说明：本文架构语义（参与者、所有权、流程角色）使用 L0 逻辑名 `agent-runtime` / `agent-core`（当前实现/兼容落点分别为 `agent-service` / `agent-execution-engine`）；当前代码路径、Maven artifact、`module-metadata.yaml`、forbidden dependencies 仍保留旧名。完整映射见 [`README.md`](README.md)「命名说明」。
+> 命名说明：本文架构语义（参与者、所有权、流程角色）使用 L0 逻辑名 `agent-runtime` / `agent-core`。`agent-runtime` 已落地为同名模块（原 `agent-service` 已重命名为 `agent-runtime`）；`agent-core` 当前实现落点为 `agent-execution-engine`。完整映射见 [`README.md`](README.md)「命名说明」。
 
 ## 2. C2S ingress 流程
 
@@ -118,13 +118,13 @@ Mailbox、admission、backpressure、sleep、wakeup、tick 当前只保留设计
 当前状态：
 
 - 以上内容都是设计态。
-- 类 MQ 转发底座的运行态承载已最终确认为 **C3（database outbox / inbox），`adopted-c3`**；broker 产品仍 broker-agnostic，不绑定具体 broker / MQ 产品。Stage 4 起草 broker-agnostic 转发语义 ICD 与设计态 harness（见 [`ICD-agent-bus-forwarding`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)）。Stage 5 做候选评审（见 [`agent-bus-forwarding-runtime-candidates`](../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-candidates.md)）。Stage 6 / Stage 7 / Stage 8 / Stage 9 按 [`agent-bus-forwarding-runtime-decision`](../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 落地：Stage 7 最小骨架（领域模型 + 端口 + 状态机 + in-memory 替身 + harness），Stage 8 持久化准备（record 模型 + claim / lease 端口 + dispatcher worker skeleton + 抽象 delivery 端口 + schema / migration 草案，DDL 未执行 + in-memory lease harness，见 [`forwarding-persistence`](../../L2/agent-bus/forwarding-persistence.md)），Stage 9 lease-safe / persistence-ready（lease-owner guarded mutation、lease 生命周期闭环、record 条件不变量、failure-code classification、claim / state-update SQL contract；DB / migration 归属未确认 → 路径 B，不引入 JDBC）。
+- 类 MQ 转发底座的运行态承载已最终确认为 **C3（database outbox / inbox），`adopted-c3`**；broker 产品仍 broker-agnostic，不绑定具体 broker / MQ 产品。Stage 4 起草 broker-agnostic 转发语义 ICD 与设计态 harness（见 [`ICD-agent-bus-forwarding`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding.md)）。Stage 5 做候选评审（见 [`agent-bus-forwarding-runtime-candidates`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-candidates.md)）。Stage 6 / Stage 7 / Stage 8 / Stage 9 按 [`agent-bus-forwarding-runtime-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 落地：Stage 7 最小骨架（领域模型 + 端口 + 状态机 + in-memory 替身 + harness），Stage 8 持久化准备（record 模型 + claim / lease 端口 + dispatcher worker skeleton + 抽象 delivery 端口 + schema / migration 草案，DDL 未执行 + in-memory lease harness，见 [`forwarding-persistence`](../../L2-Low-Level-Design/agent-bus/forwarding-persistence.md)），Stage 9 lease-safe / persistence-ready（lease-owner guarded mutation、lease 生命周期闭环、record 条件不变量、failure-code classification、claim / state-update SQL contract；DB / migration 归属未确认 → 路径 B，不引入 JDBC）。
 - 真实 JDBC adapter / Flyway migration / 真实投递绑定（dispatcher worker → receiver transport）仍 deferred（DB / migration 归属未确认 → 路径 B：数据库产品 / migration 归属未确认前不引入生产数据库依赖）。
 - forwarding envelope 有载荷时只携带 `payloadRef`（条件必填，MI5-003 方案 B；纯控制消息可省略；不携带 payload body / token stream / Task execution state），通过 `routeHandle` 消费 Stage 3 discovery，不改变远端 Task lifecycle owner（见 forwarding ICD）。
 
 ## 8. 真 bus 目标态流程：Agent 注册与发现
 
-Agent 注册与发现是 service-to-service 路由的前置能力。它回答“某个 tenant 下，哪个 service/agent/capability 可以处理这个 envelope，应路由到哪里”。完整设计态契约见 [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md)。
+Agent 注册与发现是 service-to-service 路由的前置能力。它回答“某个 tenant 下，哪个 service/agent/capability 可以处理这个 envelope，应路由到哪里”。完整设计态契约见 [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md)。
 
 目标态流程（HD3 裁决方向）：
 
@@ -161,5 +161,5 @@ Agent 注册与发现是 service-to-service 路由的前置能力。它回答“
 | Task 状态只由 runtime 生命周期层更新。 | L0 boundaries 状态矩阵。 |
 | Engine terminal event 必须唯一且最后发出。 | `EnginePort` 契约和后续 harness。 |
 | S2C envelope 必须携带 `tenantId`（契约层已迁移，Stage 2）。 | `s2c-callback.v1.yaml` required fields 与 Stage 2 迁移记录。 |
-| 真 bus 转发底座已采用 C3（`adopted-c3`）；ack / retry / DLQ / 失败语义已在 Stage 4 / 7 定义，claim / lease 并发抢占 + dispatcher worker 在 Stage 8 落地骨架，lease-owner guarded mutation + record 不变量 + failure-code 分类在 Stage 9 落地；ordering / fairness / backpressure 参数 deferred 后续阶段。 | [`agent-bus-forwarding-runtime-decision`](../../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) + [`forwarding-persistence`](../../L2/agent-bus/forwarding-persistence.md)。 |
-| Agent 注册发现的 owner、租户隔离、health 和 contract version 语义已在 [`ICD-Agent-Registry-Discovery`](../../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) 设计态定义。 | runtime 物理实现仍待后续波次；Stage 3 只定义接口和 harness 断言。 |
+| 真 bus 转发底座已采用 C3（`adopted-c3`）；ack / retry / DLQ / 失败语义已在 Stage 4 / 7 定义，claim / lease 并发抢占 + dispatcher worker 在 Stage 8 落地骨架，lease-owner guarded mutation + record 不变量 + failure-code 分类在 Stage 9 落地；ordering / fairness / backpressure 参数 deferred 后续阶段。 | [`agent-bus-forwarding-runtime-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) + [`forwarding-persistence`](../../L2-Low-Level-Design/agent-bus/forwarding-persistence.md)。 |
+| Agent 注册发现的 owner、租户隔离、health 和 contract version 语义已在 [`ICD-Agent-Registry-Discovery`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-registry-discovery.md) 设计态定义。 | runtime 物理实现仍待后续波次；Stage 3 只定义接口和 harness 断言。 |
