@@ -207,6 +207,11 @@ stage10_scope:
   not_delivers: [jdbc-driver, flyway-migration, real-db-implementation, real-delivery-binding, real-scheduler-thread-pool]
   path: B  # DB/migration ownership re-confirmed as path B by human (Stage 10 slice 4); no JDBC/Flyway in agent-bus
   next_stage: Stage-11-plus
+stage11_scope:
+  delivers: [lease-renewal-timing-on-injected-epochclock, deliver-non-lease-exception-swallowed-as-skipped, runonce-fail-fast-contract-loop-propagates]
+  not_delivers: [jdbc-driver, flyway-migration, real-db-implementation, real-delivery-binding, real-scheduler-thread-pool]
+  path: B  # DB/migration/transport ownership not human-confirmed; runtime-completion only; no JDBC/Flyway/transport in agent-bus
+  next_stage: Stage-12-plus
 compatibility:
   additive_fields_allowed: true
   breaking_change_requires_adr: true
@@ -237,3 +242,5 @@ contract_tests:
   - worker_does_not_renew_when_lease_sufficient
   - worker_skips_when_lease_renew_fails
   - dispatch_loop_drives_ticks_from_injected_source_until_it_stops
+  - worker_skips_record_when_delivery_throws
+  - run_once_fails_fast_on_blank_tenant_and_loop_propagates

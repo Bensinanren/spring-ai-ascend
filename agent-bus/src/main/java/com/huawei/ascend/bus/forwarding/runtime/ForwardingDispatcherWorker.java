@@ -38,15 +38,29 @@ import java.util.Objects;
  * DLQ / EXPIRED paths can be exercised with a fake delivery port. The worker
  * never writes Task execution state.
  *
- * <p>Lease renewal (Stage 10, MI10-002): a {@code deliver} that outlives the
- * lease TTL would lose the lease and fail the ack. The worker carries a
- * {@link DispatchLeasePolicy}; before each delivery, if the remaining lease TTL
- * is below the policy threshold it calls {@link ForwardingOutboxClaimPort#renewLease}
- * to extend the lease. A renew that returns {@code false} (reclaimed / not
- * DISPATCHING) is treated exactly like a {@link ForwardingLeaseException}: the
- * record is skipped, not delivered. The in-memory harness checks owner, not
- * lease expiry, so "renew-or-lose-the-ack" is encoded as a SQL contract in
- * {@code forwarding-persistence.md §7.2}, not asserted in-memory.
+ * <p>Lease renewal (Stage 10, MI10-002; Stage 11, MI11-001): a {@code deliver}
+ * that outlives the lease TTL would lose the lease and fail the ack. The worker
+ * carries a {@link DispatchLeasePolicy} and an {@link EpochClock}; before each
+ * delivery it reads the live clock and, if the remaining lease TTL
+ * ({@code leaseUntil - clockNow}) is below the policy threshold, calls
+ * {@link ForwardingOutboxClaimPort#renewLease} to extend the lease. (Before Stage
+ * 11 the check used the tick-start instant, so the remainder never shrank inside
+ * a tick and renewal could not fire under a natural dispatch loop.) A renew that
+ * returns {@code false} (reclaimed / not DISPATCHING) is treated exactly like a
+ * {@link ForwardingLeaseException}: the record is skipped, not delivered. The
+ * in-memory harness checks owner, not lease expiry, so "renew-or-lose-the-ack"
+ * is encoded as a SQL contract in {@code forwarding-persistence.md §7.2}, not
+ * asserted in-memory.
+ *
+ * <p>Exception contract (Stage 11, MI11-002 / MI11-003): within a tick the worker
+ * never propagates a per-record failure. A {@link ForwardingLeaseException} from
+ * the lease guard, or a non-lease {@link RuntimeException} from {@code deliver}
+ * (a real transport binding MUST map transport errors to a
+ * {@link ForwardingDeliveryResult} and not throw — see the ICD), is swallowed as
+ * a {@code skipped} record (left DISPATCHING, reclaimed on lease expiry) and the
+ * tick continues. {@code runOnce} throws {@link IllegalArgumentException} only
+ * for illegal arguments (blank tenant / lease owner, non-positive limit) — a
+ * caller bug the dispatch loop fails fast on rather than masking.
  *
  * <p>Authority: {@code architecture/L2-Low-Level-Design/agent-bus/forwarding-outbox-inbox.md §3/§4.1};
  * {@code architecture/L2-Low-Level-Design/agent-bus/forwarding-persistence.md §5}.
@@ -57,6 +71,7 @@ public final class ForwardingDispatcherWorker {
     private final ForwardingOutboxPort outboxPort;
     private final ForwardingDeliveryPort deliveryPort;
     private final DispatchLeasePolicy leasePolicy;
+    private final EpochClock clock;
 
     public ForwardingDispatcherWorker(ForwardingOutboxClaimPort claimPort,
                                       ForwardingOutboxPort outboxPort,
@@ -68,10 +83,20 @@ public final class ForwardingDispatcherWorker {
                                       ForwardingOutboxPort outboxPort,
                                       ForwardingDeliveryPort deliveryPort,
                                       DispatchLeasePolicy leasePolicy) {
+        this(claimPort, outboxPort, deliveryPort, leasePolicy, EpochClock.SYSTEM);
+    }
+
+    /** Stage 11 (MI11-001): inject the wall clock the renewal check reads. */
+    public ForwardingDispatcherWorker(ForwardingOutboxClaimPort claimPort,
+                                      ForwardingOutboxPort outboxPort,
+                                      ForwardingDeliveryPort deliveryPort,
+                                      DispatchLeasePolicy leasePolicy,
+                                      EpochClock clock) {
         this.claimPort = Objects.requireNonNull(claimPort, "claimPort is required");
         this.outboxPort = Objects.requireNonNull(outboxPort, "outboxPort is required");
         this.deliveryPort = Objects.requireNonNull(deliveryPort, "deliveryPort is required");
         this.leasePolicy = Objects.requireNonNull(leasePolicy, "leasePolicy is required");
+        this.clock = Objects.requireNonNull(clock, "clock is required");
     }
 
     /**
@@ -79,15 +104,25 @@ public final class ForwardingDispatcherWorker {
      *
      * <p>The worker's {@link DispatchLeasePolicy} (set at construction) decides
      * whether a short remaining lease is renewed before delivery (Stage 10,
-     * MI10-002); a record whose renew or ack is rejected by the lease guard is
-     * skipped, not delivered, and the tick continues.
+     * MI10-002; Stage 11, MI11-001 — the renewal check reads the injected
+     * {@link EpochClock}, not {@code nowMillisEpoch}); a record whose renew or
+     * ack is rejected by the lease guard is skipped, not delivered, and the tick
+     * continues. A {@code deliver} that throws a non-lease
+     * {@link RuntimeException} is likewise skipped (Stage 11, MI11-002).
+     *
+     * <p>{@code nowMillisEpoch} is the claim instant (passed to {@code claimDue}
+     * as the claim moment); the renewal check and the delivery instant both read
+     * the injected {@link EpochClock} so they reflect real elapsed time.
      *
      * @param tenantId             tenant scope of the tick (Rule R-C.c)
-     * @param nowMillisEpoch       the tick instant
+     * @param nowMillisEpoch       the claim instant of this tick
      * @param limit                max records to claim this tick ({@code > 0})
      * @param leaseOwner           identity of this worker instance
      * @param leaseUntilMillisEpoch instant until which claimed leases are exclusive
      * @return a summary of how many records were claimed and how each resolved
+     * @throws IllegalArgumentException if {@code tenantId} / {@code leaseOwner}
+     *         is blank or {@code limit <= 0} (caller bug — fail fast; the tick
+     *         body never propagates a per-record failure, MI11-003)
      */
     public DispatchTickResult runOnce(String tenantId, long nowMillisEpoch, int limit,
                                       String leaseOwner, long leaseUntilMillisEpoch) {
@@ -113,12 +148,18 @@ public final class ForwardingDispatcherWorker {
         int skipped = 0;
         for (ForwardingOutboxRecord record : claimed) {
             try {
+                // Stage 11 (MI11-001): read the live clock once per record — the
+                // renewal check and the delivery instant both use real elapsed time,
+                // not the tick-start instant, so renewal fires when a long tick
+                // approaches the lease TTL. claimDue still uses nowMillisEpoch as
+                // the claim moment.
+                long clockNow = clock.epochMillis();
                 // Stage 10 (MI10-002): if the remaining lease TTL is below the policy
                 // threshold, renew before delivering so a long deliver does not outlive
                 // the lease. A failed renew (reclaimed / not DISPATCHING) is treated
                 // like a lease exception — skip, do not deliver.
                 if (leasePolicy.renewBeforeExpiryMillis() > 0) {
-                    long remaining = leaseUntilMillisEpoch - nowMillisEpoch;
+                    long remaining = leaseUntilMillisEpoch - clockNow;
                     if (remaining < leasePolicy.renewBeforeExpiryMillis()) {
                         long extendedUntil = leaseUntilMillisEpoch + leasePolicy.leaseExtensionMillis();
                         if (!claimPort.renewLease(record.messageId(), tenantId, leaseOwner, extendedUntil)) {
@@ -127,7 +168,18 @@ public final class ForwardingDispatcherWorker {
                         }
                     }
                 }
-                ForwardingDeliveryResult result = deliveryPort.deliver(record, nowMillisEpoch);
+                // Stage 11 (MI11-002): a real transport binding must map transport
+                // errors to a ForwardingDeliveryResult and MUST NOT throw (ICD /
+                // delivery port contract). If it still throws a non-lease
+                // RuntimeException, the worker skips the record (left DISPATCHING,
+                // reclaimed on lease expiry) rather than aborting the tick.
+                ForwardingDeliveryResult result;
+                try {
+                    result = deliveryPort.deliver(record, clockNow);
+                } catch (RuntimeException e) {
+                    skipped++;
+                    continue;
+                }
                 switch (result.outcome()) {
                     case ACKED -> {
                         outboxPort.markAcked(record.messageId(), tenantId, leaseOwner);

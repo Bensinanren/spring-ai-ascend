@@ -75,7 +75,7 @@ Agent / Service / Capability 注册与发现的完整设计态契约见 [`ICD-Ag
 - runtime-to-runtime 消息不改变远端 Task lifecycle owner；`agent-bus` 不写 Task execution state。
 - Stage 4 只定义转发语义和 harness 断言，不实现运行态转发底座、不新增 mailbox / queue / DLQ / replay 运行态存储。
 
-## C3 转发运行态（Stage 7 最小骨架 → Stage 8 持久化准备 → Stage 9 lease-safe → Stage 10 dispatch-loop runtime）
+## C3 转发运行态（Stage 7 最小骨架 → Stage 8 持久化准备 → Stage 9 lease-safe → Stage 10 dispatch-loop runtime → Stage 11 runtime-completion）
 
 Stage 7 按 Stage 6 裁决采用 **C3（database outbox / inbox）** 作为类 MQ 转发的生产候选路径，交付 C3 的最小可测运行态骨架（非完整持久化实现）。运行态契约见 [`ICD-Agent-Bus-Forwarding-Runtime`](../../../docs/architecture/l0/05-contracts/human-readable/ICD-agent-bus-forwarding-runtime.md)，L2 技术设计见 [`forwarding-outbox-inbox.md`](../../L2-Low-Level-Design/agent-bus/forwarding-outbox-inbox.md)。Stage 7 边界：
 
@@ -135,3 +135,4 @@ DB / migration 归属未由人类确认 → **路径 B**：不引入 JDBC / Flyw
 - Stage 8 C3 持久化准备已落地：record 模型 + claim / lease 端口 + dispatcher worker skeleton + 抽象 delivery 端口 + schema / migration 草案（DDL 草稿未执行）+ in-memory lease harness；收口 MI8-001..005；122 tests green。真实 JDBC adapter / Flyway migration / 真实投递绑定 deferred Stage 9+（§6 护栏：数据库产品 / migration 归属未确认前不引入生产数据库依赖）。计划见上方「阶段记录」。
 - Stage 9 C3 lease-safe / persistence-ready 已落地（MI9-001..006）：lease-owner guarded mutation、lease 生命周期闭环、record 条件不变量（Java + DDL CHECK + harness）、failure-code classification、claim / state-update SQL contract；DB / migration 归属未确认 → 路径 B（不引入 JDBC / Flyway）；129 tests green。计划见上方「阶段记录」。
 - Stage 10 dispatch-loop runtime 已落地（MI10-001..005）：worker lease 异常恢复（catch `ForwardingLeaseException` + skip）、lease 续约契约（`DispatchLeasePolicy`）、`DispatchTickResult` 可观测（skipped + 计数自洽）、dispatch 调度责任定义（`ForwardingDispatchLoop` 骨架，`TickSource` / `IdleStrategy` 注入，无 scheduler / 线程）；DB / migration 归属经人类再确认为路径 B（不引入 JDBC / Flyway）；134 tests green。计划见 [`stage9-review-and-stage10-plan`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage9-review-and-stage10-plan.md)。
+- Stage 11 runtime-completion 已落地（MI11-001/002/003）：lease 续约触发时机改读注入 `EpochClock`（`ForwardingDispatcherWorker` 注入 `EpochClock`，使自然 dispatch loop 下耗时 deliver 接近 lease TTL 时续约能真正触发）、`deliver` 非 lease `RuntimeException` 兜底为 `skipped`（record 留 DISPATCHING，lease 过期重投，不丢消息）、`runOnce` 异常契约（仅入参非法 fail-fast，`ForwardingDispatchLoop` 传播，无循环级吞没）；DB / migration / transport 归属未变（路径 B，不引入 JDBC / Flyway / 真实投递绑定）；136 tests green。计划见 [`stage10-review-and-stage11-plan`](../../../docs/architecture/l0/10-governance/delivery-projections/agent-bus-stage10-review-and-stage11-plan.md)。

@@ -520,10 +520,14 @@ class AgentBusForwardingRuntimeContractTest {
     }
 
     /**
-     * Slice 2 (MI10-002): when the remaining lease TTL drops below the policy
-     * threshold, the worker renews before delivery — so a long {@code deliver}
-     * does not outlive the lease. The renewed {@code leaseUntil} is observable
-     * at delivery time.
+     * Slice 2 (MI10-002; Stage 11 MI11-001 clock): when the remaining lease TTL —
+     * read against the injected {@code EpochClock} — drops below the policy
+     * threshold, the worker renews before delivery so a long {@code deliver} does
+     * not outlive the lease. Stage 11 drives the check from a clock advanced near
+     * the lease expiry (not from a near-expiry caller leaseUntil), so renewal
+     * fires on real elapsed time — the path a natural dispatch loop can trigger
+     * once a real deliver takes time. The renewed {@code leaseUntil} is
+     * observable at delivery time.
      */
     @Test
     void worker_renews_short_lease_before_delivery() {
@@ -540,26 +544,31 @@ class AgentBusForwardingRuntimeContractTest {
                 return ForwardingDeliveryResult.acked();
             }
         };
-        // renew when remaining TTL < 1000; extend by 30000
+        // Stage 11 (MI11-001): inject a clock advanced to near the lease expiry, so
+        // renewal fires on real elapsed time rather than a near-expiry caller leaseUntil.
+        // leaseUntil = NOW + 30000; clock at NOW + 29500 -> remaining 500 < 1000 -> renew
+        long[] clockNow = {NOW + 29_500};
         ForwardingDispatcherWorker worker = new ForwardingDispatcherWorker(
                 outbox, outbox, observingDelivery,
-                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000));
+                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000),
+                () -> clockNow[0]);
 
-        // worker-1 claims with a short lease (NOW + 500); remaining 500 < 1000 -> renew
+        // worker-1 claims at NOW (leaseUntil NOW + 30000); renewal extends to NOW + 60000
         ForwardingDispatcherWorker.DispatchTickResult tick =
-                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 500);
+                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 30_000);
 
         assertThat(tick.claimed()).isEqualTo(1);
         assertThat(tick.acked()).isEqualTo(1);
         assertThat(observedLeaseUntil[0])
-                .as("the short lease was renewed before delivery (NOW+500 extended by 30000)")
-                .isEqualTo(NOW + 500 + 30_000);
+                .as("the near-expiry lease was renewed before delivery (NOW+30000 extended by 30000)")
+                .isEqualTo(NOW + 30_000 + 30_000);
         assertThat(outbox.statusOf(env.messageId(), "tenant-a")).isEqualTo(ACKED);
     }
 
     /**
-     * Slice 2 (MI10-002): a lease whose remaining TTL is already above the policy
-     * threshold is not renewed — the worker keeps the caller's leaseUntil.
+     * Slice 2 (MI10-002; Stage 11 MI11-001 clock): a lease whose remaining TTL —
+     * read against the injected clock — is already above the policy threshold is
+     * not renewed; the worker keeps the caller's leaseUntil.
      */
     @Test
     void worker_does_not_renew_when_lease_sufficient() {
@@ -576,25 +585,28 @@ class AgentBusForwardingRuntimeContractTest {
                 return ForwardingDeliveryResult.acked();
             }
         };
+        // Stage 11 (MI11-001): clock at NOW + 1000; leaseUntil = NOW + 30000 -> remaining
+        // 29000 >= 1000 -> no renew (leaseUntil stays NOW + 30000)
+        long[] clockNow = {NOW + 1_000};
         ForwardingDispatcherWorker worker = new ForwardingDispatcherWorker(
                 outbox, outbox, observingDelivery,
-                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000));
+                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000),
+                () -> clockNow[0]);
 
-        // worker-1 claims with a long lease (NOW + 60000); remaining 60000 >= 1000 -> no renew
         ForwardingDispatcherWorker.DispatchTickResult tick =
-                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 60_000);
+                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 30_000);
 
         assertThat(tick.acked()).isEqualTo(1);
         assertThat(observedLeaseUntil[0])
-                .as("a sufficient lease is not renewed: leaseUntil stays NOW+60000")
-                .isEqualTo(NOW + 60_000);
+                .as("a sufficient lease is not renewed: leaseUntil stays NOW+30000")
+                .isEqualTo(NOW + 30_000);
     }
 
     /**
-     * Slice 2 (MI10-002): if {@code renewLease} returns {@code false} (the lease
-     * was reclaimed / is no longer held between claim and the renewal attempt),
-     * the worker skips the record — like a {@link ForwardingLeaseException} — and
-     * never delivers it.
+     * Slice 2 (MI10-002; Stage 11 MI11-001 clock): if {@code renewLease} returns
+     * {@code false} (the lease was reclaimed / is no longer held between claim and
+     * the renewal attempt), the worker skips the record — like a
+     * {@link ForwardingLeaseException} — and never delivers it.
      */
     @Test
     void worker_skips_when_lease_renew_fails() {
@@ -623,13 +635,16 @@ class AgentBusForwardingRuntimeContractTest {
                 return outbox.releaseLease(id, tenantId, leaseOwner);
             }
         };
+        // Stage 11 (MI11-001): clock advanced near the lease expiry triggers the
+        // renewal, which fails -> skip, never deliver
+        long[] clockNow = {NOW + 29_500};
         ForwardingDispatcherWorker worker = new ForwardingDispatcherWorker(
                 failingRenew, outbox, delivery,
-                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000));
+                new ForwardingDispatcherWorker.DispatchLeasePolicy(1_000, 30_000),
+                () -> clockNow[0]);
 
-        // short lease (NOW + 500) triggers renewal, which fails -> skip, never deliver
         ForwardingDispatcherWorker.DispatchTickResult tick =
-                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 500);
+                worker.runOnce("tenant-a", NOW, 10, "worker-1", NOW + 30_000);
 
         assertThat(tick.claimed()).isEqualTo(1);
         assertThat(tick.acked())
@@ -943,6 +958,80 @@ class AgentBusForwardingRuntimeContractTest {
         assertThat(ddl).contains("FOR UPDATE SKIP LOCKED");
         assertThat(ddl).contains("lease_owner = :leaseOwner");
         assertThat(ddl).contains("lease_until > :now");
+    }
+
+    // ===== Stage 11 — deliver-exception swallow (MI11-002) + runOnce fail-fast (MI11-003) =====
+    //
+    // Slice 1 (MI11-001): lease renewal now reads the injected EpochClock (real elapsed
+    // time), not the tick-start instant — so renewal can fire under a natural dispatch
+    // loop whose every tick stamps leaseUntil = now + leaseDurationMillis. The three
+    // renewal scenarios (renew / no renew / renew fails) are covered by
+    // worker_renews_short_lease_before_delivery, worker_does_not_renew_when_lease_sufficient
+    // and worker_skips_when_lease_renew_fails, rewritten above for the injected clock.
+
+    /**
+     * Slice 2 (MI11-002): a {@code deliver} that throws a non-lease
+     * {@link RuntimeException} (a real transport binding must map transport errors to a
+     * {@link ForwardingDeliveryResult} and not throw — see the ICD) is swallowed as a
+     * {@code skipped} record: the record is left DISPATCHING (reclaimed on lease expiry)
+     * and the tick continues, never aborting on a single failing delivery.
+     */
+    @Test
+    void worker_skips_record_when_delivery_throws() {
+        InMemoryForwardingOutbox outbox = new InMemoryForwardingOutbox();
+        ForwardingEnvelope env = envelope("msg-throw", "tenant-a");
+        outbox.enqueue(env, SOURCE_SERVICE, TARGET_SERVICE, NOW);
+
+        // a delivery port that throws on every deliver — simulates a transport binding
+        // that violates the "never throw a non-lease RuntimeException" contract
+        ForwardingDeliveryPort throwingDelivery = new ForwardingDeliveryPort() {
+            @Override
+            public ForwardingDeliveryResult deliver(ForwardingOutboxRecord record, long nowMillisEpoch) {
+                throw new UncheckedIOException(new IOException("transport down"));
+            }
+        };
+        ForwardingDispatcherWorker worker =
+                new ForwardingDispatcherWorker(outbox, outbox, throwingDelivery);
+
+        ForwardingDispatcherWorker.DispatchTickResult tick =
+                worker.runOnce("tenant-a", NOW, 10, LEASE_OWNER, LEASE_UNTIL);
+
+        assertThat(tick.claimed()).isEqualTo(1);
+        assertThat(tick.acked()).isZero();
+        assertThat(tick.skipped())
+                .as("a throwing deliver is counted as skipped, not an aborted tick")
+                .isEqualTo(1);
+        // the record survives, still DISPATCHING, reclaimed on lease expiry
+        assertThat(outbox.statusOf(env.messageId(), "tenant-a")).isEqualTo(DISPATCHING);
+    }
+
+    /**
+     * Slice 3 (MI11-003): {@code runOnce} throws {@link IllegalArgumentException} only
+     * for illegal arguments (blank tenant / blank lease owner, non-positive limit) — a
+     * caller bug it fails fast on — and {@link ForwardingDispatchLoop} propagates that
+     * fail-fast rather than masking it (no loop-level tick-exception swallowing).
+     */
+    @Test
+    void run_once_fails_fast_on_blank_tenant_and_loop_propagates() {
+        InMemoryForwardingOutbox outbox = new InMemoryForwardingOutbox();
+        InMemoryForwardingDelivery delivery = new InMemoryForwardingDelivery();
+        ForwardingDispatcherWorker worker = new ForwardingDispatcherWorker(outbox, outbox, delivery);
+
+        // blank tenant -> fail fast
+        assertThatThrownBy(() -> worker.runOnce("", NOW, 10, LEASE_OWNER, LEASE_UNTIL))
+                .isInstanceOf(IllegalArgumentException.class);
+        // blank lease owner -> fail fast
+        assertThatThrownBy(() -> worker.runOnce("tenant-a", NOW, 10, "", LEASE_UNTIL))
+                .isInstanceOf(IllegalArgumentException.class);
+        // non-positive limit -> fail fast
+        assertThatThrownBy(() -> worker.runOnce("tenant-a", NOW, 0, LEASE_OWNER, LEASE_UNTIL))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        // the dispatch loop propagates the fail-fast — it does not swallow a caller bug
+        ForwardingDispatchLoop loop = new ForwardingDispatchLoop(worker,
+                () -> OptionalLong.of(NOW), ForwardingDispatchLoop.NO_BACKOFF);
+        assertThatThrownBy(() -> loop.run("", 1, LEASE_OWNER, 30_000))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ===== helpers =====

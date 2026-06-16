@@ -102,18 +102,18 @@ target_module: agent-bus
 `ForwardingDispatcherWorker`（runtime 包，纯 Java）是 claim / deliver / ack / retry 半边生命周期，与 `ForwardingDispatcher`（accept / enqueue 网关角色）分离（MI8-003）。单次同步 tick `runOnce`：
 
 1. `claimDue` 声明到期记录（已原子迁移到 `DISPATCHING` 并 stamped lease）。
-2. **Stage 10（MI10-002）**：deliver 前按 `DispatchLeasePolicy` 检查剩余 lease TTL——低于阈值则 `claimPort.renewLease(...)` 续约；renew 返回 false（lease 已被 reclaim / 不再 DISPATCHING）则 skip 该 record，不投递。
-3. 逐条调用抽象 `ForwardingDeliveryPort.deliver(record, now)`，仅消费 `routeHandle`（**不**暴露物理 endpoint）。
+2. **Stage 10（MI10-002）/ Stage 11（MI11-001）**：deliver 前按 `DispatchLeasePolicy` 检查剩余 lease TTL——低于阈值则 `claimPort.renewLease(...)` 续约；renew 返回 false（lease 已被 reclaim / 不再 DISPATCHING）则 skip 该 record，不投递。剩余 TTL `remaining = leaseUntilMillisEpoch − clock.epochMillis()` 读注入的 `EpochClock`（真实墙钟），`claimDue` 仍以 tick 起始时刻 `nowMillisEpoch` 为 claim 时刻——真实运行时一个耗时 deliver 接近 lease TTL 时续约能自然触发（Stage 11 修复：此前续约判断用 tick 入参 `nowMillisEpoch`，整个 tick 不变，而自然 dispatch loop 每次 tick 用 `leaseUntil = now + leaseDurationMillis` 构造 → `remaining` 恒定，续约永不触发，只能靠 harness 构造接近过期 leaseUntil 间接覆盖）。
+3. 逐条调用抽象 `ForwardingDeliveryPort.deliver(record, clockNow)`，仅消费 `routeHandle`（**不**暴露物理 endpoint）；`clockNow` 取自注入 `EpochClock`（与续约判断同一时刻）。
 4. 按 `ForwardingDeliveryResult.outcome()` 路由：`ACKED → markAcked`、`RETRY_SCHEDULED → scheduleRetry`（更新 attemptCount / nextAttemptAt / lastFailureCode）、`DLQ → moveToDlq`、`EXPIRED → markExpired`。
-5. **Stage 10（MI10-001）**：deliver / mark* 包在 per-record try-catch `ForwardingLeaseException` 中——lease guard 拒绝（reclaim / stale / foreign / expired owner）时 skip 该 record，tick 继续其余 record。`DispatchTickResult(claimed, acked, retried, dlqd, expired, skipped)` 校验 `claimed == acked + retried + dlqd + expired + skipped`，保证计数自洽、可观测。
+5. **Stage 10（MI10-001）/ Stage 11（MI11-002）**：deliver / mark* 包在 per-record try-catch 中——lease guard 抛 `ForwardingLeaseException`（reclaim / stale / foreign / expired owner），或 `deliver` 违约抛非 lease `RuntimeException`（真实 transport 绑定应把网络 / 超时 / 反序列化异常映射为 `ForwardingDeliveryResult`、不应抛，见 ICD；worker 兜底是防御性）时，均 skip 该 record（留 `DISPATCHING`，lease 过期被 reclaim 重投，**不丢消息**），tick 继续其余 record。`DispatchTickResult(claimed, acked, retried, dlqd, expired, skipped)` 校验 `claimed == acked + retried + dlqd + expired + skipped`，保证计数自洽、可观测。
 
-边界：worker 无线程、无 scheduler、无 registry、无 transport；真实 polling cadence / threading / backpressure / 具体 delivery 绑定 deferred 后续阶段。worker 不写 Task execution state。fake delivery（`InMemoryForwardingDelivery`）仅在 test fixture，让 ACK / RETRY / DLQ / EXPIRED 与 lease 续约 / skip 路径在无网络下可被 harness 覆盖。
+边界：worker 无线程、无 scheduler、无 registry、无 transport；唯一时间依赖是注入的 `EpochClock`（默认 `System::currentTimeMillis`），用于 lease 续约判断与 deliver 时刻——`claimDue` 仍以 tick 起始时刻为 claim 时刻。真实 polling cadence / threading / backpressure / 具体 delivery 绑定 deferred 后续阶段。worker 不写 Task execution state。异常契约（Stage 11，MI11-003）：`runOnce` 仅在入参非法（`tenantId` / `leaseOwner` blank、`limit <= 0`）时抛 `IllegalArgumentException`（调用方 bug，fail-fast），tick 内 deliver / lease 异常已兜底为 `skipped` 不抛；`ForwardingDispatchLoop.run` 传播 fail-fast 是正确语义（不静默吞调用方 bug，不加 loop 级兜底）。fake delivery（`InMemoryForwardingDelivery`）仅在 test fixture，让 ACK / RETRY / DLQ / EXPIRED 与 lease 续约 / skip / deliver 异常路径在无网络下可被 harness 覆盖。
 
 > **in-memory vs JDBC**：in-memory lease harness 按 owner（不按 `lease_until` 过期）裁决 lease-guarded mutation；故"renew-or-lose-the-ack"（`WHERE lease_until > now`）是 §7.2 的 SQL contract，不在 in-memory 断言。lease 续约的"renew 后超 TTL 仍丢 ack"语义同样由 §7.2 SQL 编码，真实 adapter 落地后补 Testcontainers 覆盖。
 
 ### 5.1 dispatch 调度责任（Stage 10，MI10-004）
 
-`runOnce` 是单次 tick；谁驱动循环、idle 退避、并发分片，是调用方（`agent-runtime` 受控路径 / 真实 scheduler）的责任，不进 `agent-bus`。Stage 10 交付纯 Java `ForwardingDispatchLoop` 骨架，把这份责任契约化：
+`runOnce` 是单次 tick；谁驱动循环、idle 退避、并发分片，是调用方（`agent-runtime` 受控路径 / 真实 scheduler）的责任，不进 `agent-bus`。Stage 10 交付纯 Java `ForwardingDispatchLoop` 骨架，把这份责任契约化。（worker 内部 lease 续约用注入 `EpochClock`，见 §5；loop 本身不持 clock，tick 时刻全由 `TickSource` 提供。）
 
 - `TickSource`（注入下一 tick 时刻；`OptionalLong.empty()` 表示停止）——loop 不持有 clock，可被 fixed-rate executor / scheduler bean / 测试驱动。
 - `IdleStrategy`（空 tick 退避；`NO_BACKOFF` 为 no-op）——loop 不 sleep，退避策略外部注入。
@@ -338,6 +338,24 @@ Stage 10 DoD 自检：
 - ✓ `DispatchTickResult` 可观测：skipped + 计数自洽（构造校验 + harness）。
 - ✓ dispatch 调度责任：`ForwardingDispatchLoop` 无 scheduler / 线程，trigger 注入，harness 覆盖。
 - ✓ DB / migration 归属：路径 B 再确认（人类裁决，Stage 10 切片 4）；不引入 JDBC / Flyway；DDL / SQL 仍 contract / draft。
+
+## 13. Stage 11 决策（runtime-completion：lease 续约时机 / deliver 异常兜底 / 异常契约）
+
+Stage 11（MI11-001..003）修复 Stage 10 dispatch-loop runtime 暴露的三个运行态裂缝——它们都是接真实 DB / transport 前的必要前置（若不先修，接了 JDBC adapter / 真实投递绑定也只是把缺陷物理化）。主轴经人类确认为**运行态完善批次**，**保持路径 B**（不引入 JDBC / Flyway / transport）；真实持久化 / 真实投递绑定 / agent-runtime 集成仍 deferred Stage 12+。
+
+| MI | 决策 | 落点 |
+|---|---|---|
+| MI11-001 | lease 续约触发时机从「tick 入参 `leaseUntil − now`（恒满租期、自然 loop 下永不触发）」改为「基于注入 `EpochClock` 的真实墙钟」：`remaining = leaseUntilMillisEpoch − clock.epochMillis()`；`claimDue` 仍用 tick 起始时刻作 claim 时刻 | `EpochClock`（`forwarding/runtime`，纯 Java 端口，默认 `System::currentTimeMillis`）；worker 五参构造器注入；`runOnce` 续约判断 + deliver 时刻读 clock；§5；改写续约 harness（注入可控时钟替代构造接近过期 leaseUntil） |
+| MI11-002 | `deliver` 非 lease `RuntimeException` 兜底为 `skipped`（record 留 `DISPATCHING` 待重投，不丢消息），tick 不中断；契约主路径仍是「`deliver` 不抛非 lease 异常，底层异常由真实适配器映射为 `ForwardingDeliveryResult`（`delivery_timeout` / `receiver_unavailable` 等）」，worker 兜底是防御性 | `runOnce` deliver 内层 try-catch `RuntimeException` → skipped；`ForwardingDeliveryPort.deliver` javadoc + ICD 契约；`worker_skips_record_when_delivery_throws` |
+| MI11-003 | `runOnce` 异常契约：仅入参非法（blank tenant / lease owner、`limit <= 0`）抛 `IllegalArgumentException`（调用方 bug fail-fast），tick 内 deliver / lease 异常已兜底为 `skipped` 不抛；`ForwardingDispatchLoop.run` 传播 fail-fast 是正确语义，**不加** loop 级 tick 异常兜底（过度兜底会掩盖调用方 bug） | `runOnce` javadoc `@throws IllegalArgumentException`；§5 边界段异常契约；`run_once_fails_fast_on_blank_tenant_and_loop_propagates` |
+
+Stage 11 DoD 自检：
+
+- ✓ lease 续约时机基于注入 `EpochClock`（真实墙钟），自然 loop 驱动下能基于 deliver 耗时触发；in-memory 注入时钟覆盖 renew / 不 renew / renew 失败（harness 覆盖）。
+- ✓ `deliver` 非 lease 异常兜底为 skipped（record 留 DISPATCHING 待重投），tick 不中断；契约 deliver 不抛写入 ICD（harness 覆盖）。
+- ✓ `runOnce` 异常契约明确（入参非法 fail-fast），loop 传播是正确语义（harness 覆盖）。
+- ✓ 136 tests green（`AgentBusForwardingRuntimeContractTest` 34 → 36，+2 Stage 11 行为测试）；ArchUnit 纯度仍 green（`EpochClock` 用 `System::currentTimeMillis` 不在禁止列表）。
+- ✓ 路径 B 不变：不引入 JDBC / Flyway / transport / scheduler；DDL / SQL 仍 contract / draft。
 
 相关文档：
 
