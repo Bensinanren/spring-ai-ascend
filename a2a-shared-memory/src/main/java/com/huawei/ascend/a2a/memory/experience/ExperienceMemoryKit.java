@@ -58,9 +58,14 @@ public final class ExperienceMemoryKit {
         store.record(tenantId, signature, lessons);
     }
 
-    /** Recall the most relevant lessons for a signature (best match first). */
+    /** Recall the most relevant lessons for a signature (freshest / most-useful first). */
     public List<Lesson> recall(CollaborationSignature signature, int topK) {
         return store.recall(tenantId, signature, topK);
+    }
+
+    /** Usefulness feedback: a recalled lesson proved useful — reinforce it (keeps memory fresh). */
+    public void reinforce(CollaborationSignature signature, String lessonText) {
+        store.reinforce(tenantId, signature, lessonText);
     }
 
     public String tenantId() {

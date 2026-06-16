@@ -53,6 +53,13 @@ public final class BoundedSharedMemoryStore implements SharedMemoryStore {
     }
 
     @Override
+    public SharedEntry supersede(String tenantId, String collaborationId, String key, String value,
+            String newWriterAgentId, String reason) {
+        return guarded("supersede", tenantId,
+                () -> delegate.supersede(tenantId, collaborationId, key, value, newWriterAgentId, reason));
+    }
+
+    @Override
     public Optional<SharedEntry> latest(String tenantId, String collaborationId, String key) {
         return guarded("latest", tenantId, () -> delegate.latest(tenantId, collaborationId, key));
     }
@@ -65,6 +72,19 @@ public final class BoundedSharedMemoryStore implements SharedMemoryStore {
     @Override
     public List<String> keys(String tenantId, String collaborationId) {
         return guarded("keys", tenantId, () -> delegate.keys(tenantId, collaborationId));
+    }
+
+    @Override
+    public void recordInteraction(String tenantId, String collaborationId, InteractionEntry entry) {
+        guarded("recordInteraction", tenantId, () -> {
+            delegate.recordInteraction(tenantId, collaborationId, entry);
+            return null;
+        });
+    }
+
+    @Override
+    public List<InteractionEntry> interactions(String tenantId, String collaborationId) {
+        return guarded("interactions", tenantId, () -> delegate.interactions(tenantId, collaborationId));
     }
 
     @Override

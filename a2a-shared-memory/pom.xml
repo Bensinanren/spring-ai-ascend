@@ -45,16 +45,6 @@
       <artifactId>micrometer-core</artifactId>
     </dependency>
 
-    <!-- A2A binding only: read the A2A contextId/tenant off the runtime's neutral
-         execution context. provided — the host runtime already supplies it; the kit
-         core stays usable without it. -->
-    <dependency>
-      <groupId>com.huawei.ascend</groupId>
-      <artifactId>agent-runtime</artifactId>
-      <version>0.2.0-SNAPSHOT</version>
-      <scope>provided</scope>
-    </dependency>
-
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -67,9 +57,16 @@
       <scope>test</scope>
     </dependency>
 
-    <!-- E2E only: boot a real A2A agent (no LLM) and drive it over the A2A wire,
-         proving agents share the blackboard by the A2A contextId. a2a-sdk pinned
-         to 1.0.0.Final across the graph (matches agent-runtime's server side). -->
+    <!-- E2E + binding tests only: boot a real A2A agent (no LLM), and map a runtime
+         execution context to a MemoryPrincipal. agent-runtime is TEST-scope — the
+         memory module's MAIN code has NO dependency on it (authority is the
+         MemoryPrincipal, not RuntimeIdentity). a2a-sdk pinned to 1.0.0.Final. -->
+    <dependency>
+      <groupId>com.huawei.ascend</groupId>
+      <artifactId>agent-runtime</artifactId>
+      <version>0.2.0-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>

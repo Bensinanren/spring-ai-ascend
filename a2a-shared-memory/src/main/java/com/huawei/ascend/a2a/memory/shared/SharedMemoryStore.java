@@ -39,6 +39,18 @@ public interface SharedMemoryStore {
     SharedEntry append(String tenantId, String collaborationId, String key, String value, String writerAgentId,
             String idempotencyKey);
 
+    /**
+     * Privileged override of a key whose owner is unavailable: appends a new
+     * version by {@code newWriterAgentId} and transfers ownership going forward,
+     * WITHOUT mutating the prior owner's entries (history/provenance preserved).
+     * Use only under a trusted policy (e.g. the coordinator, on owner-unavailable).
+     * Default: unsupported.
+     */
+    default SharedEntry supersede(String tenantId, String collaborationId, String key, String value,
+            String newWriterAgentId, String reason) {
+        throw new UnsupportedOperationException("supersede not supported by this backend");
+    }
+
     /** Latest entry for a key, or empty if never written. */
     Optional<SharedEntry> latest(String tenantId, String collaborationId, String key);
 
@@ -47,6 +59,18 @@ public interface SharedMemoryStore {
 
     /** All keys currently present for the collaboration. */
     List<String> keys(String tenantId, String collaborationId);
+
+    /**
+     * Append one edge to the collaboration's interaction record (the team memory of
+     * "who did what to whom"). Default no-op so a minimal backend need not support it.
+     */
+    default void recordInteraction(String tenantId, String collaborationId, InteractionEntry entry) {
+    }
+
+    /** The collaboration's interaction record, oldest first. Default empty. */
+    default List<InteractionEntry> interactions(String tenantId, String collaborationId) {
+        return List.of();
+    }
 
     /** Drop all blackboard state for the collaboration (run end / archival). */
     void release(String tenantId, String collaborationId);

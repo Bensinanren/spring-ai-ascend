@@ -115,6 +115,34 @@ decision: |
        transport / deployment assumptions for it — the kit neither contains nor
        depends on MemOpt.
 
+    9. AUTHORITY = MemoryPrincipal, NOT the runtime (colleague review). Access
+       authority is an authenticated MemoryPrincipal (tenant + user + agent),
+       established at the edge/service boundary and forwarded inward; agent-runtime
+       is only a BEARER, never the authority. The memory module's MAIN code has
+       ZERO dependency on agent-runtime; mapping a runtime context to a
+       MemoryPrincipal + A2A contextId is the caller's job (test-scope helper).
+       tenant = isolation; user = private-memory authority (agent acts on the
+       user's behalf); agent = shared-key ownership label.
+
+   10. TEAM INTERACTION RECORD + READ-ATTRIBUTION (who did what to whom). Each
+       agent writes only its own conclusions, so the interaction edges are captured
+       separately: `get` auto-records a READ dependency edge (reader→owner/key);
+       the Coordinator records DISPATCH/HANDOVER/VALIDATE/OUTCOME. `interactions()`
+       returns the collaboration graph — the team memory no single agent holds.
+
+   11. OWNER-UNAVAILABLE = SUPERSEDE, NOT MUTATE. A non-owner may not mutate a key,
+       but may `supersede` it (privileged, e.g. owner down): appends a new version,
+       transfers ownership, preserves the prior owner's history, and records the
+       supersession. "What was done (memory)" stays immutable; "who can do it now"
+       is live health/routing (reclaim + health-aware routing in the collab engine).
+
+   12. EXPERIENCE FRESHNESS. Cross-run experience stays fresh: re-confirming a
+       lesson refreshes (reinforcement + recency) instead of duplicating; usefulness
+       feedback (`reinforce`) ranks proven lessons up; recall ranks by similarity →
+       reinforcement → recency; per-tenant bounded eviction lets stale, unreinforced
+       lessons decay out. (Plus idempotent writes and bounded-concurrency
+       backpressure on the blackboard.)
+
   Phasing: (1) THIS design — A2A shared-memory kit (two-layer + ownership +
   append-log + PII + hook + A2A binding + in-process backend + dual-mode
   observability), eval-able offline; (2) collaboration engine integration via the

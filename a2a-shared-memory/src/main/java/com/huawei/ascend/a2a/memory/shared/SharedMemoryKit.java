@@ -74,6 +74,19 @@ public final class SharedMemoryKit {
         }
     }
 
+    /**
+     * Privileged override when a key's owner is unavailable: appends a new version
+     * by {@code newWriterAgentId} and transfers ownership, preserving the prior
+     * owner's entries (history). Use under a trusted policy (coordinator / owner-down).
+     */
+    public SharedEntry supersede(String key, String value, String newWriterAgentId, String reason) {
+        long t0 = System.nanoTime();
+        SharedEntry entry = store.supersede(tenantId, collaborationId, key, value, newWriterAgentId, reason);
+        observer.onDegraded("shared.supersede", tenantId, "owner-unavailable");
+        observer.onOperation("shared.supersede", tenantId, true, elapsedMs(t0));
+        return entry;
+    }
+
     /** Latest value for a key (any participant may read). */
     public Optional<String> get(String key) {
         long t0 = System.nanoTime();
@@ -99,6 +112,16 @@ public final class SharedMemoryKit {
     /** All keys on this blackboard. */
     public List<String> keys() {
         return store.keys(tenantId, collaborationId);
+    }
+
+    /** Append an edge to the team interaction record (who did what to whom). */
+    public void recordInteraction(InteractionEntry entry) {
+        store.recordInteraction(tenantId, collaborationId, entry);
+    }
+
+    /** The collaboration's interaction record (the team memory), oldest first. */
+    public List<InteractionEntry> interactions() {
+        return store.interactions(tenantId, collaborationId);
     }
 
     /** Drop this collaboration's blackboard (run end / after experience distillation). */

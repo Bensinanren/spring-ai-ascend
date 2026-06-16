@@ -12,9 +12,23 @@ import java.util.List;
  */
 public interface ExperienceStore {
 
-    /** Persist distilled lessons under a tenant's signature. */
+    /**
+     * Persist distilled lessons under a tenant's signature. Re-recording an
+     * identical lesson under the same signature should REFRESH it (recency +
+     * reinforcement) rather than duplicate — that is how memory stays fresh.
+     */
     void record(String tenantId, CollaborationSignature signature, List<Lesson> lessons);
 
-    /** Recall the most relevant lessons for a signature, best match first. */
+    /**
+     * Recall the most relevant lessons for a signature, freshest/most-useful first
+     * (ranked by signature similarity, then reinforcement, then recency).
+     */
     List<Lesson> recall(String tenantId, CollaborationSignature signature, int topK);
+
+    /**
+     * Usefulness feedback: a recalled lesson proved useful — reinforce it so it
+     * ranks higher and survives eviction. Default no-op.
+     */
+    default void reinforce(String tenantId, CollaborationSignature signature, String lessonText) {
+    }
 }

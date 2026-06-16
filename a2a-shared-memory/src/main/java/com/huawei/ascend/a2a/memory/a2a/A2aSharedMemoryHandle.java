@@ -1,6 +1,8 @@
 package com.huawei.ascend.a2a.memory.a2a;
 
 import com.huawei.ascend.a2a.memory.obs.MemoryObserver;
+import com.huawei.ascend.a2a.memory.shared.InteractionEntry;
+import com.huawei.ascend.a2a.memory.shared.InteractionEntry.InteractionType;
 import com.huawei.ascend.a2a.memory.shared.SharedEntry;
 import com.huawei.ascend.a2a.memory.shared.SharedMemoryKit;
 import com.huawei.ascend.a2a.memory.shared.SharedMemoryStore;
@@ -10,8 +12,10 @@ import java.util.Optional;
 /**
  * An A2A agent's view of its collaboration's shared blackboard — bound to the
  * collaboration (A2A contextId), tenant, and the calling agent. {@link #put} is
- * attributed to this agent automatically (ownership); {@link #get}/{@link #keys}
- * read what any participant wrote.
+ * attributed to (and owned by) this agent; {@link #get} reads what any participant
+ * wrote AND records a READ dependency edge (this agent → the owner) into the team
+ * interaction record, so the collaboration's "who used whose conclusion" graph is
+ * captured (no single agent's own conclusions hold it).
  */
 public final class A2aSharedMemoryHandle {
 
@@ -34,9 +38,38 @@ public final class A2aSharedMemoryHandle {
         return kit.put(key, value, agentId, idempotencyKey);
     }
 
-    /** Latest value any participant wrote for a key. */
+    /** Read the latest value any participant wrote; records a READ dependency edge if present. */
     public Optional<String> get(String key) {
-        return kit.get(key);
+        Optional<SharedEntry> entry = kit.entry(key);
+        entry.ifPresent(e -> kit.recordInteraction(new InteractionEntry(
+                InteractionType.READ, agentId, e.writerAgentId(), key,
+                "read v" + e.version(), System.currentTimeMillis())));
+        return entry.map(SharedEntry::value);
+    }
+
+    /**
+     * Take over a key whose owner is unavailable: appends a new version owned by
+     * this agent, preserving the prior owner's history. Use under a trusted policy.
+     */
+    public SharedEntry supersedeUnavailable(String key, String value, String reason) {
+        return kit.supersede(key, value, agentId, reason);
+    }
+
+    /** Record a hand-over of this collaboration's work from this agent to another. */
+    public void recordHandover(String toAgentId, String detail) {
+        kit.recordInteraction(new InteractionEntry(
+                InteractionType.HANDOVER, agentId, toAgentId, "", detail, System.currentTimeMillis()));
+    }
+
+    /** Record the collaboration outcome (typically by the coordinator). */
+    public void recordOutcome(String detail) {
+        kit.recordInteraction(new InteractionEntry(
+                InteractionType.OUTCOME, agentId, "", "", detail, System.currentTimeMillis()));
+    }
+
+    /** The collaboration's interaction record (team memory), oldest first. */
+    public List<InteractionEntry> interactions() {
+        return kit.interactions();
     }
 
     /** Keys visible on this collaboration's blackboard. */
