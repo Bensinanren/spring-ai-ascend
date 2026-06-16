@@ -42,4 +42,24 @@ class IdempotencyTest {
         org.junit.jupiter.api.Assertions.assertThrows(OwnershipViolationException.class,
                 () -> store.append("bank", "c1", "risk", "x", "intruder", "idem-b"));
     }
+
+    @Test
+    void sameIdempotencyKeyAcrossDifferentKeysDoesNotDropWrites() {
+        // One request idempotency id reused for two different blackboard keys (e.g. a multi-key
+        // write in a single dispatch/hand-over) must not collide — both writes land.
+        store.append("bank", "c1", "risk", "C3", "agent", "idem-1");
+        store.append("bank", "c1", "loan", "L9", "agent", "idem-1");
+        assertEquals(1, store.history("bank", "c1", "risk").size(), "risk written");
+        assertEquals(1, store.history("bank", "c1", "loan").size(), "loan not silently dropped");
+        assertEquals("L9", store.latest("bank", "c1", "loan").orElseThrow().value());
+    }
+
+    @Test
+    void reusingIdempotencyKeyWithDifferentPayloadIsRejected() {
+        store.append("bank", "c1", "risk", "C3", "risk-agent", "idem-1");
+        // a true retry repeats the same payload; reusing the idem id for a different value must
+        // surface (not silently return the prior entry and drop the new value)
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> store.append("bank", "c1", "risk", "C2", "risk-agent", "idem-1"));
+    }
 }
