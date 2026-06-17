@@ -20,6 +20,11 @@ import com.bank.financial.research.engine.ResearchReport;
 import com.bank.financial.research.engine.ResearchReportEngine;
 import com.bank.financial.research.model.ScriptedReportModel;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.huawei.ascend.a2a.memory.experience.CollaborationSignature;
+import com.huawei.ascend.a2a.memory.experience.ExperienceMemoryKit;
+import com.huawei.ascend.a2a.memory.experience.ExperienceStore;
+import com.huawei.ascend.a2a.memory.experience.InMemoryExperienceStore;
+import com.huawei.ascend.a2a.memory.experience.Lesson;
 import com.huawei.ascend.a2a.memory.obs.MemoryObserver;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -51,6 +56,15 @@ import java.util.concurrent.Executors;
 public final class ResearchWebServer {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+
+    // Cross-run experience, persisted across web requests and isolated per report type
+    // (so a fund run recalls fund lessons, not equity ones). This is the "long-term"
+    // memory layer; the blackboard is the per-run "working" layer.
+    private static final java.util.Map<String, ExperienceStore> WEB_EXP = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static ExperienceStore webExp(String type) {
+        return WEB_EXP.computeIfAbsent(type, k -> new InMemoryExperienceStore());
+    }
 
     private static final List<Map<String, String>> EQUITY_AGENTS = List.of(
             Map.of("role", "planner", "label", "规划"), Map.of("role", "data", "label", "数据"),
@@ -176,17 +190,17 @@ public final class ResearchWebServer {
                 FundReport fr;
                 if ("stub".equals(source)) {
                     fr = new FundReportEngine(new StubFundDataSource(now), new ScriptedReportModel(),
-                            null, MemoryObserver.NOOP, () -> now)
+                            webExp(type), MemoryObserver.NOOP, () -> now)
                             .generate(ReportRequest.equity(code, "web", now), progress);
                 } else {
                     try {
                         fr = new FundReportEngine(new EastMoneyFundDataSource(now), new ScriptedReportModel(),
-                                null, MemoryObserver.NOOP, () -> now)
+                                webExp(type), MemoryObserver.NOOP, () -> now)
                                 .generate(ReportRequest.equity(code, "web", now), progress);
                     } catch (RuntimeException fundErr) {
                         sendNote(out, "实时基金数据获取失败(" + fundErr.getMessage() + "),回退桩数据演示。");
                         fr = new FundReportEngine(new StubFundDataSource(now), new ScriptedReportModel(),
-                                null, MemoryObserver.NOOP, () -> now)
+                                webExp(type), MemoryObserver.NOOP, () -> now)
                                 .generate(ReportRequest.equity("DEMOFUND", "web", now), progress);
                     }
                 }
@@ -202,7 +216,7 @@ public final class ResearchWebServer {
                 send(out, "pipeline", Map.of("agents", BOND_AGENTS));
                 String code = orDefault(q.get("ticker"), "DEMOBOND");
                 BondReport br = new BondReportEngine(new StubBondDataSource(now), new ScriptedReportModel(),
-                        null, MemoryObserver.NOOP, () -> now)
+                        webExp(type), MemoryObserver.NOOP, () -> now)
                         .generate(ReportRequest.equity(code, "web", now), progress);
                 report.put("html", MdHtml.render(br.toMarkdown()));
                 report.put("rating", br.stance());
@@ -234,7 +248,7 @@ public final class ResearchWebServer {
                 }
                 ResearchReportEngine engine = new ResearchReportEngine(
                         new DataIngestionService(src, FreshnessPolicy.days(90)), src.name(),
-                        new ScriptedReportModel(), null, MemoryObserver.NOOP, () -> now);
+                        new ScriptedReportModel(), webExp(type), MemoryObserver.NOOP, () -> now);
                 ResearchReport r = engine.generate(ReportRequest.equity(ticker, "web", now), progress);
                 report.put("html", MdHtml.render(r.toMarkdown()));
                 report.put("rating", r.rating());
@@ -246,6 +260,7 @@ public final class ResearchWebServer {
                 report.put("degradations", r.metadata().degradations().size());
             }
             send(out, "report", report);
+            sendExperience(out, type);
             send(out, "done", Map.of());
         } catch (Exception e) {
             if (os != null) {
@@ -264,6 +279,29 @@ public final class ResearchWebServer {
                 }
             }
             ex.close();
+        }
+    }
+
+    /** Recall the cross-run experience accumulated for this report type and stream it to the UI. */
+    private static void sendExperience(OutputStream out, String type) {
+        try {
+            ExperienceMemoryKit kit = ExperienceMemoryKit.forTenant(webExp(type), "web");
+            // Match the engines' signature taskType (research-report:FUND/EQUITY/BOND) so
+            // recall ranks/returns this type's accumulated lessons.
+            String taskType = "research-report:" + type.toUpperCase(java.util.Locale.ROOT);
+            java.util.List<Lesson> lessons =
+                    kit.recall(new CollaborationSignature(java.util.Set.of(), taskType), 12);
+            java.util.List<Map<String, Object>> out2 = new java.util.ArrayList<>();
+            for (Lesson l : lessons) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("text", l.text());
+                m.put("reinforcement", l.reinforcement());
+                m.put("source", l.sourceAgentId());
+                out2.add(m);
+            }
+            send(out, "experience", Map.of("lessons", out2));
+        } catch (RuntimeException ignored) {
+            // experience exposure must never affect the run
         }
     }
 
@@ -483,6 +521,13 @@ public final class ResearchWebServer {
                   <div id="interactions"><div class="bb-empty">运行后展示智能体间的协作边(分派/读取/交接/产出)——</div></div>
                 </div>
                 <div class="card">
+                  <div class="pipe-head">
+                    <h2 style="margin:0">经验 / Experience(跨运行累积)</h2>
+                    <span class="count" id="expcount">0 条</span>
+                  </div>
+                  <div id="experience"><div class="bb-empty">同类研报重复运行后,此处累积可复用的经验教训(跨运行持久)——</div></div>
+                </div>
+                <div class="card">
                   <h2>报告预览</h2>
                   <div class="badges" id="badges"></div>
                   <div class="preview" id="preview"><div class="empty">点击「生成研报」开始 ——</div></div>
@@ -590,6 +635,19 @@ public final class ResearchWebServer {
                 box.innerHTML='<table class="bbtable"><thead><tr><th>键 Key</th>'+
                   '<th>值 Value</th><th>写入方 Owner</th></tr></thead><tbody>'+rows+'</tbody></table>';
               }
+              function renderExp(lessons){
+                document.getElementById('expcount').textContent=lessons.length+' 条';
+                var box=document.getElementById('experience');
+                if(!lessons.length){
+                  box.innerHTML='<div class="bb-empty">同类研报重复运行后,此处累积可复用的经验教训(跨运行持久)——</div>';
+                  return;
+                }
+                box.innerHTML=lessons.map(function(l){
+                  var r=(l.reinforcement>0)?'<span class="owner-tag">强化×'+l.reinforcement+'</span>':'';
+                  return '<div class="kv"><span class="v">'+esc(trunc(l.text))+'</span>'+
+                    '<span class="owner">'+r+'</span></div>';
+                }).join('');
+              }
               function recount(){
                 var running=0,done=0;
                 Object.keys(chipEl).forEach(function(k){
@@ -614,6 +672,7 @@ public final class ResearchWebServer {
                 document.getElementById('interactions').innerHTML=
                   '<div class="bb-empty">运行后展示智能体间的协作边 ——</div>';
                 document.getElementById('badges').innerHTML='';
+                // NOTE: do not clear the Experience panel — it is cross-run/persistent.
                 document.getElementById('note').textContent='';
                 document.getElementById('preview').innerHTML='<div class="empty">流水线运行中 ——</div>';
                 go.disabled=true; go.textContent='生成中…';
@@ -645,6 +704,9 @@ public final class ResearchWebServer {
                 });
                 es.addEventListener('interactions',function(e){
                   var d=JSON.parse(e.data); renderIx(d.edges||[]);
+                });
+                es.addEventListener('experience',function(e){
+                  var d=JSON.parse(e.data); renderExp(d.lessons||[]);
                 });
                 es.addEventListener('report',function(e){
                   var d=JSON.parse(e.data), degClass=(d.degradations>0)?'badge warn':'badge';
