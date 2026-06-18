@@ -233,32 +233,6 @@ public final class ResearchWebServer {
                 return;
             }
 
-            if ("compare".equals(modelId)) {
-                // Three-way model comparison: same composed report, three models, side by side.
-                String[][] tiers = {{"glm-air", "GLM-4.5-air"}, {"deepseek", "DeepSeek-V4-Flash"}, {"script", "桩(离线)"}};
-                List<Map<String, Object>> results = new java.util.ArrayList<>();
-                for (String[] t : tiers) {
-                    ReportModel cm = ResearchReports.modelChoice(t[0]);
-                    long t0 = System.currentTimeMillis();
-                    com.bank.financial.research.composite.CompositeReport cr =
-                            new com.bank.financial.research.composite.CompositeReportEngine(
-                                    cm, webExp("composite"), MemoryObserver.NOOP, () -> now, now, real)
-                                    .generate(subject, code, lensesF);
-                    Map<String, Object> r = new LinkedHashMap<>();
-                    r.put("model", t[1]);
-                    r.put("live", ResearchReports.isLive(t[0]));
-                    r.put("html", MdHtml.render(cr.toMarkdown()));
-                    r.put("elapsedMs", System.currentTimeMillis() - t0);
-                    r.put("modelCalls", cr.metadata().modelCalls());
-                    r.put("degradations", cr.metadata().degradations().size());
-                    r.put("chars", cr.charCount());
-                    results.add(r);
-                }
-                send(out, "compare", Map.of("results", results));
-                send(out, "done", Map.of());
-                return;
-            }
-
             // Single model — staged presentation: subject base report first (its agents +
             // blackboard + memory), then each lens as a supplement below.
             if (!"script".equals(modelId) && !ResearchReports.isLive(modelId)) {
@@ -564,10 +538,8 @@ public final class ResearchWebServer {
                 <div class="field">
                   <label>生成模型</label>
                   <label class="opt"><input type="radio" name="model" value="deepseek" checked/> DeepSeek-V4-Flash(较快,推荐)</label>
-                  <label class="opt"><input type="radio" name="model" value="glm-air"/> GLM-4.5-air(真实但较慢)</label>
                   <label class="opt"><input type="radio" name="model" value="script"/> 桩(离线秒出)</label>
-                  <label class="opt"><input type="radio" name="model" value="compare"/> 三档对比(三模型并排,慢)</label>
-                  <div style="font-size:11px;color:var(--muted);margin-top:5px;">数字始终由计算引擎给出;模型只写散文。真实模型每章节一次调用,需几十秒~数分钟(下方有"已用时"显示);未配置的模型回退桩。</div>
+                  <div style="font-size:11px;color:var(--muted);margin-top:5px;">数字始终由计算引擎给出;模型只写散文。真实模型每章节一次调用,需几十秒~数分钟(下方有"已用时"显示);未配置时回退桩。</div>
                 </div>
                 <div class="field">
                   <label>演示节奏 <span class="paceval" id="paceval">150 ms</span></label>
@@ -835,27 +807,6 @@ public final class ResearchWebServer {
                     '<span class="badge">改稿轮数 <b>'+d.criticRounds+'</b></span>'+
                     '<span class="'+degClass+'">降级 <b>'+d.degradations+'</b></span>';
                   document.getElementById('preview').innerHTML=d.html;
-                });
-                es.addEventListener('compare',function(e){
-                  var rs=(JSON.parse(e.data).results)||[]; if(!rs.length) return;
-                  // tabs of the three models; click to switch the preview
-                  var tabs=rs.map(function(r,i){
-                    var live=r.live?'':'(未配置·回退桩)';
-                    return '<span class="badge cmptab" data-i="'+i+'" style="cursor:pointer">'+
-                      esc(r.model)+live+' · '+(r.elapsedMs/1000).toFixed(1)+'s · 调用'+r.modelCalls+
-                      ' · 降级'+r.degradations+'</span>';
-                  }).join('');
-                  document.getElementById('badges').innerHTML=
-                    '<span class="badge">三档模型对比(同一篇·同数据)</span>'+tabs;
-                  function showTab(i){
-                    document.getElementById('preview').innerHTML=rs[i].html;
-                    Array.prototype.forEach.call(document.querySelectorAll('.cmptab'),function(t){
-                      t.style.outline=(+t.dataset.i===i)?'2px solid var(--accent)':'none'; });
-                  }
-                  Array.prototype.forEach.call(document.querySelectorAll('.cmptab'),function(t){
-                    t.addEventListener('click',function(){ showTab(+t.dataset.i); });
-                  });
-                  showTab(0);
                 });
                 es.addEventListener('error',function(e){
                   var msg='连接中断'; try{ if(e.data){ msg=JSON.parse(e.data).message||msg; } }catch(_){}
