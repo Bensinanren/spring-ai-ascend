@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
+import com.huawei.ascend.runtime.engine.spi.DenyingSecurityDecisionPort;
+import com.huawei.ascend.runtime.engine.spi.SecurityDecision;
+import com.huawei.ascend.runtime.engine.spi.SecurityDecisionPort;
 import com.huawei.ascend.runtime.engine.spi.StreamAdapter;
 import com.huawei.ascend.runtime.engine.spi.TrajectoryMasking;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySettings;
@@ -149,6 +152,20 @@ class RuntimeAutoConfigurationTest {
                 });
     }
 
+    @Test
+    void defaultSecurityDecisionPortFailsClosed() {
+        runner.withUserConfiguration(RuntimeAutoConfiguration.class)
+                .run(ctx -> assertThat(ctx.getBean(SecurityDecisionPort.class))
+                        .isInstanceOf(DenyingSecurityDecisionPort.class));
+    }
+
+    @Test
+    void customSecurityDecisionPortSuppressesDefault() {
+        runner.withUserConfiguration(CustomSecurityDecisionPortConfiguration.class, RuntimeAutoConfiguration.class)
+                .run(ctx -> assertThat(ctx.getBean(SecurityDecisionPort.class))
+                        .isSameAs(CustomSecurityDecisionPortConfiguration.PORT));
+    }
+
     /**
      * The configured default-agent-id pins the served card to the hosted handler.
      * The runtime hosts exactly one agent (the executor rejects multiple handlers
@@ -271,6 +288,15 @@ class RuntimeAutoConfigurationTest {
                 public boolean isTaskFinalized(String taskId) { return true; }
             };
         }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CustomSecurityDecisionPortConfiguration {
+        static final SecurityDecisionPort PORT = request -> java.util.concurrent.CompletableFuture
+                .completedFuture(SecurityDecision.deny(request, "CUSTOM_POLICY", "custom policy"));
+
+        @Bean
+        SecurityDecisionPort securityDecisionPort() { return PORT; }
     }
 
     static final class RecordingTaskStore implements TaskStore {

@@ -13,6 +13,8 @@
  * framework adapter. {@code MemoryProvider} is a reserved narrow SPI for
  * frameworks that need runtime-provided memory init/search/save integration.
  * Frameworks with native checkpointing can use their own checkpointer
- * configuration without going through these optional surfaces.
+ * configuration without going through these optional surfaces. {@code SecurityDecisionPort}
+ * is the neutral pre-side-effect decision boundary; policy implementations live outside
+ * this package and are injected by the host.
  */
 package com.huawei.ascend.runtime.engine.spi;

@@ -1,0 +1,15 @@
+package com.huawei.ascend.runtime.engine.spi;
+
+public enum DecisionObligation {
+    REDACT_BEFORE_MODEL,
+    ROUTE_TO_SANDBOX,
+    REQUIRE_APPROVAL,
+    REQUIRE_AUDIT_RECEIPT,
+    LIMIT_EGRESS,
+    LIMIT_FILE_SCOPE,
+    LIMIT_MCP_SCOPE,
+    LIMIT_A2A_SCOPE,
+    RECORD_SECURITY_EVENT,
+    DENY_LOCAL_FALLBACK,
+    RECHECK_BEFORE_RESUME
+}

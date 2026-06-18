@@ -6,6 +6,8 @@ import com.huawei.ascend.runtime.engine.a2a.AgentCardProvider;
 import com.huawei.ascend.runtime.engine.a2a.RemoteAgentCardCache;
 import com.huawei.ascend.runtime.engine.a2a.RemoteAgentInvocationService;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
+import com.huawei.ascend.runtime.engine.spi.DenyingSecurityDecisionPort;
+import com.huawei.ascend.runtime.engine.spi.SecurityDecisionPort;
 import com.huawei.ascend.runtime.engine.spi.TrajectoryMasking;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySettings;
 import com.huawei.ascend.runtime.engine.spi.TrajectorySinkFactory;
@@ -97,6 +99,11 @@ public class RuntimeAutoConfiguration {
 
     @Bean @ConditionalOnMissingBean
     public RuntimeReadiness runtimeReadiness() { return new RuntimeReadiness(); }
+
+    @Bean @ConditionalOnMissingBean
+    public SecurityDecisionPort securityDecisionPort() {
+        return new DenyingSecurityDecisionPort();
+    }
 
     @Bean @ConditionalOnMissingBean
     public AgentRuntimeLifecycle agentRuntimeLifecycle(ObjectProvider<AgentRuntimeHandler> handlers,
