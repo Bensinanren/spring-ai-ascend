@@ -3,6 +3,7 @@ package com.huawei.ascend.agentsdk.example;
 import com.huawei.ascend.agentsdk.example.tools.CalcDiscountTool;
 import com.huawei.ascend.agentsdk.example.tools.QueryOrderTool;
 import com.huawei.ascend.agentsdk.example.tools.ReadFileTool;
+import com.huawei.ascend.agentsdk.example.rails.ExampleRailHooks;
 import com.openjiuwen.core.session.Session;
 import com.openjiuwen.core.singleagent.ReActAgent;
 import com.openjiuwen.harness.deep_agent.DeepAgent;
@@ -72,6 +73,7 @@ final class OpenJiuwenExampleSupport {
         ReadFileTool.reset();
         QueryOrderTool.reset();
         CalcDiscountTool.reset();
+        ExampleRailHooks.reset();
     }
 
     private static void verifyProof(Object result, boolean requireReadFileTool) {
@@ -92,11 +94,17 @@ final class OpenJiuwenExampleSupport {
                 "model result did not include order-analysis skill proof");
         require(text.contains("REPORT_WRITING_SKILL_USED"),
                 "model result did not include report-writing skill proof");
+        require(ExampleRailHooks.afterModelCallCount() > 0,
+                "afterModelCall rail was not triggered by the real agent execution");
+        require(ExampleRailHooks.afterToolCallCount() > 0,
+                "afterToolCall rail was not triggered by the real agent execution");
         System.out.println();
         System.out.println("=== Proof Verification ===");
         System.out.println("readFile invocations: " + ReadFileTool.invocationCount());
         System.out.println("queryOrder invocations: " + QueryOrderTool.invocationCount());
         System.out.println("calcDiscount invocations: " + CalcDiscountTool.invocationCount());
+        System.out.println("afterModelCall rail invocations: " + ExampleRailHooks.afterModelCallCount());
+        System.out.println("afterToolCall rail invocations: " + ExampleRailHooks.afterToolCallCount());
         System.out.println("skill markers: ORDER_ANALYSIS_SKILL_USED, REPORT_WRITING_SKILL_USED");
         System.out.println("verification: PASS");
     }

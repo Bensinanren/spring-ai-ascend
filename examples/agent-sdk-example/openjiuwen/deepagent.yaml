@@ -17,6 +17,18 @@ model:
   apiKey: ${DEEPSEEK_API_KEY}
   sslVerify: true
 
+rails:
+  - name: example-after-model-call
+    type: function
+    event: afterModelCall
+    class: com.huawei.ascend.agentsdk.example.rails.ExampleRailHooks
+    method: afterModelCall
+  - name: example-after-tool-call
+    type: function
+    event: afterToolCall
+    class: com.huawei.ascend.agentsdk.example.rails.ExampleRailHooks
+    method: afterToolCall
+
 prompt:
   system: |
     你是一个订单分析 DeepAgent。

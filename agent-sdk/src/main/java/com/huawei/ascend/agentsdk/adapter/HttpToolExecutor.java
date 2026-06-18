@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huawei.ascend.agentsdk.spec.tool.HttpExecutionHandle;
 import com.huawei.ascend.agentsdk.support.ToolExecutionException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -25,21 +26,29 @@ public final class HttpToolExecutor {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int ERROR_BODY_PREVIEW_CHARS = 500;
 
-    private final HttpClient client;
+    private final HttpClient noRedirectClient;
+    private final HttpClient redirectingClient;
 
     public HttpToolExecutor() {
-        this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build());
+        this(
+                HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build(),
+                HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build());
     }
 
     HttpToolExecutor(HttpClient client) {
-        this.client = client;
+        this(client, client);
+    }
+
+    private HttpToolExecutor(HttpClient noRedirectClient, HttpClient redirectingClient) {
+        this.noRedirectClient = noRedirectClient;
+        this.redirectingClient = redirectingClient;
     }
 
     public Object execute(HttpExecutionHandle handle, Map<String, Object> inputs) {
         HttpRequest request = buildRequest(handle, inputs == null ? Map.of() : inputs);
-        HttpResponse<String> response;
+        HttpResponse<InputStream> response;
         try {
-            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            response = client(handle).send(request, HttpResponse.BodyHandlers.ofInputStream());
         } catch (IOException e) {
             throw new ToolExecutionException(
                     "HTTP tool request failed: " + handle.method() + " " + handle.url(), e);
@@ -48,11 +57,20 @@ public final class HttpToolExecutor {
             throw new ToolExecutionException(
                     "HTTP tool request interrupted: " + handle.method() + " " + handle.url(), e);
         }
+        String body = decodeBody(response.body(), handle.maxResponseBytes());
         if (response.statusCode() / 100 != 2) {
-            throw new ToolExecutionException("HTTP tool " + handle.method() + " " + handle.url()
-                    + " answered status " + response.statusCode() + ": " + preview(response.body()));
+            String message = "HTTP tool " + handle.method() + " " + handle.url()
+                    + " answered status " + response.statusCode();
+            if (handle.exposeErrorBody()) {
+                message += ": " + preview(body);
+            }
+            throw new ToolExecutionException(message);
         }
-        return decode(response);
+        return decode(response, body);
+    }
+
+    private HttpClient client(HttpExecutionHandle handle) {
+        return handle.followRedirects() ? redirectingClient : noRedirectClient;
     }
 
     private HttpRequest buildRequest(HttpExecutionHandle handle, Map<String, Object> inputs) {
@@ -97,8 +115,30 @@ public final class HttpToolExecutor {
         }
     }
 
-    private static Object decode(HttpResponse<String> response) {
-        String body = response.body() == null ? "" : response.body();
+    private static String decodeBody(InputStream stream, int maxResponseBytes) {
+        if (stream == null) {
+            return "";
+        }
+        try (InputStream body = stream) {
+            byte[] buffer = new byte[8192];
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(Math.min(maxResponseBytes, 8192));
+            int total = 0;
+            int read;
+            while ((read = body.read(buffer)) != -1) {
+                total += read;
+                if (total > maxResponseBytes) {
+                    throw new ToolExecutionException(
+                            "HTTP tool response exceeds maxResponseBytes=" + maxResponseBytes);
+                }
+                out.write(buffer, 0, read);
+            }
+            return out.toString(StandardCharsets.UTF_8);
+        } catch (IOException error) {
+            throw new ToolExecutionException("HTTP tool response read failed", error);
+        }
+    }
+
+    private static Object decode(HttpResponse<?> response, String body) {
         String contentType = response.headers().firstValue("content-type").orElse("");
         if (contentType.toLowerCase(java.util.Locale.ROOT).contains("json") && !body.isBlank()) {
             try {

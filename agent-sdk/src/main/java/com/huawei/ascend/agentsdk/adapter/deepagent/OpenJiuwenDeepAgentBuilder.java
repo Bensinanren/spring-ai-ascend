@@ -1,5 +1,8 @@
 package com.huawei.ascend.agentsdk.adapter.deepagent;
 
+import com.huawei.ascend.agentsdk.adapter.OpenJiuwenMcpMapper;
+import com.huawei.ascend.agentsdk.adapter.OpenJiuwenModelMapper;
+import com.huawei.ascend.agentsdk.adapter.OpenJiuwenRailMapper;
 import com.huawei.ascend.agentsdk.adapter.OpenJiuwenAgentSpecMapper;
 import com.huawei.ascend.agentsdk.adapter.OpenJiuwenSkillMapper;
 import com.huawei.ascend.agentsdk.adapter.OpenJiuwenToolMapper;
@@ -9,22 +12,30 @@ import com.huawei.ascend.agentsdk.spec.tool.ToolResolver;
 import com.huawei.ascend.agentsdk.spec.tool.ToolSpec;
 import com.huawei.ascend.agentsdk.spec.tool.UnsupportedToolRefException;
 import com.openjiuwen.core.foundation.tool.Tool;
+import com.openjiuwen.core.singleagent.rail.AgentRail;
 import com.openjiuwen.harness.deep_agent.DeepAgent;
 import com.openjiuwen.harness.factory.HarnessFactory;
 import com.openjiuwen.harness.schema.config.DeepAgentConfig;
 import com.openjiuwen.harness.workspace.Workspace;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 public final class OpenJiuwenDeepAgentBuilder {
     private final List<ToolResolver> toolResolvers;
+    private final List<AgentRail> rails;
     private final OpenJiuwenToolMapper toolMapper = new OpenJiuwenToolMapper();
     private final OpenJiuwenSkillMapper skillMapper = new OpenJiuwenSkillMapper();
     private final OpenJiuwenAgentSpecMapper specMapper = new OpenJiuwenAgentSpecMapper();
+    private final OpenJiuwenModelMapper modelMapper = new OpenJiuwenModelMapper();
+    private final OpenJiuwenRailMapper railMapper = new OpenJiuwenRailMapper();
+    private final OpenJiuwenMcpMapper mcpMapper = new OpenJiuwenMcpMapper();
 
     public OpenJiuwenDeepAgentBuilder(List<ToolResolver> toolResolvers) {
+        this(toolResolvers, List.of());
+    }
+
+    public OpenJiuwenDeepAgentBuilder(List<ToolResolver> toolResolvers, List<AgentRail> rails) {
         this.toolResolvers = List.copyOf(toolResolvers);
+        this.rails = List.copyOf(rails);
     }
 
     public DeepAgent buildAgent(AgentSpec spec) {
@@ -39,13 +50,20 @@ public final class OpenJiuwenDeepAgentBuilder {
                 .maxIterations(options.maxIterations())
                 .tools(List.copyOf(toObjects(tools)))
                 .skillDirectories(skillDirectories)
-                .skillMode("all")
-                .model(modelConfig(spec))
-                .backend(backendConfig(spec))
+                .skillMode(options.skillMode())
+                .workspacePath(options.workspacePath())
+                .language(options.language())
+                .enableTaskLoop(options.enableTaskLoop())
+                .enableTaskPlanning(options.enableTaskPlanning())
+                .completionTimeout(options.completionTimeout())
+                .model(modelMapper.toDeepAgentModelConfig(spec.modelSpec()))
+                .backend(modelMapper.toDeepAgentBackendConfig(spec.modelSpec()))
+                .rails(rails(spec))
+                .mcps(mcpMapper.toMcpServerConfigs(spec.mcpSpecs()))
                 .build();
         Workspace workspace = Workspace.builder()
-                .rootPath(".")
-                .language("cn")
+                .rootPath(options.workspacePath())
+                .language(options.language())
                 .build();
         return HarnessFactory.createDeepAgent(specMapper.card(spec), config, workspace);
     }
@@ -63,19 +81,12 @@ public final class OpenJiuwenDeepAgentBuilder {
         return tools.stream().map(tool -> (Object) tool).toList();
     }
 
-    private static Map<String, Object> modelConfig(AgentSpec spec) {
-        Map<String, Object> model = new LinkedHashMap<>();
-        model.put("model", spec.modelSpec().name());
-        return model;
-    }
-
-    private static Map<String, Object> backendConfig(AgentSpec spec) {
-        Map<String, Object> backend = new LinkedHashMap<>();
-        backend.put("provider", spec.modelSpec().provider());
-        backend.put("apiKey", spec.modelSpec().apiKey());
-        backend.put("baseUrl", spec.modelSpec().baseUrl());
-        backend.put("verifySsl", spec.modelSpec().sslVerify());
-        backend.put("headers", spec.modelSpec().headers());
-        return backend;
+    private List<Object> rails(AgentSpec spec) {
+        List<Object> result = new java.util.ArrayList<>();
+        spec.railSpecs().stream()
+                .map(railMapper::toDeepAgentRail)
+                .forEach(result::add);
+        result.addAll(rails);
+        return List.copyOf(result);
     }
 }
