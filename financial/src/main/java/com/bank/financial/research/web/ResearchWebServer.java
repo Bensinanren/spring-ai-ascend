@@ -69,6 +69,35 @@ public final class ResearchWebServer {
     private static final java.util.Map<String, java.util.concurrent.atomic.AtomicBoolean> PAUSED =
             new java.util.concurrent.ConcurrentHashMap<>();
 
+    // A report run holds its HTTP thread for its whole SSE lifetime (tens of seconds to
+    // minutes on the live model). With a fixed server pool, enough concurrent /api/run
+    // streams would starve every thread — so /, /api/control (pause/resume!) would hang
+    // too. Bound concurrent runs and reject the overflow (503) instead of queueing it, so
+    // the page and control plane always keep threads. Size via RESEARCH_WEB_MAX_RUNS.
+    private static final int MAX_CONCURRENT_RUNS = parseIntEnv("RESEARCH_WEB_MAX_RUNS", 6);
+    private static final RunSlots RUN_SLOTS = new RunSlots(MAX_CONCURRENT_RUNS);
+
+    /** Admission control for concurrent /api/run streams: reject (don't queue) the overflow. */
+    static final class RunSlots {
+        private final java.util.concurrent.Semaphore permits;
+
+        RunSlots(int max) {
+            this.permits = new java.util.concurrent.Semaphore(Math.max(1, max));
+        }
+
+        boolean tryBegin() {
+            return permits.tryAcquire();
+        }
+
+        void end() {
+            permits.release();
+        }
+
+        int available() {
+            return permits.availablePermits();
+        }
+    }
+
     private static final List<Map<String, String>> FUND_AGENTS = List.of(
             Map.of("role", "planner", "label", "规划"), Map.of("role", "data", "label", "数据"),
             Map.of("role", "performance", "label", "业绩"), Map.of("role", "risk", "label", "风险"),
@@ -100,7 +129,9 @@ public final class ResearchWebServer {
         com.bank.financial.research.LogQuieter.quiet();
         int port = parsePort(System.getenv("RESEARCH_WEB_PORT"), 8088);
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.setExecutor(Executors.newFixedThreadPool(4));
+        // Pool must exceed MAX_CONCURRENT_RUNS so the page + control plane always have
+        // threads even when every run slot is occupied.
+        server.setExecutor(Executors.newFixedThreadPool(MAX_CONCURRENT_RUNS + 4));
         server.createContext("/", ResearchWebServer::handlePage);
         server.createContext("/api/run", ResearchWebServer::handleRun);
         server.createContext("/api/control", ResearchWebServer::handleControl);
@@ -114,6 +145,18 @@ public final class ResearchWebServer {
         }
         try {
             return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static int parseIntEnv(String key, int fallback) {
+        String v = System.getenv(key);
+        if (v == null || v.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Math.max(1, Integer.parseInt(v.trim()));
         } catch (NumberFormatException e) {
             return fallback;
         }
@@ -169,6 +212,10 @@ public final class ResearchWebServer {
 
     // ── GET /api/run  → SSE ─────────────────────────────────────────────────────
     private static void handleRun(HttpExchange ex) {
+        if (!RUN_SLOTS.tryBegin()) {
+            rejectBusy(ex); // all run slots occupied — shed load, keep the control plane alive
+            return;
+        }
         OutputStream os = null;
         final java.util.concurrent.atomic.AtomicBoolean alive = new java.util.concurrent.atomic.AtomicBoolean(true);
         final Thread[] hb = new Thread[1];
@@ -322,6 +369,25 @@ public final class ResearchWebServer {
                     // ignore
                 }
             }
+            ex.close();
+            RUN_SLOTS.end(); // free the slot for a waiting caller
+        }
+    }
+
+    /** All run slots are taken: shed this request with 503 + Retry-After rather than queue it. */
+    private static void rejectBusy(HttpExchange ex) {
+        try {
+            byte[] body = "{\"error\":\"server busy: too many concurrent reports, retry shortly\"}"
+                    .getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().set("Content-Type", "application/json;charset=utf-8");
+            ex.getResponseHeaders().set("Retry-After", "5");
+            ex.sendResponseHeaders(503, body.length);
+            try (OutputStream o = ex.getResponseBody()) {
+                o.write(body);
+            }
+        } catch (IOException ignored) {
+            // client gone
+        } finally {
             ex.close();
         }
     }

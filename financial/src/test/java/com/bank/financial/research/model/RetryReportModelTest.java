@@ -53,4 +53,26 @@ class RetryReportModelTest {
             assertTrue(m.backoffMs(attempt) <= 4000, "backoff must respect cap");
         }
     }
+
+    @Test
+    void nonRetryableFailsFastWithoutRetrying() {
+        AtomicInteger calls = new AtomicInteger();
+        // A timeout already spent its budget — retrying it 2 more times would just
+        // multiply the wall-clock, so it must be thrown on the first attempt.
+        ReportModel timingOut = new ReportModel() {
+            @Override
+            public String name() {
+                return "timeout";
+            }
+
+            @Override
+            public String generate(ModelTask t) {
+                calls.incrementAndGet();
+                throw new TimeoutReportModel.ModelTimeoutException("timed out");
+            }
+        };
+        RetryReportModel m = new RetryReportModel(timingOut, 3, 1);
+        assertThrows(TimeoutReportModel.ModelTimeoutException.class, () -> m.generate(TASK));
+        assertEquals(1, calls.get(), "NonRetryable failure must not be retried");
+    }
 }

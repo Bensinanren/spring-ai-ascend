@@ -42,7 +42,9 @@ public final class RetryReportModel implements ReportModel {
                 return delegate.generate(task);
             } catch (RuntimeException e) {
                 last = e;
-                if (attempt == maxAttempts) {
+                // A NonRetryable failure (timeout, pool saturation) can't be fixed by
+                // retrying — backing off would only multiply the wall-clock. Rethrow now.
+                if (e instanceof NonRetryable || attempt == maxAttempts) {
                     break;
                 }
                 sleep(backoffMs(attempt));

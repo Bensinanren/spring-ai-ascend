@@ -2,6 +2,7 @@ package com.bank.financial.research.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.bank.financial.research.model.ReportModel.ModelTask;
 import com.bank.financial.research.model.TimeoutReportModel.ModelTimeoutException;
@@ -54,5 +55,13 @@ class TimeoutReportModelTest {
                     throw new IllegalStateException("upstream 500");
                 }), Duration.ofSeconds(2));
         assertThrows(RuntimeException.class, () -> m.generate(TASK));
+    }
+
+    @Test
+    void timeoutExceptionIsNonRetryable() {
+        // Wiring guard: RetryReportModel keys off this marker to avoid re-running a
+        // call whose time budget is already spent.
+        assertTrue(new ModelTimeoutException("x") instanceof NonRetryable,
+                "a hard timeout must be flagged non-retryable");
     }
 }
