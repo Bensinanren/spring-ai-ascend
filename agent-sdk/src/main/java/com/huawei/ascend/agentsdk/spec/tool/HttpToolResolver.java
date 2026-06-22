@@ -23,7 +23,11 @@ public final class HttpToolResolver implements ToolResolver {
                 uri(url),
                 method,
                 headers(attributes.get("headers")),
-                timeout(attributes.get("timeout")));
+                timeout(attributes.get("timeout")),
+                booleanValue(attributes.get("followRedirects"), false, "followRedirects"),
+                intValue(attributes.get("maxResponseBytes"), HttpExecutionHandle.DEFAULT_MAX_RESPONSE_BYTES,
+                        "maxResponseBytes"),
+                booleanValue(attributes.get("exposeErrorBody"), false, "exposeErrorBody"));
         return new WrappableTool(ToolRefAttributes.descriptor(spec), handle);
     }
 
@@ -56,6 +60,43 @@ public final class HttpToolResolver implements ToolResolver {
         return timeout;
     }
 
+    private static boolean booleanValue(Object value, boolean fallback, String label) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        String text = String.valueOf(value).trim();
+        if ("true".equalsIgnoreCase(text)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(text)) {
+            return false;
+        }
+        throw new ValidationException("Tool ref " + label + " must be true or false, got: " + value);
+    }
+
+    private static int intValue(Object value, int fallback, String label) {
+        if (value == null) {
+            return fallback;
+        }
+        int parsed;
+        if (value instanceof Number number) {
+            parsed = number.intValue();
+        } else {
+            try {
+                parsed = Integer.parseInt(String.valueOf(value).trim());
+            } catch (NumberFormatException error) {
+                throw new ValidationException("Tool ref " + label + " must be an integer, got: " + value, error);
+            }
+        }
+        if (parsed <= 0) {
+            throw new ValidationException("Tool ref " + label + " must be positive, got: " + value);
+        }
+        return parsed;
+    }
+
     /** Bare numbers mean SECONDS (the config-file convention); "30s"/"500ms"/"2m" and ISO-8601 also parse. */
     private static Duration parseTimeout(Object value) {
         if (value instanceof Number number) {
@@ -82,4 +123,3 @@ public final class HttpToolResolver implements ToolResolver {
         }
     }
 }
-

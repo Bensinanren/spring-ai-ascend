@@ -1,5 +1,7 @@
 package com.huawei.ascend.agentsdk.adapter.react;
 
+import com.huawei.ascend.agentsdk.adapter.OpenJiuwenModelMapper;
+import com.huawei.ascend.agentsdk.adapter.OpenJiuwenRailMapper;
 import com.huawei.ascend.agentsdk.adapter.OpenJiuwenAgentSpecMapper;
 import com.huawei.ascend.agentsdk.adapter.OpenJiuwenSkillMapper;
 import com.huawei.ascend.agentsdk.adapter.OpenJiuwenToolMapper;
@@ -13,17 +15,26 @@ import com.openjiuwen.core.runner.Runner;
 import com.openjiuwen.core.singleagent.BaseAgent;
 import com.openjiuwen.core.singleagent.ReActAgent;
 import com.openjiuwen.core.singleagent.agents.ReActAgentConfig;
+import com.openjiuwen.core.singleagent.rail.AgentRail;
 import java.util.List;
 import java.util.Map;
 
 public final class OpenJiuwenReactAgentBuilder {
     private final List<ToolResolver> toolResolvers;
+    private final List<AgentRail> rails;
     private final OpenJiuwenToolMapper toolMapper = new OpenJiuwenToolMapper();
     private final OpenJiuwenSkillMapper skillMapper = new OpenJiuwenSkillMapper();
     private final OpenJiuwenAgentSpecMapper specMapper = new OpenJiuwenAgentSpecMapper();
+    private final OpenJiuwenModelMapper modelMapper = new OpenJiuwenModelMapper();
+    private final OpenJiuwenRailMapper railMapper = new OpenJiuwenRailMapper();
 
     public OpenJiuwenReactAgentBuilder(List<ToolResolver> toolResolvers) {
+        this(toolResolvers, List.of());
+    }
+
+    public OpenJiuwenReactAgentBuilder(List<ToolResolver> toolResolvers, List<AgentRail> rails) {
         this.toolResolvers = List.copyOf(toolResolvers);
+        this.rails = List.copyOf(rails);
     }
 
     public ReActAgent buildAgent(AgentSpec spec) {
@@ -33,15 +44,10 @@ public final class OpenJiuwenReactAgentBuilder {
                 .sysOperationId(options.sysOperationId())
                 .build()
                 .configurePromptTemplate(List.of(Map.of("role", "system", "content", spec.promptSpec().system())))
-                .configureMaxIterations(options.maxIterations())
-                .configureModelClient(
-                        spec.modelSpec().provider(),
-                        spec.modelSpec().apiKey(),
-                        spec.modelSpec().baseUrl(),
-                        spec.modelSpec().name(),
-                        spec.modelSpec().sslVerify(),
-                        null,
-                        spec.modelSpec().headers());
+                .configureMaxIterations(options.maxIterations());
+        configureModelFields(config, spec);
+        config.setModelClientConfig(modelMapper.toModelClientConfig(spec.modelSpec()));
+        config.setModelConfigObj(modelMapper.toModelRequestConfig(spec.modelSpec().requestSpec()));
         agent.configure(config);
         List<Tool> tools = spec.toolSpecs().stream()
                 .map(this::resolveTool)
@@ -51,7 +57,19 @@ public final class OpenJiuwenReactAgentBuilder {
         for (String skillDirectory : skillMapper.toSkillDirectories(spec.skillSpecs())) {
             agent.registerSkill(skillDirectory);
         }
+        spec.railSpecs().stream()
+                .map(railMapper::toAgentRail)
+                .forEach(agent::registerRail);
+        rails.forEach(agent::registerRail);
         return agent;
+    }
+
+    private static void configureModelFields(ReActAgentConfig config, AgentSpec spec) {
+        config.setModelProvider(spec.modelSpec().provider());
+        config.setApiKey(spec.modelSpec().apiKey());
+        config.setApiBase(spec.modelSpec().baseUrl());
+        config.setModelName(spec.modelSpec().name());
+        config.setCustomHeaders(spec.modelSpec().headers());
     }
 
     private ResolvedTool resolveTool(ToolSpec toolSpec) {
@@ -70,4 +88,3 @@ public final class OpenJiuwenReactAgentBuilder {
         }
     }
 }
-

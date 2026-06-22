@@ -51,6 +51,28 @@ class ToolResolverTest {
     }
 
     @Test
+    void httpResolverParsesExplicitResponseControls() {
+        HttpExecutionHandle handle = resolveHttp(Map.of(
+                "url", "https://api.example.com",
+                "followRedirects", true,
+                "maxResponseBytes", 4096,
+                "exposeErrorBody", true));
+
+        assertThat(handle.followRedirects()).isTrue();
+        assertThat(handle.maxResponseBytes()).isEqualTo(4096);
+        assertThat(handle.exposeErrorBody()).isTrue();
+    }
+
+    @Test
+    void httpResolverDefaultsToConservativeResponseControls() {
+        HttpExecutionHandle handle = resolveHttp(Map.of("url", "https://api.example.com"));
+
+        assertThat(handle.followRedirects()).isFalse();
+        assertThat(handle.maxResponseBytes()).isEqualTo(1024 * 1024);
+        assertThat(handle.exposeErrorBody()).isFalse();
+    }
+
+    @Test
     void garbageTimeoutAndUrlFailWithValidationException() {
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () -> resolveHttp(Map.of("url", "https://api.example.com", "timeout", "soon")))

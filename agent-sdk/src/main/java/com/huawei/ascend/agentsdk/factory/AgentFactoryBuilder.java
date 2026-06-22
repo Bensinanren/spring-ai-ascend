@@ -9,6 +9,7 @@ import com.huawei.ascend.agentsdk.spec.tool.ToolResolver;
 import com.huawei.ascend.agentsdk.spec.yaml.AgentYamlLoader;
 import com.huawei.ascend.agentsdk.support.UnsupportedFrameworkException;
 import com.openjiuwen.core.singleagent.ReActAgent;
+import com.openjiuwen.core.singleagent.rail.AgentRail;
 import com.openjiuwen.harness.deep_agent.DeepAgent;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -16,9 +17,15 @@ import java.util.List;
 
 public final class AgentFactoryBuilder {
     private final List<ToolResolver> customToolResolvers = new ArrayList<>();
+    private final List<AgentRail> rails = new ArrayList<>();
 
     public AgentFactoryBuilder toolResolver(ToolResolver resolver) {
         customToolResolvers.add(resolver);
+        return this;
+    }
+
+    public AgentFactoryBuilder rail(AgentRail rail) {
+        rails.add(java.util.Objects.requireNonNull(rail, "rail"));
         return this;
     }
 
@@ -34,14 +41,14 @@ public final class AgentFactoryBuilder {
         if (!"openjiuwen".equalsIgnoreCase(spec.frameworkType()) || !"react".equalsIgnoreCase(spec.agentType())) {
             throw unsupportedSpec(spec);
         }
-        return new OpenJiuwenReactAgentBuilder(toolResolvers()).buildAgent(spec);
+        return new OpenJiuwenReactAgentBuilder(toolResolvers(), rails()).buildAgent(spec);
     }
 
     private DeepAgent toDeepAgent(AgentSpec spec) {
         if (!"openjiuwen".equalsIgnoreCase(spec.frameworkType()) || !"deepagent".equalsIgnoreCase(spec.agentType())) {
             throw unsupportedSpec(spec);
         }
-        return new OpenJiuwenDeepAgentBuilder(toolResolvers()).buildAgent(spec);
+        return new OpenJiuwenDeepAgentBuilder(toolResolvers(), rails()).buildAgent(spec);
     }
 
     private List<ToolResolver> toolResolvers() {
@@ -49,6 +56,10 @@ public final class AgentFactoryBuilder {
         resolvers.add(new JavaFileToolResolver());
         resolvers.add(new HttpToolResolver());
         return List.copyOf(resolvers);
+    }
+
+    private List<AgentRail> rails() {
+        return List.copyOf(rails);
     }
 
     private UnsupportedFrameworkException unsupportedSpec(AgentSpec spec) {

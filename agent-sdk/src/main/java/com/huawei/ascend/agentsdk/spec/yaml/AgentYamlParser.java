@@ -2,21 +2,32 @@ package com.huawei.ascend.agentsdk.spec.yaml;
 
 import com.huawei.ascend.agentsdk.spec.AgentSpec;
 import com.huawei.ascend.agentsdk.spec.model.ModelSpec;
+import com.huawei.ascend.agentsdk.spec.model.ModelRequestSpec;
+import com.huawei.ascend.agentsdk.spec.mcp.McpSpec;
 import com.huawei.ascend.agentsdk.spec.prompt.PromptSpec;
+import com.huawei.ascend.agentsdk.spec.rail.RailSpec;
 import com.huawei.ascend.agentsdk.spec.skill.SkillSourceLoader;
 import com.huawei.ascend.agentsdk.spec.skill.SkillSourceSpec;
 import com.huawei.ascend.agentsdk.spec.skill.SkillSpec;
 import com.huawei.ascend.agentsdk.spec.tool.ToolRef;
 import com.huawei.ascend.agentsdk.spec.tool.ToolSpec;
+import com.huawei.ascend.agentsdk.support.DurationValues;
 import com.huawei.ascend.agentsdk.support.ValidationException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public final class AgentYamlParser {
+    private static final Set<String> FUNCTION_RAIL_EVENTS = Set.of(
+            "beforeModelCall", "afterModelCall", "beforeToolCall", "afterToolCall");
 
     public AgentSpec parse(Map<String, Object> root, Path yamlPath) {
         Path yamlDir = yamlPath.toAbsolutePath().normalize().getParent();
@@ -32,10 +43,12 @@ public final class AgentYamlParser {
         String agentType = requiredString(framework, "agent");
         Map<String, Object> options = mapOrEmpty(framework.get("options"));
         ModelSpec modelSpec = model(mapOrEmpty(root.get("model")));
-        PromptSpec promptSpec = prompt(mapOrEmpty(root.get("prompt")));
+        PromptSpec promptSpec = prompt(mapOrEmpty(root.get("prompt")), yamlDir);
         List<SkillSourceSpec> skillSources = skillSources(mapOrEmpty(root.get("skills")), yamlDir);
         List<SkillSpec> skillSpecs = new SkillSourceLoader().load(skillSources);
         List<ToolSpec> toolSpecs = toolSpecs(listOrEmpty(root.get("tools")), yamlDir);
+        List<RailSpec> railSpecs = railSpecs(listOrEmpty(root.get("rails")));
+        List<McpSpec> mcpSpecs = mcpSpecs(listOrEmpty(root.get("mcps")));
         return new AgentSpec(
                 schema,
                 name,
@@ -47,7 +60,9 @@ public final class AgentYamlParser {
                 modelSpec,
                 promptSpec,
                 skillSpecs,
-                toolSpecs);
+                toolSpecs,
+                railSpecs,
+                mcpSpecs);
     }
 
     private ModelSpec model(Map<String, Object> model) {
@@ -57,11 +72,52 @@ public final class AgentYamlParser {
                 requiredString(model, "baseUrl", "model.baseUrl"),
                 requiredString(model, "apiKey", "model.apiKey"),
                 booleanValue(model.get("sslVerify"), true, "model.sslVerify"),
-                stringMap(mapOrEmpty(model.get("headers"))));
+                stringMap(mapOrEmpty(model.get("headers"))),
+                modelRequest(mapOrEmpty(model.get("request"))),
+                DurationValues.duration(model.get("timeout"), null, "model.timeout"),
+                optionalInt(model.get("maxRetries"), "model.maxRetries"));
     }
 
-    private PromptSpec prompt(Map<String, Object> prompt) {
-        return new PromptSpec(defaultString(string(prompt.get("system")), ""));
+    private ModelRequestSpec modelRequest(Map<String, Object> request) {
+        Map<String, Object> extra = new LinkedHashMap<>(request);
+        extra.keySet().removeAll(Set.of("temperature", "topP", "maxTokens", "stop", "seed"));
+        return new ModelRequestSpec(
+                optionalDouble(request.get("temperature"), "model.request.temperature"),
+                optionalDouble(request.get("topP"), "model.request.topP"),
+                optionalInt(request.get("maxTokens"), "model.request.maxTokens"),
+                string(request.get("stop")),
+                optionalInt(request.get("seed"), "model.request.seed"),
+                extra);
+    }
+
+    private PromptSpec prompt(Map<String, Object> prompt, Path yamlDir) {
+        String agentMd = prompt.containsKey("agentMd") ? string(prompt.get("agentMd")) : null;
+        String system = prompt.containsKey("system") ? string(prompt.get("system")) : null;
+        String agentMdContent = agentMd == null || agentMd.isBlank() ? null : readAgentMd(agentMd, yamlDir);
+        String systemContent = system == null || system.isBlank() ? null : system;
+        return new PromptSpec(joinSections(agentMdContent, systemContent));
+    }
+
+    private static String readAgentMd(String agentMd, Path yamlDir) {
+        Path resolved = resolvePath(yamlDir, agentMd);
+        try {
+            return java.nio.file.Files.readString(resolved);
+        } catch (IOException error) {
+            throw new ValidationException("Failed to read agentMd file: " + resolved, error);
+        }
+    }
+
+    private static String joinSections(String first, String second) {
+        if (first == null && second == null) {
+            return "";
+        }
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first + "\n\n" + second;
     }
 
     private List<SkillSourceSpec> skillSources(Map<String, Object> skills, Path yamlDir) {
@@ -101,6 +157,62 @@ public final class AgentYamlParser {
                     requiredString(toolMap, "description", "tools[].description (tool: " + name + ")"),
                     mapOrEmpty(toolMap.get("inputSchema")),
                     ref));
+        }
+        return List.copyOf(result);
+    }
+
+    private List<RailSpec> railSpecs(List<Object> rails) {
+        List<RailSpec> result = new ArrayList<>();
+        Set<String> names = new LinkedHashSet<>();
+        for (Object rail : rails) {
+            Map<String, Object> railMap = map(rail);
+            String name = requiredString(railMap, "name", "rails[].name");
+            if (!names.add(name)) {
+                throw new ValidationException("Duplicate rail name: " + name);
+            }
+            String type = defaultString(string(railMap.get("type")), "class");
+            String className = requiredString(railMap, "class", "rails[].class (rail: " + name + ")");
+            String method = string(railMap.get("method"));
+            String event = string(railMap.get("event"));
+            if ("function".equalsIgnoreCase(type)) {
+                if (method == null || method.isBlank()) {
+                    throw new ValidationException("Missing required YAML field: rails[].method (rail: " + name + ")");
+                }
+                if (event == null || event.isBlank() || !FUNCTION_RAIL_EVENTS.contains(event)) {
+                    throw new ValidationException("Unsupported function rail event: " + event);
+                }
+            } else if ("class".equalsIgnoreCase(type)) {
+                if (method != null && !method.isBlank()) {
+                    throw new ValidationException("class rail must not declare method: " + name);
+                }
+            } else {
+                throw new ValidationException("Unsupported rail type: " + type);
+            }
+            result.add(new RailSpec(
+                    name,
+                    type.toLowerCase(java.util.Locale.ROOT),
+                    className,
+                    method,
+                    event,
+                    optionalInt(railMap.get("priority"), "rails[].priority"),
+                    mapOrEmpty(railMap.get("options"))));
+        }
+        return List.copyOf(result);
+    }
+
+    private List<McpSpec> mcpSpecs(List<Object> mcps) {
+        List<McpSpec> result = new ArrayList<>();
+        for (Object mcp : mcps) {
+            Map<String, Object> mcpMap = map(mcp);
+            String serverName = requiredString(mcpMap, "serverName", "mcps[].serverName");
+            result.add(new McpSpec(
+                    defaultString(string(mcpMap.get("serverId")), UUID.randomUUID().toString()),
+                    serverName,
+                    requiredString(mcpMap, "serverPath", "mcps[].serverPath (server: " + serverName + ")"),
+                    defaultString(string(mcpMap.get("clientType")), "sse"),
+                    mapOrEmpty(mcpMap.get("params")),
+                    stringMap(mapOrEmpty(mcpMap.get("authHeaders"))),
+                    stringMap(mapOrEmpty(mcpMap.get("authQueryParams")))));
         }
         return List.copyOf(result);
     }
@@ -232,6 +344,34 @@ public final class AgentYamlParser {
         }
         // Boolean.parseBoolean would map 'yes'/'enabled'/typos to false silently.
         throw new ValidationException("Field '" + label + "' must be true or false, got: " + value);
+    }
+
+    static Integer optionalInt(Object value, String label) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException error) {
+            throw new ValidationException("Field '" + label + "' must be an integer, got: " + value, error);
+        }
+    }
+
+    static Double optionalDouble(Object value, String label) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        try {
+            return Double.parseDouble(String.valueOf(value).trim());
+        } catch (NumberFormatException error) {
+            throw new ValidationException("Field '" + label + "' must be a number, got: " + value, error);
+        }
     }
 
     static Map<String, String> stringMap(Map<String, Object> values) {

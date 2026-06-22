@@ -6,7 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 public final class SkillSourceLoader {
@@ -19,7 +21,19 @@ public final class SkillSourceLoader {
             }
             skills.addAll(loadFilesystem(source.path()));
         }
+        rejectDuplicateNames(skills);
         return List.copyOf(skills);
+    }
+
+    private static void rejectDuplicateNames(List<SkillSpec> skills) {
+        Map<String, Path> firstPaths = new LinkedHashMap<>();
+        for (SkillSpec skill : skills) {
+            Path previous = firstPaths.putIfAbsent(skill.name(), skill.path());
+            if (previous != null) {
+                throw new ValidationException("Duplicate skill name: " + skill.name()
+                        + " (" + previous + ", " + skill.path() + ")");
+            }
+        }
     }
 
     private List<SkillSpec> loadFilesystem(Path source) {
@@ -53,4 +67,3 @@ public final class SkillSourceLoader {
         }
     }
 }
-

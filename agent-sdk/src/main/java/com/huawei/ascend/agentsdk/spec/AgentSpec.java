@@ -1,7 +1,9 @@
 package com.huawei.ascend.agentsdk.spec;
 
 import com.huawei.ascend.agentsdk.spec.model.ModelSpec;
+import com.huawei.ascend.agentsdk.spec.mcp.McpSpec;
 import com.huawei.ascend.agentsdk.spec.prompt.PromptSpec;
+import com.huawei.ascend.agentsdk.spec.rail.RailSpec;
 import com.huawei.ascend.agentsdk.spec.skill.SkillSpec;
 import com.huawei.ascend.agentsdk.spec.tool.ToolSpec;
 import java.util.List;
@@ -18,12 +20,15 @@ public record AgentSpec(
         ModelSpec modelSpec,
         PromptSpec promptSpec,
         List<SkillSpec> skillSpecs,
-        List<ToolSpec> toolSpecs) {
+        List<ToolSpec> toolSpecs,
+        List<RailSpec> railSpecs,
+        List<McpSpec> mcpSpecs) {
 
     public AgentSpec {
         frameworkOptions = frameworkOptions == null ? Map.of() : Map.copyOf(frameworkOptions);
         skillSpecs = skillSpecs == null ? List.of() : List.copyOf(skillSpecs);
         toolSpecs = toolSpecs == null ? List.of() : List.copyOf(toolSpecs);
+        railSpecs = railSpecs == null ? List.of() : List.copyOf(railSpecs);
+        mcpSpecs = mcpSpecs == null ? List.of() : List.copyOf(mcpSpecs);
     }
 }
-

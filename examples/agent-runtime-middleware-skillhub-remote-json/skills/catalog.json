@@ -1,0 +1,34 @@
+{
+  "skills": [
+    {
+      "skillId": "date-helper",
+      "name": "Date Helper",
+      "description": "Use this skill for date, calendar, and deadline wording.",
+      "path": "date-helper",
+      "tags": ["date", "calendar"],
+      "toolDependencies": [],
+      "metadata": {
+        "source": "remote-json"
+      }
+    },
+    {
+      "skillId": "travel-note",
+      "name": "Travel Note",
+      "description": "Use this skill to summarize travel constraints into a short plan.",
+      "path": "travel-note",
+      "tags": ["travel", "planning"],
+      "toolDependencies": [
+        {
+          "type": "a2a",
+          "name": "remote-trip-planner",
+          "metadata": {
+            "optional": true
+          }
+        }
+      ],
+      "metadata": {
+        "source": "remote-json"
+      }
+    }
+  ]
+}

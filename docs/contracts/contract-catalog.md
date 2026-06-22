@@ -30,7 +30,7 @@ Stable W0 routes: `GET /v1/health`, `GET /actuator/health`, `GET /actuator/prome
 
 SPI impls: thread-safe, no null returns. SPIs that process tenant-owned runtime data MUST carry tenant scope (via explicit `tenantId` argument or `RunContext.tenantId()`). SPI packages import only `java.*` plus same-package sibling carriers; broader historical cross-package SPI residuals are documented in root `architecture/docs/L0/ARCHITECTURE.md §3.7` and must not be used as precedent for new SPI design. japicmp binary-compat from W1.
 
-**Active SPI interfaces (9 total):**
+**Active SPI interfaces (11 total):**
 
 (rc43 baseline: 19 pre-rc43 + 14 rc43 agentic-contract-surface SPI surfaces (Agent + AgentRegistry + ModelGateway + Skill + SkillRegistry + MemoryStore + MemoryReader + MemoryWriter + SemanticMemoryStore + KnowledgeMemoryStore + VectorStore + Retriever + EmbeddingModel + Planner) per ADR-0120 / ADR-0121 / ADR-0122 / ADR-0123 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128. rc51 + 5 agentic-completeness SPI surfaces (StructuredOutputConverter + PromptTemplate + ChatAdvisor + AdvisorChain + ConversationMemory) per ADR-0129 / ADR-0130 / ADR-0131 / ADR-0132 / ADR-0133. rc51 also adds the `stream(...)` default method to the existing `ModelGateway` per ADR-0129 and supplements `model-invocation.v1.yaml` with the tool-call iteration loop per ADR-0134. ADR-0135 documents the deliberate decision not to add a separate `AgentSession` SPI.)
 
@@ -47,6 +47,8 @@ SPI impls: thread-safe, no null returns. SPIs that process tenant-owned runtime 
 | `AgentCardProvider` | `agent-runtime` | `com.huawei.ascend.runtime.engine.a2a` | shipped — optional provider for the A2A Agent Card of one runtime-hosted business Agent; lives in the A2A protocol-bridge package, not the neutral SPI package (the Agent Card is A2A protocol metadata); separated from `AgentRuntimeHandler` so card metadata can be supplied by a dedicated Bean or by a handler that chooses to implement both interfaces |
 | `MemoryProvider` | `agent-runtime` | `com.huawei.ascend.runtime.engine.spi` | shipped — reserved narrow memory init/search/save SPI for future memory middleware integration; does not bind runtime to one memory backend |
 | `StreamAdapter` | `agent-runtime` | `com.huawei.ascend.runtime.engine.spi` | shipped — adapts a framework's native result stream into the neutral `AgentExecutionResult` stream |
+| `McpProvider` | `agent-runtime` | `com.huawei.ascend.runtime.engine.spi` | shipped — runtime-neutral MCP tool discovery and invocation SPI; framework adapters own installation into native tool registries while the provider surface stays independent of any concrete MCP SDK |
+| `SkillHubProvider` | `agent-runtime` | `com.huawei.ascend.runtime.engine.spi` | shipped — runtime-neutral SkillHub SPI for progressive skill discovery, full-definition loading, and optional packaged skill bundle loading |
 
 Trajectory observability plumbing — `TrajectoryEmitter`, `TrajectorySource`, `TrajectorySink`, `TrajectorySinkFactory` — is internal **as a Java seam only**: per-invocation, emit-only telemetry interfaces between the runtime executor and the adapter bases (events are never read back; the runtime stays the source of truth). These interfaces live in `engine.spi` for package-boundary reasons but are not part of the shipped SPI surface. The trajectory's **wire surface is NOT internal**: the A2A metadata keys, the artifact name, and the event payload shape cross the process boundary to A2A callers and are a published contract — see *Northbound trajectory wire contract* below.
 
@@ -78,12 +80,12 @@ Schema v2 per-event `DataPart` fields (serialized by `A2aNorthboundSink`; `attem
 | `reasoning` | string \| null | Masked + truncated free-text reasoning |
 | `schemaVersion` | string | `"2"` = `TrajectoryEvent.SCHEMA_VERSION` |
 
-**SPI count by module (shipped surface; the agent-runtime SPI surface is `AgentRuntimeHandler` + `MemoryProvider` + `StreamAdapter` in the framework-neutral `engine.spi` package plus `AgentCardProvider` in the `engine.a2a` protocol-bridge package):**
+**SPI count by module (shipped surface; the agent-runtime SPI surface is `AgentRuntimeHandler` + `MemoryProvider` + `StreamAdapter` + `McpProvider` + `SkillHubProvider` in the framework-neutral `engine.spi` package plus `AgentCardProvider` in the `engine.a2a` protocol-bridge package):**
 
 | Module | SPI interfaces |
 |---|---|
 | `agent-service` | 0 — serviceization façade skeleton; registration/discovery SPI deferred to a dedicated ADR (ADR-0159) |
-| `agent-runtime` | 4 (`AgentRuntimeHandler`, `AgentCardProvider`, `MemoryProvider`, `StreamAdapter`) |
+| `agent-runtime` | 6 (`AgentRuntimeHandler`, `AgentCardProvider`, `MemoryProvider`, `StreamAdapter`, `McpProvider`, `SkillHubProvider`) |
 | `agent-bus` | 5 (`Checkpointer`, `Orchestrator`, `EnginePort`, `DefinitionResolver`, `S2cCallbackTransport`) |
 
 **Per-SPI tenant scope (canonical post-ADR-0044):**
@@ -96,6 +98,8 @@ Schema v2 per-event `DataPart` fields (serialized by `A2aNorthboundSink`; `attem
 | `AgentRuntimeHandler` | tenant-scoped | via `AgentExecutionContext` carrying `EngineExecutionScope.tenantId()` | unchanged |
 | `AgentCardProvider` | tenant-scoped | the provided card belongs to the same one-Agent runtime instance selected by tenant/agent routing | unchanged |
 | `MemoryProvider` | tenant-scoped | via the same `AgentExecutionContext` passed to memory init/search/save integrations | unchanged |
+| `McpProvider` | tenant-scoped | via the same `AgentExecutionContext` passed to MCP tool discovery and tool invocation | unchanged |
+| `SkillHubProvider` | tenant-scoped | via the same `AgentExecutionContext` passed to skill listing, definition loading, and package loading | unchanged |
 
 **Structural carriers (records / sealed interfaces / sealed status types / exceptions — not SPI interfaces but part of the contract surface):**
 
