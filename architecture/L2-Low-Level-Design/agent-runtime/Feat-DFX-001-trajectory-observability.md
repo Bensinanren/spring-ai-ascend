@@ -1,3 +1,16 @@
+---
+level: L2-LLD
+module: agent-runtime
+feature_type: dfx
+feature_id: Feat-DFX-001
+status: active
+dependency:
+  - ../../L1-High-Level-Design/agent-runtime/README.md
+  - ../../L1-High-Level-Design/agent-runtime/development.md
+  - ../../L1-High-Level-Design/agent-runtime/process.md
+  - ../../../version-scope/Feat-DFX-001-trajectory-observability.cn.md
+---
+
 # 轨迹可观测性 — 设计文档
 
 > 目标模块：`agent-runtime/src/main/java/com/huawei/ascend/runtime/engine/spi/`（事件模型）、`engine/otel/`（OTel 导出）
@@ -14,14 +27,18 @@
 - **解决的问题**：Agent 执行是黑盒——多个 LLM 调用、工具调用、子 Agent 调用交织在一起，没有统一的可观测性视图。轨迹系统为每次 invocation 产出一个带时间戳、序列号、Span 嵌套树的完整事件流。
 - **适用场景**：调试 Agent 行为、性能分析、合规审计、多 Agent 调用链路追踪。如果只需要最终结果不需要执行过程，可以关闭轨迹（`app.trajectory.enabled=false`）。
 
-### 1.2 核心设计原则
+### 1.2 当前事实边界
+
+本文只描述 Feat-DFX-001 在当前 `agent-runtime` 模块中的已接受实现事实。面向调用方的黑盒行为、用户场景和外部示例已迁移到 `version-scope/Feat-DFX-001-trajectory-observability.cn.md`；模块级 API/SPI、逻辑对象归属和部署资源模型以 L1 设计及其附录为准。
+
+### 1.3 设计原则
 
 1. **框架中立** — 事件模型不绑定任何 Agent 框架；各 Adapter 通过 `TrajectoryDraft` 工厂方法提交事件
 2. **最小侵入** — Adapter 只需将原生回调映射为 `TrajectoryDraft`，runtime 负责 stamping、掩码、输出
 3. **后端无关** — 通过 `TrajectorySink` 接口支持多后端消费，当前已实现 A2A 北向投递
 4. **故障隔离** — Sink 失败不影响其他 Sink 和 Agent 执行
 
-### 1.3 子特性全景
+### 1.4 子特性全景
 
 | 子特性 | 职责 | 关键抽象 | 状态 |
 |--------|------|---------|------|
@@ -34,9 +51,9 @@
 
 ---
 
-## 2. 功能规格
+## 2. 特性规格
 
-### 2.1 能力清单
+### 2.1 DFX 目标清单
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -62,33 +79,7 @@
 | 业务级 Metrics | Trajectory 是事件级记录，不是聚合指标 | OTel Metrics / Prometheus |
 | 轨迹持久化存储 | 属于存储层职责 | 通过 Sink 接口对接外部存储 |
 
-### 2.3 接口契约
-
-#### TrajectoryEmitter
-
-```java
-/** 推送侧接口。Adapter 调用 emit 提交半成品事件。 */
-@FunctionalInterface
-public interface TrajectoryEmitter {
-    /** 提交一个轨迹草稿。线程安全。 */
-    void emit(TrajectoryDraft draft);
-
-    TrajectoryEmitter NOOP = draft -> {};  // 轨迹关闭时的空实现
-}
-```
-
-#### TrajectorySink
-
-```java
-/** 终端消费接口。每 invocation 创建一个实例。 */
-public interface TrajectorySink {
-    void onOpen();                         // invocation 开始时调用
-    void accept(TrajectoryEvent event);    // 每个事件调用一次（按 seq 顺序）
-    void onClose();                        // invocation 结束时调用
-}
-```
-
-#### 行为承诺
+### 2.3 行为承诺
 
 - **必须**：所有事件的 seq 严格单调递增
 - **必须**：RUN_START 必须是第一个事件，RUN_END 必须是最后一个事件
@@ -97,48 +88,9 @@ public interface TrajectorySink {
 
 ---
 
-## 3. 模块结构
+## 3. 核心实现
 
-### 3.1 包结构
-
-```
-engine/spi/
-├── TrajectoryEvent.java              # 事件模型（Kind 枚举, Span, Usage, ErrorInfo）
-├── TrajectoryDraft.java              # 半成品事件工厂（modelCallStart/End, toolCallStart/End, error...）
-├── TrajectoryEmitter.java            # @FunctionalInterface 推送侧
-├── StampingTrajectoryEmitter.java    # 核心 stamping 引擎（seq/span 栈/掩码/时间戳）
-├── TrajectorySink.java               # 消费接口（onOpen/accept/onClose）
-├── CompositeTrajectorySink.java      # 多 Sink 扇出，故障隔离
-├── TrajectorySinkFactory.java        # @FunctionalInterface 每 invocation 创建 Sink
-├── TrajectorySource.java             # Handler 标记接口
-├── TrajectoryMasking.java            # 敏感字段掩码
-└── TrajectorySettings.java           # 每次调用设置（enabled/maskKeyPattern/truncateChars）
-
-engine/a2a/
-├── A2aTrajectorySupport.java         # 轨迹设置解析 + Sink 扇出构建
-└── A2aNorthboundSink.java            # 北向轨迹投递
-
-engine/otel/
-├── OtelSpanSink.java                 # 轨迹事件 → OTel Span
-└── OtelSpanSinkFactory.java          # 每 invocation 创建 OTel Sink
-```
-
-### 3.2 核心类静态关系
-
-```
-«interface»               «engine»                      «interface»
-TrajectoryEmitter    ←── StampingTrajectoryEmitter  ──→ TrajectorySink
-      ↑                         │                           ↑
-      │                         ├─ 维护 span 栈              ├── CompositeTrajectorySink
-      │                         ├─ 调用 TrajectoryMasking     ├── A2aNorthboundSink
-      │                         └─ 分配 seq/timestamp         └── OtelSpanSink
-```
-
----
-
-## 4. 核心设计
-
-### 4.1 事件管道
+### 3.1 事件管道
 
 ```
 Adapter 发射半成品
@@ -163,7 +115,7 @@ CompositeTrajectorySink
   └─ [自定义 Sink]
 ```
 
-### 4.2 Adapter 接入方式
+### 3.2 Adapter 接入方式
 
 #### OpenJiuwen
 
@@ -184,7 +136,7 @@ CompositeTrajectorySink
 
 `AbstractAgentScopeRuntimeHandler.doExecute()` 消费原生 `AgentScopeEvent` 流时，OUTPUT 事件映射为 PROGRESS，FAILED 事件映射为 ERROR。支持的 Kind：RUN_START/END、TOOL_CALL_START/END、ERROR、PROGRESS。
 
-### 4.3 Adapter 覆盖矩阵
+### 3.3 Adapter 覆盖矩阵
 
 | Kind | OpenJiuwen | AgentScope | 说明 |
 |------|-----------|-----------|------|
@@ -199,92 +151,56 @@ CompositeTrajectorySink
 
 ---
 
-## 5. 配置模型
+## 4. 代码结构
 
-### 5.1 完整配置示例
-
-```yaml
-app:
-  trajectory:
-    enabled: true
-    mask:
-      key-pattern: "(?i)(key|token|secret|password|api_key|credential)"
-      truncate-chars: 0
-    otel:
-      enabled: false
-      endpoint:
-```
-
-### 5.2 配置属性表
-
-| 属性路径 | 类型 | 默认值 | 说明 |
-|---------|------|--------|------|
-| `app.trajectory.enabled` | boolean | `true` | 启用轨迹记录 |
-| `app.trajectory.mask.key-pattern` | String | `(?i)(key\|token\|secret\|...)` | 敏感 key 正则 |
-| `app.trajectory.mask.truncate-chars` | int | `0` | 截断阈值（0=不截断） |
-| `app.trajectory.otel.enabled` | boolean | `false` | 启用 OTel 导出 |
-| `app.trajectory.otel.endpoint` | String | — | OTLP 端点地址 |
-
----
-
-## 6. 对外呈现 / 用户场景
-
-### 6.1 外部接口
-
-| API | 说明 |
-|-----|------|
-| `TrajectorySink` SPI | 实现自定义轨迹消费后端 |
-| `TrajectoryDraft` 工厂方法 | Adapter 开发者通过工厂方法提交事件 |
-| `app.trajectory.mask.*` | 运维者配置掩码规则 |
-
-### 6.2 用户示例
-
-#### 6.2.1 自定义掩码规则
-
-```yaml
-# 前置条件：runtime 已启动
-app:
-  trajectory:
-    enabled: true
-    mask:
-      key-pattern: "(?i)(key|token|secret|password|api_key|credential|phone|email)"
-      truncate-chars: 200
-```
-
-预期结果：轨迹事件中 key 匹配 `phone` 或 `email` 的字段被掩码，超过 200 字符的字符串被截断。
-
-#### 6.2.2 启用 OTel 导出
-
-```yaml
-app:
-  trajectory:
-    otel:
-      enabled: true
-      endpoint: http://otel-collector:4318/v1/traces
-```
-
-前置条件：OTel SDK 在 classpath。预期结果：轨迹事件自动转为 OTel Span，通过 OTLP 导出到 collector。
-
-### 6.3 E2E 流程
+### 4.1 包结构
 
 ```
-用户请求 → Agent 执行
-  │
-  ├─ OpenJiuwenTrajectoryRail 捕获回调
-  │     ├─ MODEL_CALL_START/END (token 用量、延迟、模型名)
-  │     ├─ TOOL_CALL_START/END (工具名、参数、结果)
-  │     └─ ERROR (错误码、重试次数)
-  │
-  ├─ StampingTrajectoryEmitter: stamping + 掩码
-  │
-  └─ Sink 输出:
-       ├─ A2aNorthboundSink → 调用方 SSE artifact stream (如启用)
-       └─ OtelSpanSink → OTLP exporter (如启用)
+engine/spi/
+├── TrajectoryEvent.java              # 事件模型（Kind 枚举, Span, Usage, ErrorInfo）
+├── TrajectoryDraft.java              # 半成品事件工厂（modelCallStart/End, toolCallStart/End, error...）
+├── TrajectoryEmitter.java            # @FunctionalInterface 推送侧
+├── StampingTrajectoryEmitter.java    # 核心 stamping 引擎（seq/span 栈/掩码/时间戳）
+├── TrajectorySink.java               # 消费接口（onOpen/accept/onClose）
+├── CompositeTrajectorySink.java      # 多 Sink 扇出，故障隔离
+├── TrajectorySinkFactory.java        # @FunctionalInterface 每 invocation 创建 Sink
+├── TrajectorySource.java             # Handler 标记接口
+├── TrajectoryMasking.java            # 敏感字段掩码
+└── TrajectorySettings.java           # 每次调用设置（enabled/maskKeyPattern/truncateChars）
+
+engine/a2a/
+├── A2aTrajectorySupport.java         # 轨迹设置解析 + Sink 扇出构建
+└── A2aNorthboundSink.java            # 北向轨迹投递
+
+engine/otel/
+├── OtelSpanSink.java                 # 轨迹事件 → OTel Span
+└── OtelSpanSinkFactory.java          # 每 invocation 创建 OTel Sink
+```
+
+### 4.2 核心类静态关系
+
+```
+«interface»               «engine»                      «interface»
+TrajectoryEmitter    ←── StampingTrajectoryEmitter  ──→ TrajectorySink
+      ↑                         │                           ↑
+      │                         ├─ 维护 span 栈              ├── CompositeTrajectorySink
+      │                         ├─ 调用 TrajectoryMasking     ├── A2aNorthboundSink
+      │                         └─ 分配 seq/timestamp         └── OtelSpanSink
 ```
 
 ---
 
-## 7. 错误处理
+## 5. 运行流程
+
+### 5.1 主流程
+
+主流程由第 3 章各子特性的内部实现流程描述；本章只补充跨流程的错误、取消和降级语义，避免重复外部用户场景。
+
+### 5.2 分支流程
+
+分支流程按第 3 章中的状态流转、数据流或 adapter 分支处理。涉及外部调用方式的黑盒场景不在 L2 展开。
+
+### 5.3 错误、取消、降级处理
 
 | 错误场景 | 触发条件 | 行为 | 对外结果 |
 |---------|---------|------|---------|
@@ -297,12 +213,40 @@ app:
 
 ---
 
-## 8. 限制与待补
+## 6. 配置使用
+
+### 6.1 完整配置示例
+
+```yaml
+app:
+  trajectory:
+    enabled: true
+    mask:
+      key-pattern: "(?i)(key|token|secret|password|api_key|credential)"
+      truncate-chars: 256
+    otel:
+      enabled: false
+      endpoint: http://localhost:4317
+```
+
+### 6.2 配置属性表
+
+| 属性路径 | 类型 | 默认值 | 说明 |
+|---------|------|--------|------|
+| `app.trajectory.enabled` | boolean | `true` | 启用轨迹记录 |
+| `app.trajectory.mask.key-pattern` | String | `(?i)(key\|token\|secret\|...)` | 敏感 key 正则 |
+| `app.trajectory.mask.truncate-chars` | int | `256` | 字符串截断阈值 |
+| `app.trajectory.otel.enabled` | boolean | `false` | 启用 OTel 导出 |
+| `app.trajectory.otel.endpoint` | String | `http://localhost:4317` | OTLP 端点地址 |
+
+---
+
+## 7. 当前限制
 
 | 限制 | 影响范围 | 临时方案 |
 |------|---------|---------|
 | MODEL_CALL 仅 OpenJiuwen | AgentScope 无模型调用级别的观测 | AgentScope 自行在 Agent 层添加埋点 |
 | MODEL_CALL_FIRST_TOKEN 无 Adapter 发射 | 无法观测 TTFT | — |
 | REASONING 无独立事件 | 推理过程观测不完整 | reasoning 内容在 MODEL_CALL_END.Usage 中 |
-| OTel 导出无 example 验证 | OTel 功能可靠性未充分测试 | 先使用北向投递替代 |
+| OTel 导出无独立样例 | OTel 导出路径缺少独立运行样例 | 先使用北向投递替代 |
 | 采样率/载荷外置/自定义脱敏未实现 | 生产级轨迹管理不完整 | — |

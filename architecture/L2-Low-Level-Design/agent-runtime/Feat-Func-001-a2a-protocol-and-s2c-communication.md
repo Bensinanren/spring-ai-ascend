@@ -1,3 +1,16 @@
+---
+level: L2-LLD
+module: agent-runtime
+feature_type: functional
+feature_id: Feat-Func-001
+status: active
+dependency:
+  - ../../L1-High-Level-Design/agent-runtime/README.md
+  - ../../L1-High-Level-Design/agent-runtime/development.md
+  - ../../L1-High-Level-Design/agent-runtime/process.md
+  - ../../../version-scope/Feat-Func-001-a2a-protocol-and-s2c-communication.cn.md
+---
+
 # A2A 协议标准与 S2C 通讯模型 — 设计文档
 
 > 目标模块：`agent-runtime/src/main/java/com/huawei/ascend/runtime/engine/a2a/`、`boot/`
@@ -14,14 +27,18 @@ agent-runtime 以 Google A2A 协议作为唯一的对外协议标准。北向对
 - **解决的问题**：Agent 需要一个标准化、可互操作的对外协议。A2A 提供了 Agent Card 发现、JSON-RPC 调用、SSE 流式响应、Task 生命周期管理等完整能力。
 - **适用场景**：所有需要对外暴露 Agent 的场景。A2A 客户端可以是其他 Agent、前端应用、CI/CD 流水线等任意 HTTP 客户端。
 
-### 1.2 核心设计原则
+### 1.2 当前事实边界
+
+本文只描述 Feat-Func-001 在当前 `agent-runtime` 模块中的已接受实现事实。面向调用方的黑盒行为、用户场景和外部示例已迁移到 `version-scope/Feat-Func-001-a2a-protocol-and-s2c-communication.cn.md`；模块级 API/SPI、逻辑对象归属和部署资源模型以 L1 设计及其附录为准。
+
+### 1.3 设计原则
 
 1. **协议无关核心** — A2A 协议适配层负责 JSON-RPC 解析和序列化，runtime 核心以协议无关方式工作
 2. **统一入口** — 单一 `POST /a2a` 端点服务所有 A2A 方法，方法分发由 JSON-RPC `method` 字段驱动
 3. **Agent Card 自动发现** — 标准 `GET /.well-known/agent-card.json` 端点，支持 YAML 配置 + Handler 声明 + 自动生成
 4. **Handler 始终 Stream** — Handler 始终以 Stream 方式产出结果，`SendMessage` 的阻塞返回由 A2A 层收集 Stream 后一次性 JSON 响应实现
 
-### 1.3 子特性全景
+### 1.4 子特性全景
 
 | 子特性 | 职责 | 关键抽象 | 状态 |
 |--------|------|---------|------|
@@ -32,7 +49,7 @@ agent-runtime 以 Google A2A 协议作为唯一的对外协议标准。北向对
 
 ---
 
-## 2. 功能规格
+## 2. 特性规格
 
 ### 2.1 能力清单
 
@@ -59,47 +76,10 @@ agent-runtime 以 Google A2A 协议作为唯一的对外协议标准。北向对
 | 排除项 | 原因 | 替代 |
 |--------|------|------|
 | A2A 方法名 snake_case 形式 | A2A SDK 使用 PascalCase（`SendStreamingMessage`），`message/stream` 形式不被 parser 识别 | 统一使用 CamelCase |
-| 多 Agent 路由 | 当前仅选取第一个 Handler Bean | 每个 Agent 部署独立 runtime 实例 |
+| 多 Agent 路由 | runtime 当前只承载单 Agent；如果注册多个 Handler Bean 会记录 WARN，并按 `@Order` 选取第一个作为兼容降级 | 每个 Agent 部署独立 runtime 实例 |
 | Tenant 认证 | runtime 不认证 tenant header，仅传播 | 在 /a2a 前放置认证网关 |
 
-### 2.3 接口契约
-
-#### A2A JSON-RPC 入口
-
-```
-POST /a2a  (同时支持 POST /a2a/)
-Content-Type: application/json
-Accept: application/json          → 阻塞响应
-Accept: text/event-stream         → 流式 SSE
-```
-
-#### A2A Methods
-
-| Method | 传输 | 功能 |
-|--------|------|------|
-| `SendMessage` | HTTP JSON | 阻塞请求-响应 |
-| `SendStreamingMessage` | HTTP SSE | 流式消息 |
-| `GetTask` | HTTP JSON | 查询任务 |
-| `CancelTask` | HTTP JSON | 取消任务 |
-| `ListTasks` | HTTP JSON | 列出任务 |
-| `SubscribeToTask` | HTTP SSE | 重连订阅 |
-
-#### AgentCardProvider SPI
-
-```java
-/** Handler 可选实现，以编程方式声明 Agent Card 元数据。 */
-public interface AgentCardProvider {
-    /**
-     * 返回中立的 AgentCardDescriptor。
-     * 优先级高于 YAML 配置，低于直接注册的 AgentCard Bean。
-     */
-    AgentCardDescriptor describe();
-}
-```
-
-`AgentCardDescriptor` 携带：`name`, `description`, `version`, `skills`（含 id/name/description/tags），`capabilities`（streaming/pushNotifications），`supportedInterfaces`。
-
-#### 行为承诺
+### 2.3 行为承诺
 
 - **必须**：`SendMessage` 与 `SendStreamingMessage` 接受相同的 `params.message` 结构
 - **必须**：SSE 流在 INTERRUPTED / FAILED / CANCELED 终端状态下关闭
@@ -109,47 +89,9 @@ public interface AgentCardProvider {
 
 ---
 
-## 3. 模块结构
+## 3. 核心实现
 
-### 3.1 包结构
-
-```
-boot/
-├── A2aJsonRpcController.java       # POST /a2a 单一入口，方法分发到阻塞/流式分支
-└── AgentCardController.java        # GET /.well-known/agent-card.json
-
-engine/a2a/
-├── A2aAgentExecutor.java           # A2A SDK AgentExecutor → Handler SPI 桥接
-├── A2aResultRouter.java            # AgentExecutionResult → A2A Task 表面路由
-├── A2aTrajectorySupport.java       # 轨迹设置解析 + Sink 扇出
-├── A2aLogMasking.java              # 日志敏感信息掩码
-├── AgentCardProperties.java        # YAML AgentCard 配置属性
-├── AgentCardProvider.java          # Handler 可选实现的 AgentCard 声明接口
-├── AgentCards.java                 # AgentCard 工厂
-├── RuntimeErrorCode.java           # 异常 → 稳定错误码分类（walk-the-cause-chain）
-├── Messages.java                   # A2A Message TextPart 文本提取工具
-└── TenantContract.java             # Tenant key + default 单一来源常量
-```
-
-### 3.2 核心类静态关系
-
-```
-«controller»               «executor»                  «router»
-A2aJsonRpcController  →   A2aAgentExecutor    →   A2aResultRouter
-      │                         │
-      │ 分发到                   │ 调用
-      ▼                         ▼
-RequestHandler           AgentRuntimeHandler
-(onMessageSend,          (execute → Stream<?> →
- onMessageSendStream,     resultAdapter().adapt())
- onGetTask, ...)
-```
-
----
-
-## 4. 核心设计
-
-### 4.1 A2A Methods 分发
+### 3.1 A2A Methods 分发
 
 ```
 POST /a2a  {"jsonrpc":"2.0", "method":"SendStreamingMessage", ...}
@@ -175,7 +117,7 @@ A2aJsonRpcController
 未知 method → JSON-RPC method-not-found error
 ```
 
-### 4.2 S2C 通讯模式
+### 3.2 S2C 通讯模式
 
 #### 阻塞请求-响应（SendMessage）
 
@@ -211,7 +153,7 @@ Task 生命周期：`SUBMITTED → WORKING → COMPLETED / FAILED / CANCELED / I
 
 SDK 默认组件：`InMemoryTaskStore` / `MainEventBus` / `InMemoryQueueManager` / `DefaultRequestHandler`。
 
-### 4.3 A2A 执行桥接
+### 3.3 A2A 执行桥接
 
 ```
 A2aAgentExecutor.consumeHandler()
@@ -233,7 +175,7 @@ A2aAgentExecutor.consumeHandler()
             └─ RemoteAgentInterrupt  → 触发远端 A2A 调用
 ```
 
-### 4.4 Agent Card Skills → 远程 Tool 注入链
+### 3.4 Agent Card Skills → 远程 Tool 注入链
 
 Agent Card 中声明的 `skills` 是跨 Agent 协作的起点——远程 Agent 的 Card Cache 读取这些 skills，生成 `RemoteAgentToolSpec`，安装为本地 Agent 的 Tool：
 
@@ -255,15 +197,79 @@ Agent Card (skills/capabilities)
 
 **触发条件**：只有 `skills` 非空的 Agent Card 才会被远程主 Agent 注册为 Tool。如果你的 Agent 需要被其他 Agent 作为 Tool 调用，必须在 Agent Card 中声明至少一个 skill。详见 [远程 Agent 编排设计文档](Feat-Func-005-remote-agent-orchestration.md)。
 
-### 4.5 Tenant Header
+### 3.5 Tenant Header
 
 优先级：`X-Tenant-Id` HTTP header > `params.tenant` > `"default"`。runtime 不认证 tenant——多租户部署需要在 `/a2a` 前放置认证网关。
 
 ---
 
-## 5. 配置模型
+## 4. 代码结构
 
-### 5.1 完整配置示例
+### 4.1 包结构
+
+```
+boot/
+├── A2aJsonRpcController.java       # POST /a2a 单一入口，方法分发到阻塞/流式分支
+└── AgentCardController.java        # GET /.well-known/agent-card.json
+
+engine/a2a/
+├── A2aAgentExecutor.java           # A2A SDK AgentExecutor → Handler SPI 桥接
+├── A2aResultRouter.java            # AgentExecutionResult → A2A Task 表面路由
+├── A2aTrajectorySupport.java       # 轨迹设置解析 + Sink 扇出
+├── A2aLogMasking.java              # 日志敏感信息掩码
+├── AgentCardProperties.java        # YAML AgentCard 配置属性
+├── AgentCardProvider.java          # Handler 可选实现的 AgentCard 声明接口
+├── AgentCards.java                 # AgentCard 工厂
+├── RuntimeErrorCode.java           # 异常 → 稳定错误码分类（walk-the-cause-chain）
+├── Messages.java                   # A2A Message TextPart 文本提取工具
+├── A2aAgentExecutor.java           # `TENANT_STATE_KEY` 定义 header 派生 tenant 的 call-context key
+└── RuntimeAccessProperties.java    # `defaultTenantId` 等 A2A access 层默认值配置
+```
+
+### 4.2 核心类静态关系
+
+```
+«controller»               «executor»                  «router»
+A2aJsonRpcController  →   A2aAgentExecutor    →   A2aResultRouter
+      │                         │
+      │ 分发到                   │ 调用
+      ▼                         ▼
+RequestHandler           AgentRuntimeHandler
+(onMessageSend,          (execute → Stream<?> →
+ onMessageSendStream,     resultAdapter().adapt())
+ onGetTask, ...)
+```
+
+---
+
+## 5. 运行流程
+
+### 5.1 主流程
+
+主流程由第 3 章各子特性的内部实现流程描述；本章只补充跨流程的错误、取消和降级语义，避免重复外部用户场景。
+
+### 5.2 分支流程
+
+分支流程按第 3 章中的状态流转、数据流或 adapter 分支处理。涉及外部调用方式的黑盒场景不在 L2 展开。
+
+### 5.3 错误、取消、降级处理
+
+| 错误场景 | 触发条件 | 行为 | 对外结果 |
+|---------|---------|------|---------|
+| 非 JSON 请求体 | `JSONRPCUtils.parseRequestBody()` 失败 | 返回 parse error | `{"jsonrpc":"2.0","error":{"code":-32700}}` |
+| method 未知 | method 不在 controller 分支中 | 返回 method-not-found | `{"error":{"code":-32601}}` |
+| params 缺失/不匹配 | SDK request wrapper 校验失败 | 返回 invalid-request | `{"error":{"code":-32600}}` |
+| 阻塞分支 SDK 异常 | `RequestHandler` 抛出 `A2AError` | 带原 request id 的 error response | `{"id":"req-1","error":{...}}` |
+| SSE 解析失败 | 请求解析失败 | 一帧 SSE JSON-RPC error | `event:jsonrpc\ndata:{"error":{...}}` |
+| SSE 流开始后异常 | Handler 执行中失败 | 末尾追加一帧 SSE JSON-RPC error | 同上 |
+| Agent 执行超时 | 超过 `a2a.blocking.agent.timeout.seconds` | 返回当前 task 快照 | `{"result":{"status":{"state":"TASK_STATE_WORKING"}}}` |
+| 消费超时 | 超过 `a2a.blocking.consumption.timeout.seconds` | 返回 JSON-RPC error | `{"error":{"code":-32603,"message":"Timeout..."}}` |
+
+---
+
+## 6. 配置使用
+
+### 6.1 完整配置示例
 
 ```yaml
 server:
@@ -293,7 +299,7 @@ agent-runtime:
           push-notifications: false
 ```
 
-### 5.2 配置属性表
+### 6.2 配置属性表
 
 | 属性路径 | 类型 | 默认值 | 说明 |
 |---------|------|--------|------|
@@ -310,110 +316,7 @@ agent-runtime:
 
 ---
 
-## 6. 对外呈现 / 用户场景
-
-### 6.1 外部接口
-
-| 端点 | 方法 | Accept | 说明 |
-|------|------|--------|------|
-| `/.well-known/agent-card.json` | GET | — | Agent 能力发现 |
-| `/.well-known/agent.json` | GET | — | 兼容端点 |
-| `/a2a` | POST | `application/json` | 阻塞 JSON-RPC |
-| `/a2a` | POST | `text/event-stream` | 流式 SSE |
-
-### 6.2 用户示例
-
-#### 6.2.1 流式调用
-
-```bash
-# 前置条件：runtime 已启动在 localhost:8080
-SESSION_ID="test-$(date +%s)"
-
-curl -s -X POST http://localhost:8080/a2a \
-  -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "SendStreamingMessage",
-    "id": "1",
-    "params": {
-      "message": {
-        "role": "ROLE_USER",
-        "messageId": "msg-001",
-        "contextId": "'"$SESSION_ID"'",
-        "parts": [{"text": "你好"}]
-      }
-    }
-  }' --no-buffer
-
-# 预期结果：SSE 流，event=jsonrpc，包含 ArtifactUpdate 和最终 TaskStatusUpdate(COMPLETED)
-```
-
-#### 6.2.2 查询任务
-
-```bash
-# 前置条件：已知 taskId
-curl -s -X POST http://localhost:8080/a2a \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "GetTask",
-    "id": "1",
-    "params": {"id": "task-id-from-previous-response"}
-  }'
-
-# 预期结果：JSON Task 对象，含 status.state 和 artifacts
-```
-
-#### 6.2.3 取消任务
-
-```bash
-curl -s -X POST http://localhost:8080/a2a \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "CancelTask",
-    "id": "1",
-    "params": {"id": "task-id-from-previous-response"}
-  }'
-```
-
-### 6.3 E2E 流程
-
-```
-A2A Client                    Runtime
-  │                              │
-  │── GET agent-card.json ──────>│  发现 Agent 能力
-  │<── AgentCard JSON ──────────│
-  │                              │
-  │── POST /a2a SendStreamingMessage ──>│
-  │<── SSE: TaskAccepted ───────│  Task → WORKING
-  │<── SSE: ArtifactUpdate ─────│  Agent 增量输出
-  │<── SSE: ArtifactUpdate ─────│
-  │<── SSE: TaskStatusUpdate ───│  COMPLETED
-  │                              │
-  │── POST /a2a GetTask ────────>│  查询最终状态
-  │<── Task JSON ───────────────│
-```
-
----
-
-## 7. 错误处理
-
-| 错误场景 | 触发条件 | 行为 | 对外结果 |
-|---------|---------|------|---------|
-| 非 JSON 请求体 | `JSONRPCUtils.parseRequestBody()` 失败 | 返回 parse error | `{"jsonrpc":"2.0","error":{"code":-32700}}` |
-| method 未知 | method 不在 controller 分支中 | 返回 method-not-found | `{"error":{"code":-32601}}` |
-| params 缺失/不匹配 | SDK request wrapper 校验失败 | 返回 invalid-request | `{"error":{"code":-32600}}` |
-| 阻塞分支 SDK 异常 | `RequestHandler` 抛出 `A2AError` | 带原 request id 的 error response | `{"id":"req-1","error":{...}}` |
-| SSE 解析失败 | 请求解析失败 | 一帧 SSE JSON-RPC error | `event:jsonrpc\ndata:{"error":{...}}` |
-| SSE 流开始后异常 | Handler 执行中失败 | 末尾追加一帧 SSE JSON-RPC error | 同上 |
-| Agent 执行超时 | 超过 `a2a.blocking.agent.timeout.seconds` | 返回当前 task 快照 | `{"result":{"status":{"state":"TASK_STATE_WORKING"}}}` |
-| 消费超时 | 超过 `a2a.blocking.consumption.timeout.seconds` | 返回 JSON-RPC error | `{"error":{"code":-32603,"message":"Timeout..."}}` |
-
----
-
-## 8. 限制与待补
+## 7. 当前限制
 
 | 限制 | 影响范围 | 临时方案 |
 |------|---------|---------|
