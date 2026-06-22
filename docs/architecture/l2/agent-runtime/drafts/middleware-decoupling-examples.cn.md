@@ -1,5 +1,5 @@
 ---
-level: L1
+level: L2-draft
 view: feature-test-guide
 module: agent-runtime
 feature: middleware-decoupling

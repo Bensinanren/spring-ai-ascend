@@ -253,7 +253,7 @@ Agent Card (skills/capabilities)
        └─ LLM 调用 → Interrupt Rail → 远程 A2A 调用
 ```
 
-**触发条件**：只有 `skills` 非空的 Agent Card 才会被远程主 Agent 注册为 Tool。如果你的 Agent 需要被其他 Agent 作为 Tool 调用，必须在 Agent Card 中声明至少一个 skill。详见 [远程 Agent 编排设计文档](remote-agent-orchestration-design.md)。
+**触发条件**：只有 `skills` 非空的 Agent Card 才会被远程主 Agent 注册为 Tool。如果你的 Agent 需要被其他 Agent 作为 Tool 调用，必须在 Agent Card 中声明至少一个 skill。详见 [远程 Agent 编排设计文档](Feat-Func-005-remote-agent-orchestration.md)。
 
 ### 4.5 Tenant Header
 
