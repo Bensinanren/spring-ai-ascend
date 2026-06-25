@@ -108,5 +108,6 @@
     <module>agent-search-a2a</module>
     <module>agent-verify</module>
     <module>agent-verify-a2a</module>
+    <module>mcp-server</module>
   </modules>
 </project>
