@@ -1,20 +1,12 @@
 ---
-scope: version
+version: 0715
 module: agent-runtime
 feature_type: functional
 feature_id: Feat-Func-001
 status: active
-updated: 2026-06-26
-authority:
-  - README.md
-  - ADR-0159 agent-runtime consolidation
-drives:
-  - ../architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-001-a2a-protocol-and-s2c-communication.md
-  - ../agent-runtime/docs/guides/a2a-endpoints.md
-  - ../agent-runtime/docs/guides/agent-card-configuration.md
 ---
 
-# 标准化 Agent 服务入口 - 当前版本事实要求
+# 标准化智能体服务入口特性文档
 
 ## 1. 特性定位
 
@@ -191,10 +183,4 @@ Feat-Func-001 定义 `agent-runtime` 当前版本作为标准化 Agent 服务端
 
 ## 7. 关联文档
 
-- `version-scope/README.md`
-- `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-001-a2a-protocol-and-s2c-communication.md`
-- `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-005-remote-agent-orchestration.md`
-- `agent-runtime/docs/guides/a2a-endpoints.md`
-- `agent-runtime/docs/guides/agent-card-configuration.md`
-- `agent-runtime/docs/guides/configuration-properties.md`
-- `agent-runtime/docs/guides/remote-invocation.md`
+- `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-001-standardized-agent-service-entrypoint.md`

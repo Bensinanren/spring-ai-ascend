@@ -5,7 +5,7 @@ module: agent-runtime
 status: active
 updated: 2026-06-26
 authority: "ADR-0159 (agent-runtime consolidation) + current version facts"
-covers: [标准化Agent服务入口, 异构Agent框架兼容, 核心接口与状态边界, Memory与State中间件, 远程Agent编排, RESTful Client Facade, 轨迹可观测性]
+covers: [标准化Agent服务入口, 异构Agent框架兼容, Memory与State中间件, 远程Agent编排, RESTful Client Facade, 轨迹可观测性]
 ---
 
 # agent-runtime version-scope
@@ -39,9 +39,8 @@ covers: [标准化Agent服务入口, 异构Agent框架兼容, 核心接口与状
 
 | Feature ID | 特性 | 当前版本范围简介 | 特性用例文档 | L2 详细设计对应关系 |
 |---|---|---|---|---|
-| Feat-Func-001 | 标准化 Agent 服务入口 | runtime 作为标准 Agent 服务端，对普通 client、其他 runtime、agent-bus forwarding 暴露同一 A2A Agent Card、JSON-RPC、SSE、Task、错误和租户上下文入口。 | [Feat-Func-001-standardized-agent-service-entrypoint.md](./Feat-Func-001-standardized-agent-service-entrypoint.md) | `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-001-a2a-protocol-and-s2c-communication.md` |
-| Feat-Func-002 | 异构 Agent 框架兼容 | 通过统一 Adapter 抽象接入 OpenJiuwen ReActAgent、OpenJiuwen Workflow、AgentScope 和 Versatile REST 代理，使上层 A2A 协议层不感知底层框架差异。 | [Feat-Func-002-heterogeneous-agent-framework-compatibility.md](./Feat-Func-002-heterogeneous-agent-framework-compatibility.md) | `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-002-heterogeneous-agent-framework-compatibility.md` |
-| Feat-Func-003 | agent-runtime 核心接口与状态边界 | 定义 `AgentRuntimeHandler`、`StreamAdapter`、`AgentCardProvider`、state key、MemoryProvider 预留 SPI 等核心接口和扩展边界。 | [Feat-Func-003-agent-runtime-core-interface.md](./Feat-Func-003-agent-runtime-core-interface.md) | `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-003-agent-runtime-core-interface.cn.md` |
+| Feat-Func-001 | 标准化 Agent 服务入口 | runtime 作为标准 Agent 服务端，对普通 client、其他 runtime、agent-bus forwarding 暴露同一 A2A Agent Card、JSON-RPC、SSE、Task、错误和租户上下文入口。 | [Feat-Func-001-standardized-agent-service-entrypoint.md](./Feat-Func-001-standardized-agent-service-entrypoint.md) | `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-001-standardized-agent-service-entrypoint.md` |
+| Feat-Func-002 | 异构 Agent 框架兼容 | 通过统一 Adapter / Handler / SPI 抽象接入 OpenJiuwen ReActAgent、Workflow、DeepAgent、AgentScope 和 Versatile REST 代理；adapter 只桥接请求、调用和结果，不治理框架 cache/checkpointer、hook、rail、tool、skill。 | [Feat-Func-002-heterogeneous-agent-framework-compatibility.md](./Feat-Func-002-heterogeneous-agent-framework-compatibility.md) | `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-002-heterogeneous-agent-framework-compatibility.md` |
 | Feat-Func-004 | 中间件解耦 — Memory & State | 将记忆检索/保存与 Agent 执行状态持久化从具体 Agent 框架中解耦，以可注入、可替换的中间件能力接入 runtime。 | [Feat-Func-004-middleware-memory-and-state.md](./Feat-Func-004-middleware-memory-and-state.md) | `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-004-middleware-memory-and-state.md` |
 | Feat-Func-005 | 远程 Agent 编排 | runtime 作为 A2A 客户端接入远程 Agent，基于 Agent Card 生成本地工具，并支持远程调用、中断续接、进度投射和取消传播。 | [Feat-Func-005-remote-agent-orchestration.md](./Feat-Func-005-remote-agent-orchestration.md) | `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-005-remote-agent-orchestration.md` |
 | Feat-Func-006 | RESTful Client Facade | 面向普通业务 client 提供 REST 风格兼容入口，内部归一到 Feat-Func-001 的标准 Agent 服务入口语义，不作为 runtime-to-runtime、agent-bus 或事件总线协议。 | [Feat-Func-006-restful-client-facade.md](./Feat-Func-006-restful-client-facade.md) | `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-006-restful-client-facade.md` |

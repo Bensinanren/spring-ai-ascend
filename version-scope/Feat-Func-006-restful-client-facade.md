@@ -162,6 +162,6 @@ X-Tenant-Id: tenant-a
 
 - `version-scope/README.md`
 - `version-scope/Feat-Func-001-standardized-agent-service-entrypoint.md`
-- `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-001-a2a-protocol-and-s2c-communication.md`
+- `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-001-standardized-agent-service-entrypoint.md`
 - `agent-runtime/docs/guides/a2a-endpoints.md`
 - `agent-runtime/docs/guides/configuration-properties.md`

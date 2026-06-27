@@ -67,4 +67,4 @@ L1 与 L2 的边界按“模块地图”和“特性落地”划分：
 
 L1 可以保留影响模块边界判断、SPI/API 稳定性、部署形态、状态归属和运行路径的关键代码事实，例如关键 bean、状态名、线程边界、错误语义和配置分组。完整配置示例、错误处理矩阵、完整 JSON schema、curl 示例、SSE 帧样例、远程 Agent 回灌类级协作、中断续接实现细节、OpenJiuwen / AgentScope / Versatile / Memory / Trajectory 等特性级设计，以及面向开发者的操作指南、E2E 验证脚本和运维手册，应进入 L2 详细设计或模块指南。
 
-当前 `agent-runtime` 的 L2 详细设计位于 `architecture/L2-Low-Level-Design/agent-runtime/`，包括 A2A/S2C、异构框架兼容、核心接口与状态边界、Memory/State、远程 Agent 编排和 Trajectory 等特性文档。草稿、提案、归档和样例验证指南保留在 `docs/` 目录下，不作为当前 L2 架构事实。
+当前 `agent-runtime` 的 L2 详细设计位于 `architecture/L2-Low-Level-Design/agent-runtime/`，包括 A2A/S2C、异构框架兼容及核心接口边界、Memory/State、远程 Agent 编排和 Trajectory 等特性文档。草稿、提案、归档和样例验证指南保留在 `docs/` 目录下，不作为当前 L2 架构事实。

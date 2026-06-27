@@ -11,7 +11,7 @@ dependency:
   - ../../../version-scope/Feat-Func-001-standardized-agent-service-entrypoint.md
 ---
 
-# 标准化 Agent 服务入口 — 设计文档
+# 标准化智能体服务入口设计文档
 
 > 目标模块：`agent-runtime/src/main/java/com/huawei/ascend/runtime/engine/a2a/`、`boot/`
 > 最后更新：2026-06-14
