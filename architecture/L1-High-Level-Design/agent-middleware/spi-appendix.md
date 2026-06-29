@@ -3,6 +3,7 @@ level: L1-HLD
 TAG:
   - spi-appendix
   - memory-service
+  - sandbox-service
   - extension-point
 status: draft
 dependency:
@@ -271,3 +272,59 @@ MemoryTraceEmitter
 - Adapter 可以依赖具体技术，但必须只实现 SPI。
 - 所有 SPI 方法必须携带或可推导 tenant scope。
 - 所有返回对象必须可序列化或可映射为 API DTO。
+## Sandbox service SPI appendix
+
+Sandbox SPI is the Java-facing, framework-neutral contract. It should be
+usable by `agent-runtime`, `agent-service`, MCP adapters, or business code
+without depending on HTTP, Python, or a specific Linux isolation binary.
+
+```text
+SandboxService
+  create(CreateSandboxCommand) -> SandboxRef
+  get(SandboxId) -> SandboxRef
+  list(SandboxListOptions) -> List<SandboxRef>
+  start(SandboxId) -> SandboxRef
+  stop(SandboxId) -> SandboxRef
+  restart(SandboxId) -> SandboxRef
+  delete(SandboxId) -> void
+  exec(SandboxId, SandboxExecCommand) -> SandboxExecResult
+  execBackground(SandboxId, SandboxBackgroundCommand) -> SandboxBackgroundResult
+  getBackgroundJob(SandboxId, JobId) -> BackgroundJobStatus
+  listBackgroundJobs(SandboxId, BackgroundJobListOptions) -> List<BackgroundJobSummary>
+  killBackgroundJob(SandboxId, JobId, Signal) -> KillBackgroundJobResult
+```
+
+```text
+SandboxWorkspace
+  upload(SandboxId, SandboxPath, Bytes) -> void
+  download(SandboxId, SandboxPath) -> Bytes
+  list(SandboxId, SandboxPath, ListOptions) -> List<FileEntry>
+  search(SandboxId, SandboxPath, GlobPattern, SearchOptions) -> List<FileEntry>
+```
+
+```text
+SandboxPolicyResolver
+  resolve(BaselinePolicy, RequestPolicy?, PolicyMode, CallerContext) -> SandboxPolicy
+  validate(SandboxPolicy, HostCapabilities) -> PolicyValidationResult
+```
+
+```text
+SandboxRuntime
+  start(SandboxStartPlan) -> RuntimeHandle
+  stop(RuntimeHandle) -> void
+  exec(RuntimeHandle, RuntimeExecCommand) -> RuntimeExecResult
+  execBackground(RuntimeHandle, RuntimeBackgroundCommand) -> RuntimeBackgroundResult
+  fileOperation(RuntimeHandle, RuntimeFileOperation) -> RuntimeFileResult
+```
+
+Value type requirements:
+
+- `SandboxId` and `JobId` preserve the safe identifier rule:
+  4-16 lowercase letters, digits, hyphens, and underscores.
+- `SandboxPhase` includes `provisioning`, `ready`, `stopped`, `error`,
+  `deleting`.
+- `SandboxPath` represents a sandbox-visible path, never a host path.
+- `SandboxPolicy` is immutable once bound to a sandbox.
+- `SandboxExecResult` separates transport success from command exit code.
+- SPI must not expose `Process`, `Popen`, `bubblewrap`, FastAPI, Pydantic,
+  Python path, MCP library types, or memory service DTOs.

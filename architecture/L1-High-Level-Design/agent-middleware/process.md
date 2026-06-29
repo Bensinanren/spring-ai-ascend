@@ -5,6 +5,7 @@ TAG:
   - runtime-flow
   - concurrency-boundary
   - memory-service
+  - sandbox-service
 status: draft
 dependency:
   - README.md
@@ -245,3 +246,79 @@ memory service 至少暴露：
 - scope rejection 和 redaction count。
 
 日志必须脱敏，不输出完整用户输入和完整记忆内容。
+## Sandbox service process view
+
+Sandbox service has stricter process semantics than memory service because it
+executes untrusted commands. Isolation setup, daemon IPC, background jobs,
+cleanup, and audit writing are separate process concerns.
+
+Create/start flow:
+
+```text
+createSandbox
+  -> validate sandboxId and request policy
+  -> resolve effective policy
+  -> allocate workspace and control directory
+  -> start runtime process / sandbox daemon
+  -> wait for readiness
+  -> phase=ready or phase=error
+  -> emit audit event
+```
+
+Sync exec flow:
+
+```text
+exec
+  -> require phase=ready
+  -> validate command/workdir/env/stdin/timeout
+  -> submit to sandbox daemon or runtime adapter
+  -> enforce timeout and output cap
+  -> collect exitCode/stdout/stderr
+  -> update lastActiveAt
+  -> emit audit event
+```
+
+Background exec flow:
+
+```text
+execBackground
+  -> require phase=ready
+  -> allocate or validate jobId
+  -> spawn isolated background command
+  -> return spawn snapshot
+  -> later: poll/list/kill
+```
+
+File operation flow:
+
+```text
+upload/download/list/search
+  -> require sandbox exists
+  -> validate sandbox path
+  -> route through daemon IPC or controlled runtime file operation
+  -> enforce size limits
+  -> emit file audit event
+```
+
+Stop/delete flow:
+
+```text
+stop -> signal jobs and daemon -> wait grace -> force kill if needed -> stopped
+delete -> deleting -> stop runtime -> remove registry/workspace/state
+```
+
+Concurrency model:
+
+- A per-sandbox lock serializes lifecycle transitions.
+- Exec admission should be globally bounded to avoid CPU oversubscription.
+- Background jobs are tracked per sandbox and can be listed or killed
+  independently.
+- Idle reaper runs as a service background task.
+
+Error handling model:
+
+- Policy validation errors return caller errors.
+- State conflicts return conflict errors.
+- Command failures return command results when the command ran.
+- Isolation setup failures move sandbox to `error`.
+- Mandatory isolation feature failures fail closed.

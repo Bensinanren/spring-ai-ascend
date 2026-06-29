@@ -3,6 +3,7 @@ level: L1-HLD
 TAG:
   - scenarios
   - memory-service
+  - sandbox-service
   - technical-scenario
 status: draft
 dependency:
@@ -218,3 +219,82 @@ memory service 不可用、超时、索引损坏或下游向量库失败时，Ag
 - memory failure 不导致 Agent 主流程失败。
 - 降级对调用方和运维可见。
 - save 入队失败与后台沉淀失败区分清楚。
+## Sandbox service scenario boundary
+
+Sandbox scenarios use the `SS-*` prefix and are independent from memory service
+`MS-*` scenarios. They cover tool/code execution, workspace file movement,
+long-running background work, policy enforcement, MCP access, and recovery.
+
+## SS-01 Create and run an ephemeral command sandbox
+
+An agent runs a short command or code snippet and obtains `exitCode`, `stdout`,
+`stderr`, and timing without leaving a durable sandbox.
+
+Basic path:
+
+1. Caller submits command, optional stdin, workdir, env, timeout, and policy
+   mode.
+2. SandboxService creates a sandbox in `provisioning`, resolves policy, starts
+   the runtime, and moves it to `ready`.
+3. RuntimeAdapter executes the command under isolation and enforces timeout.
+4. SandboxService returns exit code and captured output.
+5. If temporary, SandboxService deletes the sandbox after the command.
+
+Verification concerns: empty commands are rejected, timeout/output caps are
+enforced, cleanup runs on failure, and audit records bounded output.
+
+## SS-02 Reuse a ready sandbox for iterative tool work
+
+An agent keeps a sandbox alive across uploads, commands, file inspection, and
+downloads.
+
+Basic path:
+
+1. Caller creates a sandbox with a stable `sandboxId`.
+2. Caller uploads source files or input artifacts.
+3. Caller runs commands with explicit workdir and environment.
+4. Caller lists/searches/downloads files.
+5. Caller stops, restarts, or deletes the sandbox.
+
+Verification concerns: IDs follow the safe naming rule, file APIs use
+sandbox-visible paths, stopped sandboxes reject execution, and deletion tears
+down runtime resources.
+
+## SS-03 Run a background process and poll its state
+
+An agent starts a long-running command such as a dev server, build watcher, or
+test process and polls or terminates it later.
+
+Basic path:
+
+1. Caller invokes background exec with command and optional `jobId`.
+2. SandboxService returns a spawn snapshot with `started`, `pid`, `running`,
+   and `jobId`.
+3. Caller polls job status or lists jobs in the sandbox.
+4. Caller kills the job by signal or lets it finish.
+
+Verification concerns: the initial response is not proof of long-term liveness,
+duplicate job IDs conflict, and kill/output semantics are explicit.
+
+## SS-04 Enforce policy and deny unsafe execution
+
+Policy denies filesystem, network, syscall, resource, or management-plane
+access that violates the caller's allowed capability.
+
+Verification concerns: host paths are never exposed unless bound by policy,
+host-network sandboxes cannot call the management API port when protection is
+enabled, mandatory host features fail closed, and resource limits are validated
+before launch.
+
+## SS-05 Expose sandbox execution through MCP
+
+MCP clients call `sandbox_run_command` with command parameters and receive a
+tool-shaped result. Auto-created sandboxes are deleted unless
+`keepSandbox=true`; timeout is clamped to service limits; transport host
+allow-list and DNS rebinding protection remain explicit.
+
+## SS-06 Recover from service shutdown or stale state
+
+Service startup initializes an empty live registry rather than reviving stale
+descriptors. Graceful shutdown stops registered sandboxes best-effort and clears
+descriptors while preserving persistent audit logs when configured.

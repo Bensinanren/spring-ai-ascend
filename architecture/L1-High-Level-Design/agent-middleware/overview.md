@@ -4,6 +4,7 @@ TAG:
   - overview
   - module-boundary
   - memory-service
+  - sandbox-service
 status: draft
 dependency:
   - README.md
@@ -101,3 +102,46 @@ doushuaigong 的 evolution 代码将 skill/playbook/lesson/case 作为记忆资�
 - `core/loops/outer/evolution_helix.py`
 
 这些文件作为外部代码包事实来源，不构成 `spring-ai-ascend` 的实现约束。
+## Sandbox service architecture overview
+
+Sandbox service is the `agent-middleware` capability that runs untrusted or
+semi-trusted agent tools, code snippets, shell commands, and file operations
+inside a governed Linux execution boundary. It is derived from the
+`jiuwenbox` baseline, but the L1 design keeps only stable middleware facts:
+policy-driven isolation, sandbox lifecycle, command/file API, background jobs,
+audit, resource limits, and optional MCP exposure.
+
+Sandbox service goals:
+
+- Provide a framework-neutral sandbox API that `agent-runtime`,
+  `agent-service`, MCP clients, or business agents can call without depending
+  on a Python runtime implementation.
+- Bind every execution request to explicit sandbox identity, effective policy,
+  caller, workdir, environment, timeout, and audit context.
+- Translate static or request-scoped policy into filesystem, namespace,
+  network, syscall, capability, cgroup, and lifecycle controls.
+- Separate management API reachability from sandboxed code reachability.
+- Support synchronous execution for short tools and background jobs for
+  long-running dev servers, tests, or build tasks.
+- Provide controlled file upload, download, list, and glob search without
+  exposing host paths directly.
+
+Sandbox service non-goals:
+
+- It does not persist long-term agent memory or operational assets.
+- It does not own A2A Task lifecycle, run status, or streaming protocol.
+- It does not guarantee all Linux isolation features on every host; host
+  support must be surfaced through health and policy evidence.
+- It does not make hot dynamic policy update a core L1 requirement.
+
+Sandbox service baseline references:
+
+- `outputs/jiuwenswarm-develop/jiuwenbox/README.md`
+- `outputs/jiuwenswarm-develop/jiuwenbox/README_CN.md`
+- `outputs/jiuwenswarm-develop/jiuwenbox/docs/jiuwenbox_server_api.md`
+- `outputs/jiuwenswarm-develop/jiuwenbox/src/jiuwenbox/models/sandbox.py`
+- `outputs/jiuwenswarm-develop/jiuwenbox/src/jiuwenbox/models/policy.py`
+- `outputs/jiuwenswarm-develop/jiuwenbox/src/jiuwenbox/server/sandbox_manager.py`
+- `outputs/jiuwenswarm-develop/jiuwenbox/src/jiuwenbox/server/runtime/process.py`
+- `outputs/jiuwenswarm-develop/jiuwenbox/src/jiuwenbox/supervisor/bwrap.py`
+- `outputs/jiuwenswarm-develop/jiuwenbox/src/jiuwenbox/server/routes/mcp.py`

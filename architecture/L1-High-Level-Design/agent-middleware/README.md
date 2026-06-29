@@ -5,6 +5,7 @@ TAG:
   - governance
   - reading-path
   - memory-service
+  - sandbox-service
 status: draft
 dependency:
   - overview.md
@@ -67,3 +68,49 @@ dependency:
 L1 保留模块级事实：职责、边界、4+1 视图、稳定 API/SPI、状态归属、作用域规则、物理拓扑、依赖方向和关键流程。
 
 L2 应展开特性级事实：数据库 schema、向量库参数、索引建表、Java 类协作、HTTP DTO 完整字段、异常矩阵、缓存配置、租户 RLS 规则、压测模型、迁移脚本、端到端测试脚本和具体适配器实现。
+## Sandbox service scope
+
+This L1 document set also carries the **sandbox service** design for
+`agent-middleware`. Sandbox service is independent from memory service: it has
+its own lifecycle, policy model, API/SPI surface, process model, physical
+topology, glossary terms, and verification concerns. The two services share the
+same L1 document files only as a documentation container; their responsibilities
+must not be merged.
+
+The sandbox service baseline is `openJiuwen/jiuwenswarm/jiuwenbox` on GitCode,
+`develop` branch commit `ea1ae686b421e92d64741be173a90ee889f09dfe`, copied for
+analysis under `outputs/jiuwenswarm-develop/jiuwenbox`.
+
+Extracted baseline facts:
+
+- `jiuwenbox` runs agent tools and code snippets under layered Linux isolation.
+- It exposes management API over TCP or Unix Domain Socket, with health,
+  sandbox lifecycle, file upload/download/list/search, sync exec, background
+  exec, policy inspection, proxy, and MCP routes.
+- Sandbox phases are `provisioning`, `ready`, `stopped`, `error`, `deleting`.
+- Policies cover filesystem mounts, process user/group, namespaces,
+  capabilities, Landlock, seccomp, network, cgroup, timeout, and inference
+  privacy proxy routes.
+- Runtime isolation maps policy to `bubblewrap`, Linux namespaces, bind mounts,
+  optional Landlock/seccomp/cgroup/network controls, and management-port
+  self-protection.
+- MCP exposes `sandbox_run_command`, which can create a temporary sandbox, run
+  a command, return output, and delete the sandbox unless the caller keeps it.
+
+Sandbox service non-goals:
+
+- It does not own `agent-runtime` Task/Session state, A2A protocol state, or
+  Agent business memory.
+- It does not inherit memory service fail-open behavior; sandbox denials,
+  timeouts, policy violations, and isolation errors are security-relevant
+  execution outcomes.
+- It does not copy Python package names or FastAPI classes into Java design as
+  mandatory names; they are baseline facts for deriving stable boundaries.
+
+## Shared document rule
+
+Keep `MS-*` content for memory service and `SS-*` content for sandbox service
+separate. Cross references are allowed only at the module boundary level, for
+example "agent-runtime may call memory service before generation and sandbox
+service during tool execution"; no section may redefine the other service's
+state ownership, API semantics, or storage model.

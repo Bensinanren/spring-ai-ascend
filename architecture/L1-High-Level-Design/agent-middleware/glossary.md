@@ -3,6 +3,7 @@ level: L1-HLD
 TAG:
   - glossary
   - memory-service
+  - sandbox-service
 status: draft
 dependency:
   - README.md
@@ -165,3 +166,29 @@ feedback 中的数值结果，通常映射到 `[-1, 1]`。
 ## Fail-closed
 
 涉及越权、租户泄漏、隐私或合规风险时拒绝请求，不允许降级绕过。
+## Sandbox service glossary
+
+| Term | Definition |
+|---|---|
+| Sandbox service | `agent-middleware` capability that runs commands, code, tools, and file operations under policy-governed isolation. |
+| Sandbox | Service-managed execution environment with identity, phase, policy, workspace, runtime handle, and audit context. |
+| Sandbox ID | Stable sandbox identifier; caller-supplied IDs use 4-16 lowercase letters, digits, hyphens, and underscores. |
+| Sandbox phase | Lifecycle state: `provisioning`, `ready`, `stopped`, `error`, `deleting`. |
+| Effective policy | Baseline policy after request override or append and validation. |
+| Policy mode | `override` replaces baseline; `append` merges request policy into baseline under service rules. |
+| Runtime adapter | Implementation that maps sandbox plans to process/container/host isolation primitives. |
+| Bubblewrap | Linux process isolation tool used by the `jiuwenbox` baseline. |
+| Landlock | Linux kernel filesystem access-control feature used when supported and enabled by policy. |
+| Seccomp | Linux syscall filtering mechanism used to block policy-declared syscalls. |
+| cgroup policy | Resource limit policy for memory, CPU, and process count. |
+| Network mode | `host` or `isolated`; isolated mode uses network namespace and optional firewall/uplink rules. |
+| Management API | Sandbox control plane used to create, exec, transfer files, inspect policy/logs, and delete sandboxes. |
+| Control IPC | Server-held communication path to sandbox daemon; not visible to sandboxed user code. |
+| Sandbox workspace | Service-owned filesystem area mounted or exposed inside the sandbox. |
+| Sandbox path | Path interpreted inside the sandbox-visible filesystem, not a host filesystem path. |
+| Background job | Long-running command tracked by job ID, PID, status, and optional captured output. |
+| Spawn snapshot | Initial background exec response; process creation result, not long-term liveness. |
+| Idle reaper | Background task that stops or deletes sandboxes after configured inactivity. |
+| Inference privacy proxy | Optional proxy route that injects LLM API keys and controls outbound model API access. |
+| MCP sandbox tool | MCP facade, such as `sandbox_run_command`, that exposes sandbox execution to tool clients. |
+| Audit JSONL | Optional persistent structured log, one operation per line, for offline analysis and forensics. |

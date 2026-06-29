@@ -3,6 +3,7 @@ level: L1-HLD
 TAG:
   - api-appendix
   - memory-service
+  - sandbox-service
   - contract
 status: draft
 dependency:
@@ -267,3 +268,49 @@ Search 在 `failOpen=true` 时可将 503/504 转换为空 hits + degraded warnin
 ## 10. 版本策略
 
 API 路径或 SPI capability 应使用显式版本。新增字段默认向后兼容；删除字段、改变字段含义、改变作用域隔离语义、改变错误码或改变 feedback 归因语义必须升级主版本。
+## Sandbox service API appendix
+
+Sandbox service API is versioned independently from memory service API. L1
+captures stable operations while exact JSON schema and Java DTOs belong to L2.
+
+Management endpoints:
+
+| Operation | Semantics |
+|---|---|
+| `GET /health` | Return liveness, version, runtime, host feature evidence, active count. |
+| `POST /api/v1/sandboxes` | Create and start a sandbox with env, optional policy, policy mode, optional sandbox ID. |
+| `GET /api/v1/sandboxes` | List known sandboxes. |
+| `GET /api/v1/sandboxes/{sandboxId}` | Return sandbox reference and phase. |
+| `POST /api/v1/sandboxes/{sandboxId}/start` | Start a stopped sandbox. |
+| `POST /api/v1/sandboxes/{sandboxId}/stop` | Stop a ready sandbox. |
+| `POST /api/v1/sandboxes/{sandboxId}/restart` | Stop then start a sandbox. |
+| `DELETE /api/v1/sandboxes/{sandboxId}` | Delete sandbox and service-owned state. |
+
+Execution endpoints:
+
+| Operation | Semantics |
+|---|---|
+| `POST /api/v1/sandboxes/{sandboxId}/exec` | Run a bounded command synchronously and return exit code/stdout/stderr. |
+| `POST /api/v1/sandboxes/{sandboxId}/exec_background` | Start a background command and return spawn snapshot. |
+| `GET /api/v1/sandboxes/{sandboxId}/background` | List background jobs. |
+| `GET /api/v1/sandboxes/{sandboxId}/background/{jobId}` | Get background job status and captured output. |
+| `POST /api/v1/sandboxes/{sandboxId}/background/{jobId}/kill` | Send a signal to a background job. |
+
+File and audit endpoints:
+
+| Operation | Semantics |
+|---|---|
+| `POST /api/v1/sandboxes/{sandboxId}/upload` | Upload multipart file to sandbox path. |
+| `GET /api/v1/sandboxes/{sandboxId}/download` | Download sandbox path as bytes. |
+| `GET /api/v1/sandboxes/{sandboxId}/files` | List files/directories below sandbox path. |
+| `GET /api/v1/sandboxes/{sandboxId}/search` | Glob-search files below sandbox path. |
+| `GET /api/v1/sandboxes/{sandboxId}/logs` | Return sandbox audit log view. |
+| `GET /api/v1/policies/{sandboxId}` | Return effective policy for a sandbox. |
+
+`sandbox_run_command` is the MCP tool surface. It accepts command, timeout,
+workdir, env, stdin, optional sandbox ID, and keep-sandbox flag; it returns
+sandbox ID, exit code, stdout, stderr, duration, created/deleted flags, and
+error text when execution fails before a command result exists.
+
+Command exit code is not an API transport error. A command that ran and exited
+non-zero returns a successful API response carrying that exit code.

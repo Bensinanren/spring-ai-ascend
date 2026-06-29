@@ -4,6 +4,7 @@ TAG:
   - physical-view
   - deployment-boundary
   - memory-service
+  - sandbox-service
 status: draft
 dependency:
   - README.md
@@ -220,3 +221,41 @@ EligibilityTrace 是短期状态，丢失后只影响未反馈 turn 的强化，
 - 本地文件/SQLite profile 不应用于多租户生产。
 - LLM distillation 和 judge 应异步或低优先级运行，不抢占 search 热路径资源。
 - 所有 debug API 必须受鉴权和脱敏策略保护。
+## Sandbox service physical view
+
+Sandbox service can run embedded with a local agent process, as a same-host
+sidecar, as a containerized sidecar, or as a remote sandbox pool. Same-host use
+should prefer Unix Domain Socket when filesystem permissions can protect the
+management API and avoid loopback port conflicts.
+
+| Shape | Use case | Boundary |
+|---|---|---|
+| Embedded adapter | Local tests and lightweight dev tools | Same JVM/process owns policy and runtime adapter. |
+| Same-host sidecar | Agent runtime calls local sandbox service | UDS or localhost HTTP; host isolation primitives available. |
+| Containerized sidecar | Packaged Linux dependency set | Container needs permissions for bwrap/cgroup/network features. |
+| Remote sandbox pool | Shared execution capacity | Requires authenticated control plane and tenant-aware placement. |
+
+Host resources:
+
+- Linux host with namespace support.
+- `bubblewrap` or equivalent process isolation runtime.
+- Landlock-capable kernel when policy uses Landlock.
+- Seccomp support for syscall filtering.
+- Writable cgroup v2 hierarchy when memory/CPU/pids limits are required.
+- `iproute2`, `iptables`/`nftables`, and `NET_ADMIN` capability for isolated
+  network with uplink/firewall.
+
+Storage areas:
+
+| Storage area | Responsibility |
+|---|---|
+| Sandbox workspace root | Per-sandbox files visible to the runtime. |
+| Control directory | Server-only IPC sockets and launcher artifacts. |
+| Policy descriptors | Effective per-sandbox policy snapshots. |
+| State descriptors | Ephemeral registry material for current process lifetime. |
+| Audit log directory | Optional persistent JSONL for lifecycle, exec, and file events. |
+
+Health must expose service version, runtime kind, Landlock support, active
+sandbox count, and degraded host features. Metrics should include phase counts,
+create/start latency, exec latency, timeouts, background jobs, file transfer
+sizes, policy denials, cleanup failures, and audit write failures.

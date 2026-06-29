@@ -4,6 +4,7 @@ TAG:
   - logical-view
   - domain-model
   - memory-service
+  - sandbox-service
 status: draft
 dependency:
   - README.md
@@ -341,3 +342,68 @@ storage-fabric
 ```
 
 Memory SPI 不依赖 A2A wire 类型、具体 Agent 框架类型或具体向量库类型。具体 HTTP adapter、database adapter、vector adapter、embedding adapter 属于 implementation boundary。
+## Sandbox service logical view
+
+Sandbox service exposes execution isolation rather than memory recall. Its core
+objects are `SandboxPolicy`, `SandboxRef`, `SandboxCommand`, `BackgroundJob`,
+`SandboxFile`, `AuditEvent`, and `ProxyRoute`.
+
+```text
+SandboxRef
+|-- sandboxId
+|-- phase: provisioning | ready | stopped | error | deleting
+|-- runtime
+|-- pid?
+|-- createdAt
+|-- startedAt?
+|-- lastActiveAt?
+|-- errorMessage?
+|-- env
+```
+
+```text
+SandboxPolicy
+|-- filesystem: directories, files, readOnly, readWrite, bindMounts, devices
+|-- process: runAsUser, runAsGroup
+|-- namespace: user, pid, ipc, cgroup, uts, network mode
+|-- capabilities: add, drop
+|-- landlock: disabled | bestEffort | hardRequirement
+|-- syscall: per-architecture blocked syscall sets
+|-- network: host | isolated, ingress/egress rules, uplink
+|-- cgroup: memoryMax, cpuMax, pidsMax
+|-- timeout: idleTimeout, idleCheckInterval
+|-- inferencePrivacyProxy: listen endpoint and route entries
+```
+
+Logical responsibility planes:
+
+| Plane | Responsibility |
+|---|---|
+| `sandbox-api` | HTTP/UDS/SPI/MCP validation, DTOs, errors, health. |
+| `policy-plane` | Load baseline policy, merge/override request policy, validate host requirements. |
+| `lifecycle-plane` | Create, start, stop, restart, delete, idle reap, state transitions. |
+| `execution-plane` | Sync exec, background exec, stdin/stdout/stderr, timeout, kill. |
+| `workspace-plane` | Upload, download, list, search sandbox-visible files. |
+| `isolation-plane` | Map policy to process, namespace, filesystem, network, syscall, cgroup controls. |
+| `audit-plane` | Structured lifecycle, command, file, policy, and proxy events. |
+| `proxy-plane` | Optional inference privacy proxy route management and key injection. |
+
+Sandbox service owns sandbox registry state, effective per-sandbox policy,
+service-managed workspace paths, background job state, control IPC handles,
+audit events, and proxy route instances. It does not own runtime Task/Session
+state, model invocation state, memory records, business source data, or A2A
+protocol state.
+
+State transitions:
+
+```text
+create -> provisioning -> ready
+ready -> stopped
+stopped -> ready
+ready|stopped|error -> deleting -> deleted
+provisioning -> error
+ready -> error
+```
+
+Execution is allowed only in `ready`. File operations are allowed only when the
+runtime can reach the sandbox workspace or daemon under the effective policy.

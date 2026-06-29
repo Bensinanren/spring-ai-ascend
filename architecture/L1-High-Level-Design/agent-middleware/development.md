@@ -5,6 +5,7 @@ TAG:
   - code-organization
   - dependency-boundary
   - memory-service
+  - sandbox-service
 status: draft
 dependency:
   - README.md
@@ -276,3 +277,63 @@ Spring Boot 自动配置应按能力分组：
 ### 7.4 Fail-open
 
 memory search 超时、部分后端失败、evolution 失败、distillation 失败时，应返回 degraded result 或空结果，而不是抛出阻断 Agent 主流程的异常。写入路径可返回 `accepted=false` 或 `queued=false`，并暴露明确错误码。
+## Sandbox service development view
+
+Sandbox service should live as a sibling domain under the same
+`agent-middleware` module, not under `agent-runtime`. Recommended Java
+namespace:
+
+```text
+com.huawei.ascend.middleware.sandbox
+```
+
+Recommended packages:
+
+```text
+agent-middleware/src/main/java/com/huawei/ascend/middleware/sandbox/
+|-- api
+|-- spi
+|-- policy
+|-- lifecycle
+|-- execution
+|-- workspace
+|-- audit
+|-- proxy
+|-- adapter
+|   |-- http
+|   |-- mcp
+|   |-- process
+|   |-- docker
+|   `-- spring
+`-- boot
+```
+
+| Package | Responsibility |
+|---|---|
+| `api` | Stable request/response DTOs, errors, health models, file models. |
+| `spi` | Framework-neutral `SandboxService`, `SandboxRuntime`, policy, audit, workspace ports. |
+| `policy` | Effective policy resolution, validation, host feature requirements. |
+| `lifecycle` | Sandbox registry, phase transitions, idle reaper, cleanup. |
+| `execution` | Sync/background command orchestration, timeouts, output caps. |
+| `workspace` | Path validation, upload/download/list/search operations. |
+| `audit` | Lifecycle, command, file, policy, and proxy event sinks. |
+| `proxy` | Optional inference privacy proxy abstractions. |
+| `adapter.http` | HTTP/UDS facade. |
+| `adapter.mcp` | MCP tool facade such as `sandbox_run_command`. |
+| `adapter.process` | Linux process isolation adapter. |
+| `boot` | Spring Boot auto-configuration, properties, health, metrics. |
+
+Dependency rules:
+
+- `sandbox.spi` depends only on JDK and neutral middleware value types.
+- Runtime adapters depend inward on SPI; SPI never depends on bubblewrap,
+  Docker, Kubernetes, FastAPI, or MCP libraries.
+- `agent-runtime` may depend on sandbox SPI/client; sandbox service must not
+  depend on runtime task stores or handler classes.
+- Memory service packages and sandbox service packages must not share mutable
+  domain models.
+
+Auto-configuration groups: `SandboxCoreAutoConfiguration`,
+`SandboxRuntimeAutoConfiguration`, `SandboxHttpFacadeAutoConfiguration`,
+`SandboxMcpAutoConfiguration`, `SandboxAuditAutoConfiguration`, and
+`SandboxObservabilityAutoConfiguration`.
