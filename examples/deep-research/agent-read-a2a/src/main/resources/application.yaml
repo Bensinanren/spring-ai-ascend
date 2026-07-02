@@ -1,0 +1,106 @@
+# agent-read-a2a — Spring Boot wrapper hosting the deep-research read
+# sub-agent under agent-runtime, exposed as an A2A JSON-RPC service on 13005.
+#
+# YAML-driven assembly (TOPOLOGY §2.1): the active profile selects which
+# /agent/agent.*.yaml is fed to AgentFactory.toReactAgent(). The agent card
+# name is `read-agent`: the root DeepAgent's system prompt calls the read
+# capability via the `read-agent` remote tool, and the runtime names
+# remote-agent tools after the target AgentCard `name`.
+#
+# 3-profile fail-fast (TOPOLOGY §4.5): the default profile ships a BLANK
+# read-agent.yaml-classpath; ReadAgentConfiguration#readAgentYamlPath throws
+# a clear IllegalStateException on boot, so the app cannot start half-
+# configured. Activate stub (fixture-backed, no network) or prod (real HTTP).
+
+server:
+  port: 13005
+
+spring:
+  application:
+    name: agent-read-a2a
+
+agent-runtime:
+  access:
+    a2a:
+      # Declared in the base document so it is present in every profile (the
+      # default profile still fails fast on the blank yaml-classpath below;
+      # having the card here avoids a confusing missing-card error masking
+      # the real fail-fast cause).
+      agent-card:
+        name: read-agent
+        description: >-
+          Deep-research read sub-agent. Fetches a public HTML URL (JDK
+          HttpClient), cleans the DOM (jsoup), extracts main content
+          (readability4j / Mozilla Readability), splits into sections, detects
+          SPA / Cloudflare blocks, and returns the contract-shaped
+          {title, content_markdown, sections, summary, metadata} payload.
+        version: "0.1.0"
+        organization: spring-ai-ascend
+        default-input-modes: [text]
+        default-output-modes: [text]
+        capabilities:
+          streaming: false
+          push-notifications: false
+          extended-agent-card: false
+        skills:
+          - id: read_url
+            name: Read a URL into markdown + metadata
+            description: >-
+              Fetch one http(s) URL, extract its main article content, and
+              return {title, content_markdown, sections[], summary,
+              metadata{author, publish_date, doc_type}}. doc_type is one of
+              pricing_page / blog / news / doc / spa_blocked / cloudflare_403
+              / other so the root agent can branch (spa_blocked -> change
+              source, cloudflare_403 -> down-weight).
+            tags: [read, fetch, readability, deep-research]
+            examples:
+              - "读取 https://www.volcengine.com/product/ark 并提取豆包模型定价"
+              - "Read https://help.aliyun.com/bailian/ and summarise qwen-max pricing"
+              - "Fetch https://blog.csdn.net/article/123 and extract the model comparison"
+            input-modes: [text]
+            output-modes: [text]
+
+# §4.5 fail-fast: blank by default. stub/prod profiles below override it.
+read-agent:
+  yaml-classpath: ""
+  skillhub:
+    root: ${DEEP_RESEARCH_SKILLHUB_ROOT:skills}
+
+logging:
+  level:
+    com.huawei.ascend.examples.deepresearch: INFO
+    com.huawei.ascend.runtime: INFO
+
+# ---------- stub profile ----------
+---
+spring:
+  config:
+    activate:
+      on-profile: stub
+
+read-agent:
+  # Fixture-backed: routes URL host to /fixtures/*.html on the classpath,
+  # runs the same readability4j pipeline as prod, never touches the network.
+  yaml-classpath: classpath:/agent/agent.stub.yaml
+
+logging:
+  level:
+    com.huawei.ascend.examples.deepresearch: DEBUG
+    com.huawei.ascend.runtime: INFO
+
+# ---------- prod profile ----------
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+read-agent:
+  # Real fetch via java.net.http.HttpClient (+ system proxy). Requires the
+  # LLM_* env vars (see agent.prod.yaml) for the ReAct loop to format output.
+  yaml-classpath: classpath:/agent/agent.prod.yaml
+
+logging:
+  level:
+    com.huawei.ascend.examples.deepresearch: INFO
+    com.huawei.ascend.runtime: INFO

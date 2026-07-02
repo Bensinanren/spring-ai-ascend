@@ -1,0 +1,102 @@
+# read-agent prod assembly — loaded by AgentFactory.toReactAgent(...)
+# Stub counterpart: agent.stub.yaml. Only tools[].ref.class differs between
+# the two; model / prompt / framework are byte-identical so the assembly path
+# does not drift between profiles.
+#
+# AgentCard name is `read-agent` (see agent-read-a2a/application.yaml) — the root
+# DeepAgent calls this sub-agent as the `read-agent` remote tool.
+schema: ascend-agent/v1
+
+name: read-agent
+displayName: Deep-Research Read Agent
+description: |
+  ReAct sub-agent that answers read_url calls from the deep-research root
+  DeepAgent. Fetches public HTML (JDK HttpClient), cleans the DOM (jsoup),
+  extracts main content (readability4j), detects SPA / Cloudflare blocks, and
+  returns markdown + sections + metadata.
+
+framework:
+  type: openjiuwen
+  agent: react
+  options:
+    maxIterations: 3
+    sysOperationId: deep-research-read-agent
+
+model:
+  # Env-driven so the same jar runs against any OpenAI-compatible endpoint
+  # without a rebuild. agent-sdk's env resolver only recognises the bare
+  # placeholder form (no default-value fallback; verified against
+  # AgentYamlEnvironmentResolver); unset vars throw at parse time. The resolver
+  # runs regex on the raw YAML string BEFORE the YAML parser, so keep
+  # dollar-brace tokens out of comments.
+  # Provider string is forwarded verbatim to OpenJiuwen's
+  # ModelClientConfig.clientProvider — agent-sdk does no normalisation. If the
+  # model call fails with a provider-not-recognised style error, export
+  # LLM_PROVIDER to the lowercase openai-compatible token.
+  provider: ${LLM_PROVIDER}
+  name: ${LLM_MODEL}
+  baseUrl: ${LLM_API_BASE}
+  apiKey: ${LLM_API_KEY}
+  sslVerify: true
+
+prompt:
+  system: |
+    You are the read sub-agent of a deep-research multi-agent system.
+
+    Your only tool is `read_url`. Call it exactly once per user request with the
+    URL (and, when given, the focus question) the root agent forwarded. Do not
+    invent a URL; do not call read_url more than once.
+
+    Call signature:
+      read_url({ url: string, focus_question: string|null })
+
+    Output contract (must match exactly so the root agent can parse it):
+      {
+        "title": "...",
+        "content_markdown": "...",
+        "sections": [ { "heading": "...", "body": "..." } ],
+        "summary": "≤200字摘要；focus_question 非空时围绕它生成",
+        "metadata": {
+          "author": "...|null",
+          "publish_date": "...|null",
+          "doc_type": "pricing_page|blog|news|doc|spa_blocked|cloudflare_403|other"
+        }
+      }
+
+    Rules:
+    - Pass the tool's `title`, `content_markdown`, `sections`, and `metadata`
+      through UNMODIFIED. The tool already did HTTP fetch + readability4j
+      extraction + SPA/Cloudflare detection; do not rewrite content_markdown or
+      invent sections.
+    - `metadata.doc_type` is the signal the root branches on
+      (spa_blocked / cloudflare_403 / other). NEVER alter it.
+    - The tool returns an extractive `summary` fallback. When `focus_question`
+      is non-null, rewrite `summary` (≤200字, Chinese) to answer that question
+      using only `content_markdown`; when focus_question is null, keep the
+      tool's summary or trim it to ≤200字.
+    - When the tool returns `doc_type=spa_blocked` or `cloudflare_403`, still
+      emit the full contract shape (empty content_markdown / sections are fine)
+      so the root can see the signal — do not emit a free-text apology.
+    - Return ONLY the JSON object above.
+
+tools:
+  - name: read_url
+    description: |
+      Fetch a public HTML URL, extract main content (readability4j / Mozilla
+      Readability), split into sections, detect SPA / Cloudflare blocks, and
+      return the contract-shaped {title, content_markdown, sections, summary,
+      metadata} payload. No external API key — outbound HTTP only.
+    inputSchema:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Absolute http(s) URL to read.
+        focus_question:
+          type: string
+          description: Optional question the summary should focus on (null allowed).
+      required: [url]
+    ref:
+      type: file
+      class: com.huawei.ascend.examples.deepresearch.read.ReadUrlTool
+      method: read

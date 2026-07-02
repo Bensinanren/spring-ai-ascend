@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  agent-read — read sub-agent library (C 同学).
+
+  Pure Java library: agent-sdk YAML assembly + a DocumentReader abstraction
+  with two implementations (HtmlDocumentReader for prod HTTP fetch via the JDK
+  HttpClient + jsoup + readability4j; StubDocumentReader for fixture-backed
+  runs) and two static-method tool bridges (ReadUrlTool / StubReadUrlTool).
+  Does NOT depend on agent-runtime or Spring; the wrapper agent-read-a2a hosts
+  it as an A2A service. Mirrors agent-search/agent-verify layout.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.huawei.ascend.examples</groupId>
+    <artifactId>deep-research-parent</artifactId>
+    <version>0.2.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>agent-read</artifactId>
+  <packaging>jar</packaging>
+  <name>agent-read</name>
+  <description>
+    Library jar of the read sub-agent for the deep-research demo. Exposes a
+    read_url Java tool that fetches public HTML (JDK HttpClient), cleans the
+    DOM (jsoup), extracts main content (readability4j / Mozilla Readability),
+    detects SPA / Cloudflare blocks, and returns the contract-shaped
+    {title, content_markdown, sections, summary, metadata} payload. Prod and
+    stub assemblies live in agent/{prod,stub}.yaml under src/main/resources
+    and are loaded by AgentFactory in the wrapper.
+  </description>
+
+  <dependencies>
+    <!-- agent-sdk pulls openjiuwen-core (ReActAgent) transitively and
+         provides AgentFactory.toReactAgent(yamlPath). -->
+    <dependency>
+      <groupId>com.huawei.ascend</groupId>
+      <artifactId>agent-sdk</artifactId>
+    </dependency>
+    <!-- Jackson: fixture loading + (future) JSON-LD metadata parsing. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- jsoup: DOM cleaning + section splitting. Pinned so the demo uses a
+         modern HTML5 parser; readability4j tolerates the newer jsoup (its
+         public API is stable across 1.11 -> 1.18). -->
+    <dependency>
+      <groupId>org.jsoup</groupId>
+      <artifactId>jsoup</artifactId>
+      <version>1.18.3</version>
+    </dependency>
+    <!-- readability4j: Kotlin port of Mozilla Readability.js. Extracts the
+         main article content from a cleaned HTML string. -->
+    <dependency>
+      <groupId>net.dankito.readability4j</groupId>
+      <artifactId>readability4j</artifactId>
+      <version>1.0.8</version>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- WireMock standalone (shaded deps) — TOPOLOGY §4.3: spin up a local
+         HTTP server returning HTML fixtures and assert readability4j output.
+         Standalone edition avoids Jetty/Guava version clashes with the
+         Spring Boot 4 BOM inherited via the parent. -->
+    <dependency>
+      <groupId>org.wiremock</groupId>
+      <artifactId>wiremock-standalone</artifactId>
+      <version>3.13.2</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

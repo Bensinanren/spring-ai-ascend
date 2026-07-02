@@ -1,0 +1,93 @@
+# read-agent stub assembly — loaded by AgentFactory.toReactAgent(...)
+# under spring.profiles.active=stub. Identical to agent.prod.yaml except for
+# tools[].ref.class, which points at the fixture-backed StubReadUrlTool. This
+# keeps the YAML assembly path identical between profiles so stub vs. prod can
+# never drift on framework / model / prompt.
+schema: ascend-agent/v1
+
+name: read-agent
+displayName: Deep-Research Read Agent (stub)
+description: |
+  Fixture-backed stub of the read-agent. Same A2A contract as prod; reads
+  canned HTML from /fixtures/*.html on the classpath and runs the same
+  readability4j extraction pipeline.
+
+framework:
+  type: openjiuwen
+  agent: react
+  options:
+    maxIterations: 3
+    sysOperationId: deep-research-read-agent
+
+model:
+  # Identical to agent.prod.yaml — see note there about the env-resolver
+  # default-value gap and the provider-string forwarding caveat. Even the
+  # stub profile resolves a real LLM endpoint: only read_url is fixture-backed,
+  # the ReAct loop still calls the model. Set LLM_PROVIDER / LLM_MODEL /
+  # LLM_API_BASE / LLM_API_KEY before boot (a fake key is fine for boot-only
+  # checks; a real endpoint is needed to actually format a response).
+  # CAUTION: keep dollar-brace tokens out of this comment — the resolver
+  # rewrites raw YAML text and would try to expand them.
+  provider: ${LLM_PROVIDER}
+  name: ${LLM_MODEL}
+  baseUrl: ${LLM_API_BASE}
+  apiKey: ${LLM_API_KEY}
+  sslVerify: true
+
+prompt:
+  system: |
+    You are the read sub-agent of a deep-research multi-agent system.
+
+    Your only tool is `read_url`. Call it exactly once per user request with the
+    URL (and, when given, the focus question) the root agent forwarded. Do not
+    invent a URL; do not call read_url more than once.
+
+    Call signature:
+      read_url({ url: string, focus_question: string|null })
+
+    Output contract (must match exactly so the root agent can parse it):
+      {
+        "title": "...",
+        "content_markdown": "...",
+        "sections": [ { "heading": "...", "body": "..." } ],
+        "summary": "≤200字摘要；focus_question 非空时围绕它生成",
+        "metadata": {
+          "author": "...|null",
+          "publish_date": "...|null",
+          "doc_type": "pricing_page|blog|news|doc|spa_blocked|cloudflare_403|other"
+        }
+      }
+
+    Rules:
+    - Pass the tool's `title`, `content_markdown`, `sections`, and `metadata`
+      through UNMODIFIED. The tool already did HTTP fetch + readability4j
+      extraction + SPA/Cloudflare detection; do not rewrite content_markdown or
+      invent sections.
+    - `metadata.doc_type` is the signal the root branches on
+      (spa_blocked / cloudflare_403 / other). NEVER alter it.
+    - The tool returns an extractive `summary` fallback. When `focus_question`
+      is non-null, rewrite `summary` (≤200字, Chinese) to answer that question
+      using only `content_markdown`; when focus_question is null, keep the
+      tool's summary or trim it to ≤200字.
+    - When the tool returns `doc_type=spa_blocked` or `cloudflare_403`, still
+      emit the full contract shape (empty content_markdown / sections are fine)
+      so the root can see the signal — do not emit a free-text apology.
+    - Return ONLY the JSON object above.
+
+tools:
+  - name: read_url
+    description: |
+      Fixture-backed read_url. Routes the URL host to /fixtures/*.html on the
+      classpath and runs the same readability4j extraction as prod (no real HTTP).
+    inputSchema:
+      type: object
+      properties:
+        url:
+          type: string
+        focus_question:
+          type: string
+      required: [url]
+    ref:
+      type: file
+      class: com.huawei.ascend.examples.deepresearch.read.StubReadUrlTool
+      method: read
