@@ -872,3 +872,33 @@ Stage 23 是纯测试阶段。`@Isolated`（同 Stage 19/20/21/22）+ import + h
 ### 25.4 无生产代码改动 + §6.2 守恒
 
 Stage 25 是纯文档裁决阶段。无 Java / DDL / SqlCodec / record 改动；本节是 L2 对 T4 裁决的标注（数据流 + 资产命运 + §6.2 解除），不改任何代码契约。§6.2 第②③④⑤项 + 第①项精神全部守恒；ArchUnit green（无新代码）。
+
+## 26. Stage 26 broker-agnostic SPI 骨架（transport.broker 子包，锁定 RocketMQ，首个 broker 生产代码阶段）
+
+**首个写 broker 生产代码的阶段，但形态是 broker-agnostic SPI 骨架**（纯 Java，**不引任何 broker client**），同 Stage 15 `transport.a2a` 范式。Stage 25 adopted-t4 裁决 T4 hybrid 后，本阶段把 concrete broker client 的居住地（`com.huawei.ascend.bus.forwarding.runtime.transport.broker`）圈好 + 定下治理 SPI + 锁定产品 RocketMQ；**不碰 worker / 状态机 / 持久化**（outbox/inbox 表 + claim/lease/SKIP LOCKED + RLS + TransactionTemplate **零改**，全保留）。完整 SPI + R1-R5 论证见 [`transport-decision §5/§10`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-transport-decision.md)。
+
+### 26.1 核心设计张力（独立 SPI，非 ForwardingDeliveryPort 子类型）
+
+`ForwardingDeliveryPort.deliver(record, nowMillisEpoch)` 返回**终态导向**的 `ForwardingDeliveryResult`（ACKED/RETRY/DLQ/EXPIRED），为 A2A 同步 push 设计；broker **produce 是 fire-and-forget**（produce 成功 ≠ receiver 处理完，模型 B 需 Stage 27 的 `AWAITING_ACK` 反向 ack）。故 `BrokerForwardingRelayPort` 是**独立 SPI**（`produce(ForwardingOutboxRecord) → BrokerProduceOutcome`，ACCEPTED/UNAVAILABLE[retryable]/ROUTE_NOT_FOUND[non-retryable]，**非终态**）。调和 Stage 25 §4「broker adapter 是新 ForwardingDeliveryPort 实现（relay 形态）」：那指 Stage 27+ relay 接 worker 后的最终态；Stage 26 先定独立 SPI，Stage 27 决定 relay adapter 是否包装 `ForwardingDeliveryPort` 或 worker 改调 relay port。
+
+### 26.2 transport.broker SPI（对持久化基质零影响）
+
+| SPI | 形态 | 签名 | §6.2 守恒 |
+|---|---|---|---|
+| `BrokerForwardingRelayPort` | relay | `produce(ForwardingOutboxRecord, nowMillisEpoch) → BrokerProduceOutcome` | routeHandle 经 `ForwardingEndpointResolver` 映射 topic，HD4 opaque 不读 value()；body=routing descriptor only（②） |
+| `BrokerForwardingConsumerPort` | receiver | `poll(consumerServiceId, tenantId) → Optional<BrokerInboundMessage>` + `commit(msg)` + `reject(msg, code)` | 模型 B ack-after-consume（`enable.auto.commit=false`）；跨 tenant 消息不返回 = L2 reject 不 commit（⑤） |
+
+- `BrokerOutboundMessage`（body=routing descriptor only，绝不载 payload body/token stream/Task state）/ `BrokerInboundMessage`（不暴露 offset/topic/partition，consumerServiceId poll 时填入）/ `BrokerProduceOutcome` / `BrokerMessageHeaders` / `BrokerClientProperties`（产品无关，不绑 RocketMQ 类型）/ `package-info`。
+- **broker 产品概念（topic/partition/offset/consumer-group）不进这些 record 类型** —— topic 是 produce 内部参数（resolver 映射后传 adapter），partition/offset 是 adapter 内部细节。
+
+### 26.3 §6.2 解除（守恒 + ArchUnit 三处豁免）
+
+- **守 §6.2 第①项精神**：broker 概念不泄漏 `transport.broker` 之外；本 L2 §5 立柱（`ForwardingDeliveryPort` / `ForwardingDeliveryResult` / `ForwardingRetryPolicy` / `ForwardingCircuitBreaker` / `ForwardingOutboxRecord`）**零改动**。
+- **第②③④⑤项不变**：payload body/token stream 不进 body（payloadRef 走 header）；不写 Task state；跨租户 reject 不 commit（⑤）；registry 不变 agent 定义仓库。
+- **ArchUnit 三处豁免**：`SpiPurityTest` 加 rocketmq 圈 `transport.broker`（vacuous now，授权 Stage 27+；Kafka/NATS 仍全禁）+ §6.2 文本扫描排除 `transport.broker`（`RuntimeContractTest`）+ Stage 4 broker-agnostic trip-wire 解除（`DesignContractTest`，仅放行 `transport.broker`，其余 broker/queue/mailbox/dlq/replay 包仍禁）。
+
+### 26.4 锁定 RocketMQ + 真实例 PoC deferred
+
+- **产品锁定 RocketMQ**（用户裁决；§5 矩阵依据：原生顺序消息 + namespace 租户分层 + 原生 retry/DLQ + 华为云 DMS 托管 + pull consumer 对应 T4 反压内核 + 概念收敛）。
+- **真实实例 PoC deferred 部署环境**：本机 Docker 死路（代理 407 + 无 sudo → testcontainers 不可行）+ 无自部署 RocketMQ 实例；开发态用 in-memory 替身（`InMemoryBroker`，test scope）实现两 SPI，同 Stage 12 embedded-postgres / Stage 15 MockWebServer 哲学（broker-agnostic SPI 设计上就不该在开发期强依赖真实 broker 实例）。
+- **217 tests green**（200 + 16 契约 + 1 rocketmq 规则）；ArchUnit green；**deferred**：relay adapter 接 worker / `AWAITING_ACK` 状态机 / 模型 B 反向 ack（Stage 27）/ receiver consumer + 生产 TickSource（Stage 28）/ 端到端 T4（Stage 29）/ T1→T4 切换（Stage 30）/ RocketMQ client Maven 依赖（Stage 27+ 真实 adapter）/ 真实实例 PoC。

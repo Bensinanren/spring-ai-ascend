@@ -135,9 +135,9 @@ target_module: agent-bus
 | offset | adapter 内部 commit（不暴露） |
 | broker retry / DLX | `ForwardingDeliveryResult`（RETRY_SCHEDULED / DLQ） |
 
-## 5. broker 选型矩阵（倾向 RocketMQ，final 选型 deferred Stage 26）
+## 5. broker 选型矩阵（锁定 RocketMQ，Stage 26）
 
-| 维度 | RocketMQ（**倾向**） | Kafka | RabbitMQ |
+| 维度 | RocketMQ（**锁定**，Stage 26） | Kafka | RabbitMQ |
 |---|---|---|---|
 | 消息模型 | 原生顺序消息 + pull consumer | partition 内有序 + offset pull | 主要 push（AMQP basic.consume） |
 | 反压内核（pull） | ✓ pull consumer 原生 | ✓ poll() 原生 | △ push 为主，pull 支持弱（与 pull 目标态张力） |
@@ -147,11 +147,13 @@ target_module: agent-bus
 | 华为云托管 | DMS for RocketMQ | DMS for Kafka | DMS for RabbitMQ |
 | 至少一次 + 手动 commit | ✓ | ✓（enable.auto.commit=false） | ✓（手动 ack） |
 
-**倾向 RocketMQ 的理由**：① 原生顺序消息对 §3 双层 ordering 一致性（outbox+broker）最友好；② namespace 租户分层与 §6 L1 topic-per-tenant 自然契合；③ 原生 retry/DLQ 与 Stage 14 retry policy + DLQ 概念收敛；④ 华为云 DMS 托管降低运维（回应 [`decision §3`](agent-bus-forwarding-runtime-decision.md) C4 拒绝理由「运维过重」）；⑤ pull consumer 与 T4 反压内核直接对应。
+**锁定 RocketMQ 的理由（Stage 26，用户裁决）**：① 原生顺序消息对 §3 双层 ordering 一致性（outbox+broker）最友好；② namespace 租户分层与 §6 L1 topic-per-tenant 自然契合；③ 原生 retry/DLQ 与 Stage 14 retry policy + DLQ 概念收敛；④ 华为云 DMS 托管降低运维（回应 [`decision §3`](agent-bus-forwarding-runtime-decision.md) C4 拒绝理由「运维过重」）；⑤ pull consumer 与 T4 反压内核直接对应。
 
-**RabbitMQ 倾向排除**：主要 push 模型与 pull 目标态有张力（push-to-pull 需额外适配）。
+**RabbitMQ 排除**：主要 push 模型与 pull 目标态有张力（push-to-pull 需额外适配）。
 
-**final 选型 deferred Stage 26 PoC**：真实 DMS broker 端到端 produce/pull/retry/DLQ/租户隔离/顺序性实测后定。若 PoC 推翻 RocketMQ 倾向（如团队已有 Kafka 运维栈、或顺序性实测不达标），回更本 packet §5 + [`decision §8 Stage 25 段`](agent-bus-forwarding-runtime-decision.md)。
+**broker 是项目自部署基础设施**（用户立场 = §6.2 broker-agnostic 设计意图本身），非公共 MQ；broker 是 agent-bus 的从属载体，治理语义由 SPI 端口表达（§4、§10），broker 产品概念不反向定义治理语义（§6.2① 精神）。
+
+**产品锁定 = RocketMQ；真实实例 PoC deferred 部署环境**：本开发机无自部署 RocketMQ 实例可连（Docker daemon 经认证代理 407 不可达 + host 无 sudo → testcontainers 不可行；本机起 RocketMQ binary 重且 ≠ 生产拓扑）。Stage 26 用 in-memory 替身落 SPI 骨架 + 治理不变量验证（同 Stage 12 embedded-postgres / Stage 15 MockWebServer 哲学），真实 DMS RocketMQ 实例的顺序性 / 性能 / 原生 retry-DLQ / namespace 租户实测 deferred 到部署环境（那里有自部署集群）。产品决策不依赖实测 —— rejection criteria R1-R5 论证（§8）：运维 = DMS 托管不命中 R1 / 量级待真实负载 R2 / ordering 单 partition 可证 + 跨层全局序号 Stage 27/29 R3 / 租户纵深 in-memory + 契约证 L1-L3 + Stage 24 RLS 复用 L4 + 应用层 reject L5 不命中 R4 / scheduler Stage 28 解除 R5。
 
 ## 6. 租户隔离纵深（broker 侧，破 §6.2 后必须补强）
 
@@ -194,7 +196,7 @@ Stage 24 RLS 只护 outbox/inbox 表（DB 侧）。T4 下 receiver 从 broker pu
 
 | Stage | 切片 | 关键产出 |
 |---|---|---|
-| **Stage 26** | broker PoC + 选型 + ArchUnit 豁免 | 真实 DMS broker（倾向 RocketMQ）端到端 produce/pull/retry/DLQ/租户隔离/顺序性实测；final 选型；`transport.broker` 子包骨架 + ArchUnit 圈进 + §6.2 文本扫描豁免；验证 R1-R5 不命中 |
+| **Stage 26**（已完成） | broker-agnostic SPI 骨架 + 选型锁定 + ArchUnit 豁免 | 产品**锁定 RocketMQ**（真实实例 PoC deferred 部署环境）；`transport.broker` 子包 broker-agnostic SPI（`BrokerForwardingRelayPort` / `BrokerForwardingConsumerPort` / 消息 / outcome / properties）+ in-memory 替身 + 契约测试（治理不变量）+ ArchUnit rocketmq 圈进 + §6.2 文本扫描豁免 + Stage 4 broker-agnostic trip-wire 解除；**in-memory 替身非真实 broker PoC**（R1-R5 在 §5/§8 论证，真实实例实测 deferred） |
 | **Stage 27** | relay adapter + 模型 B 反向 ack + 状态机扩展 | `BrokerForwardingRelayPort` 实现；AWAITING_ACK 中间态（若采）；反向 ack 通道；outbox DISPATCHING→ACKED 闭环 |
 | **Stage 28** | receiver consumer + 生产 TickSource | `BrokerForwardingConsumerPort` 实现；inbox dedup；relay claim 循环驱动（解除 §6.1 第 3 项 scheduler 障碍）；§6 L1-L5 租户纵深接线 |
 | **Stage 29** | 端到端 T4 | sender enqueue→relay→broker→receiver→ack→outbox ACKED 全链路；三生命线（retry/lease/breaker）+ 三终态在 T4 上复现 |
@@ -209,6 +211,8 @@ Stage 24 RLS 只护 outbox/inbox 表（DB 侧）。T4 下 receiver 从 broker pu
 - **跨租户 R-C.c 显式 reject**（§6.2⑤）：broker 侧 L2 header 校验失败必须 reject 不 commit，不静默 fallback。
 - **broker 产品概念不泄漏 `transport.broker` 之外**（§6.2① 精神）：治理语义仍由 SPI 端口表达。
 - **outbox 保留**：broker 不替代 outbox（T4 ≠ C4）。
+
+**Stage 26 落地状态**：上述护栏由 `transport.broker` SPI 骨架 + in-memory 替身 `InMemoryBroker` + `BrokerForwardingPortsContractTest`（16 契约）验证 —— payloadRef-in-header 不进 body（②）/ routeHandle opaque 经注入 `ForwardingEndpointResolver`（HD4）/ 跨租户 poll 不返回 = reject 不 commit（⑤）/ consumer-group 独立 offset 隔离（L3）/ 至少一次 redelivery（poll 不 commit 重投）。broker retry off + outbox 保留是 Stage 27+ relay/receiver 接 worker 时守（Stage 26 SPI 不接 worker，broker client 也不引 —— 纯 Java 骨架）。
 
 ## 11. deferred / 后续
 

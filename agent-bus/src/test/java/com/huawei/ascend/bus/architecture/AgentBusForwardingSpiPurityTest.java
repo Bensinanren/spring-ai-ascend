@@ -20,10 +20,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Spring / JDBC / javax.sql rules below exempt that adapter package. Stage 15
  * (decision §6.1 item 4 lifted to scaffold level) licenses the A2A SDK inside ONE
  * more subpackage — {@code com.huawei.ascend.bus.forwarding.runtime.transport.a2a}
- * — so the A2A rule below exempts that adapter package. Everything else (ports,
- * state machine, worker, loop) stays pure Java. §6.2 always-forbids concrete
- * broker / MQ, Task state, payload body everywhere (those rules are NOT exempted
- * — A2A is HTTP JSON-RPC, not Kafka / RabbitMQ / NATS).
+ * — so the A2A rule below exempts that adapter package. Stage 26 (decision §6.1
+ * item 1 lifted by Stage 25 adopted-t4) licenses a concrete broker client inside
+ * ONE further subpackage —
+ * {@code com.huawei.ascend.bus.forwarding.runtime.transport.broker} — so the
+ * RocketMQ rule below exempts that adapter package. Everything else (ports,
+ * state machine, worker, loop) stays pure Java. §6.2 ②③④⑤ still forbid payload
+ * body, token stream, Task state, and cross-tenant leakage everywhere; Kafka /
+ * RabbitMQ / NATS clients are NOT licensed (the project standardises on RocketMQ
+ * for the broker adapter, Stage 25).
  *
  * <p>One {@code @Test} per forbidden technology so a violation reports the exact
  * offending dependency. Test classes are excluded — the rule constrains the
@@ -148,6 +153,21 @@ class AgentBusForwardingSpiPurityTest {
                        + "adapter subpackage; the forwarding ports / state machine / worker / loop "
                        + "stay transport-agnostic (decision §6.1 item 4 lifted to scaffold level, "
                        + "§6.2 unchanged — A2A is HTTP JSON-RPC, not a concrete broker / MQ).")
+                .check(FORWARDING);
+    }
+
+    @Test
+    void forwarding_core_does_not_import_rocketmq_outside_broker_adapter() {
+        noClasses().that().resideInAPackage("com.huawei.ascend.bus.forwarding..")
+                .and().resideOutsideOfPackage("com.huawei.ascend.bus.forwarding.runtime.transport.broker..")
+                .should().dependOnClassesThat().resideInAPackage("org.apache.rocketmq..")
+                .because("Stage 26: a concrete RocketMQ client is licensed only inside the "
+                       + "transport.broker adapter subpackage (decision §6.1 item 1 lifted by "
+                       + "Stage 25 adopted-t4; §6.2 ① spirit holds — broker product concepts do "
+                       + "not leak outside that package). The Stage 26 SPI scaffold + in-memory "
+                       + "double are pure Java, so this rule is vacuously green now and authorises "
+                       + "the Stage 27+ RocketMQ adapter to confine its client there. Kafka / NATS "
+                       + "remain fully forbidden (the project standardises on RocketMQ, Stage 25).")
                 .check(FORWARDING);
     }
 

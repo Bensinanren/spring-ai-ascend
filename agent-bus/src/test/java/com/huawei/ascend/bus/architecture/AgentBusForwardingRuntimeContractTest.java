@@ -349,7 +349,10 @@ class AgentBusForwardingRuntimeContractTest {
                   + "confinement is enforced by AgentBusForwardingSpiPurityTest, not this scan. "
                   + "Stage 15 likewise excludes runtime.transport.a2a — that adapter parses the "
                   + "remote A2A wire format (Task / TaskStatus) to map a remote Task lifecycle onto "
-                  + "ForwardingDeliveryResult; it never stores Task state on the outbox record.")
+                  + "ForwardingDeliveryResult; it never stores Task state on the outbox record. "
+                  + "Stage 26 likewise excludes runtime.transport.broker — that adapter is the "
+                  + "sanctioned home for a concrete broker client (Stage 25 adopted-t4); it carries "
+                  + "only broker-agnostic routing metadata, never a payload body / Task state.")
                 .allSatisfy(src -> assertThat(src)
                         .doesNotContain("payloadBody", "payload_body")
                         .doesNotContain("TaskExecutionState", "TaskExecution", "TaskStatus")
@@ -726,7 +729,9 @@ class AgentBusForwardingRuntimeContractTest {
                   + "MQ client (decision §6.2 — always forbidden). JDBC is licensed only for the "
                   + "persistence.jdbc adapter (Stage 12); package-level confinement is enforced "
                   + "by AgentBusForwardingSpiPurityTest. Stage 15 excludes runtime.transport.a2a "
-                  + "(A2A wire-format parser; never stores Task state on the record).")
+                  + "(A2A wire-format parser; never stores Task state on the record). Stage 26 "
+                  + "excludes runtime.transport.broker (concrete broker client home, Stage 25 "
+                  + "adopted-t4; broker-agnostic routing metadata only).")
                 .allSatisfy(src -> assertThat(src)
                         .doesNotContain("TaskExecutionState", "TaskExecution", "TaskStatus")
                         .doesNotContain("org.apache.kafka", "com.rabbitmq",
@@ -1580,9 +1585,18 @@ class AgentBusForwardingRuntimeContractTest {
         // (and how JDBC is confined to persistence.jdbc, Stage 12).
         Path a2aTransportAdapter =
                 Path.of("src/main/java/com/huawei/ascend/bus/forwarding/runtime/transport/a2a");
+        // Stage 26: the broker transport adapter (runtime/transport/broker) is the sanctioned
+        // home for a concrete broker client (Stage 25 adopted-t4 lifted decision §6.1 item 1).
+        // Excluded from this §6.2 text scan, mirroring how the A2A adapter is excluded above
+        // and how AgentBusForwardingSpiPurityTest confines org.apache.rocketmq to that subpackage.
+        // §6.2 ②③④⑤ still hold for the forwarding core (the broker message body is a routing
+        // descriptor only; payloadRef rides as a header; no Task state; cross-tenant rejected).
+        Path brokerTransportAdapter =
+                Path.of("src/main/java/com/huawei/ascend/bus/forwarding/runtime/transport/broker");
         try (Stream<Path> walk = Files.walk(root)) {
             return walk.filter(p -> p.toString().endsWith(".java"))
                     .filter(p -> !p.startsWith(a2aTransportAdapter))
+                    .filter(p -> !p.startsWith(brokerTransportAdapter))
                     .map(AgentBusForwardingRuntimeContractTest::readStringUnchecked)
                     .toList();
         }

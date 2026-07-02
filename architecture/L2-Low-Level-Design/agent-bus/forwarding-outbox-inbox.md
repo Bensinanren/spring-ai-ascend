@@ -190,9 +190,9 @@ ForwardingStateMachine (runtime, 纯函数)
 - **承载 Stage 4 语义**：outbox/inbox 是 Stage 4 broker-agnostic 转发语义（ack / retry / timeout / DLQ / correlation / backpressure / tenant-aware routing）的运行态承载；本 L2 不修改 Stage 4 语义，只投影为状态机与端口。
 - **不改变 Task ownership**：runtime-to-runtime 消息只携带控制与 `payloadRef`，**不改变远端 Task lifecycle owner**；`agent-bus` 不写 Task execution state（延续 HD4 / 与 registry 边界一致）。
 
-## 10. Stage 8 → Stage 25 已交付 / 后续 deferred
+## 10. Stage 8 → Stage 26 已交付 / 后续 deferred
 
-C3 运行态按 [`decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 分阶段递进落地，截至 Stage 24（200 tests green；Stage 25 = 投递模型 T4 裁决，无生产代码）：
+C3 运行态按 [`decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 分阶段递进落地，截至 Stage 26（217 tests green；Stage 25 = 投递模型 T4 裁决无生产代码，Stage 26 = broker-agnostic SPI 骨架 + 锁定 RocketMQ 首个 broker 生产代码阶段）：
 
 - **Stage 8**（持久化准备）：record 模型、claim / lease 端口（`claimDue` 取代 `findRetryable`）、dispatcher worker skeleton、抽象 delivery 端口、schema / migration 草案（DDL 草稿，未执行）、in-memory lease harness。
 - **Stage 9**（lease-safe / persistence-ready）：lease-owner guarded mutation（`markAcked` / `scheduleRetry` / `moveToDlq` / `markExpired` 带 `leaseOwner`，`markDispatching` 移除）、lease 生命周期闭环、record 条件不变量（Java 构造器 + DDL CHECK + harness）、failure-code classification（retryable / non-retryable / dedup）、claim / state-update SQL contract。路径 B。
@@ -213,14 +213,15 @@ C3 运行态按 [`decision`](../../../docs/architecture/l0/10-governance/review-
 
 - **Stage 24**（RLS 接线闭合跨租户纵深防御，**有生产代码改动**）：adapter 首次引入事务管理 `TransactionTemplate`，`withTenant(tenantId, Supplier)` helper 事务内 `set_config('app.tenant_id', :tenantId, true)` ≡ SET LOCAL 激活 §7.3 fail-closed RLS（[`forwarding-persistence §7.3`](forwarding-persistence.md)），闭合 Stage 12「armed but not wired」；双构造器向后兼容、不加 FORCE/WITH CHECK、V1 零改。200 tests green。
 - **Stage 25**（投递模型最终裁决，**无生产代码**）：T4 hybrid（outbox + broker），`adopted-t4` —— 保留 outbox/inbox + relay produce broker + receiver pull 消费（pull = 反压内核）；解除 [`decision §6.1`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 第 1 项引 broker（圈 `transport.broker`）、守 §6.2 精神（第①项不反向定义 + 第②③④⑤项不变）；broker 选型 deferred Stage 26 PoC（倾向 RocketMQ）；T1 push PoC 保留共存；模型 B（ack-after-consume）方向。完整论证见 [`transport-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-transport-decision.md)。200 tests green（无 Java 改动）。
+- **Stage 26**（broker-agnostic SPI 骨架 + 锁定 RocketMQ，**首个 broker 生产代码阶段**）：`transport.broker` 子包 8 生产文件（纯 Java 不引 broker client）—— `BrokerForwardingRelayPort`（relay 形态 `produce(ForwardingOutboxRecord)→BrokerProduceOutcome`，**独立 SPI 非 `ForwardingDeliveryPort` 子类型**，因 broker produce 是 fire-and-forget 非终态；routeHandle 经 `ForwardingEndpointResolver` 映射 topic HD4 opaque 不读 value()）/ `BrokerForwardingConsumerPort`（receiver 形态 `poll`/`commit`/`reject`，模型 B ack-after-consume）/ `BrokerOutboundMessage`（body=routing descriptor only §6.2②，绝不载 payload body/token stream/Task state）/ `BrokerInboundMessage`（不暴露 offset/topic/partition；consumerServiceId poll 时填入）/ `BrokerProduceOutcome` / `BrokerMessageHeaders` / `BrokerClientProperties`（产品无关，不绑 RocketMQ 类型）/ `package-info`；in-memory 替身 `InMemoryBroker`（test）+ `BrokerForwardingPortsContractTest`（16 契约）验证治理不变量（payloadRef-in-header / routeHandle opaque / 跨租户 reject / consumer-group 隔离 / 至少一次 redelivery）；**产品锁定 RocketMQ**（用户裁决），真实实例 PoC deferred 部署环境（Docker 死路 + 无自部署实例，in-memory 替身同 Stage 12 embedded-postgres / Stage 15 MockWebServer 哲学）；ArchUnit 三处豁免（`SpiPurityTest` rocketmq 圈 `transport.broker` / §6.2 文本扫描排除 / Stage 4 broker-agnostic trip-wire 解除）；§6.2 不变。217 tests green。
 
 后续 deferred：
 
-- **Stage 25 已裁决**（见 [`transport-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-transport-decision.md)）：投递模型 = T4 hybrid（outbox + broker），解除 [`decision §6.1`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 第 1 项引 broker（圈 `transport.broker`）、守 §6.2 精神；broker 物理接线 / relay adapter / receiver consumer / 状态机扩展 deferred Stage 26-30；broker 产品 final 选型 deferred Stage 26 PoC（倾向 RocketMQ）；T1 push PoC 保留共存。
+- **Stage 25-26 已裁决并落地**（见 [`transport-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-transport-decision.md)）：投递模型 = T4 hybrid（outbox + broker），解除 [`decision §6.1`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 第 1 项引 broker（圈 `transport.broker`）、守 §6.2 精神；Stage 26 已落地 broker-agnostic SPI 骨架 + 锁定 RocketMQ（真实实例 PoC deferred 部署环境）；broker 物理接线 / relay adapter / receiver consumer / `AWAITING_ACK` 状态机扩展 deferred Stage 27-30；T1 push PoC 保留共存。
 - registry 集成的 resolver 生产实现（Stage 15 用 `MapEndpointResolver` 替身）。
 - 连接池治理 / 熔断参数调优 / breaker 状态持久化。
 - polling cadence；并发 worker 分片（多 worker 并发 claim 无重复已 Stage 21 验证，分片策略仍 deferred）；backpressure 参数（队列阈值、降速策略、tenant quota）。
-- `ForwardingDispatchLoop` 接真实 scheduler（T4 下 MQ client 自带 consumer loop 解决 receiver 侧，relay 侧 claim 循环驱动仍需，Stage 26/28 裁决解除 §6.1 第 3 项）。
+- `ForwardingDispatchLoop` 接真实 scheduler（T4 下 MQ client 自带 consumer loop 解决 receiver 侧，relay 侧 claim 循环驱动仍需，Stage 28 解除 §6.1 第 3 项）。
 - ordering / fairness 的具体实现（per-tenant / per-route 局部 ordering 是运行态选择；T4 outbox+broker 双层 ordering 是主要工程负担，Stage 27/29 建立因果关系）。
 
 ## 11. DoD 自检

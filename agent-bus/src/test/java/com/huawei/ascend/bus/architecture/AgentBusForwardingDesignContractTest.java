@@ -137,17 +137,26 @@ class AgentBusForwardingDesignContractTest {
                 .as("sanity — ArchUnit must import agent-bus SPI classes from the test classpath")
                 .isNotEmpty();
 
+        // Stage 26 lift: the trip-wire's purpose was to force an explicit decision before any
+        // broker runtime package landed — Stage 25 adopted-t4 made that decision, and Stage 26
+        // landed the broker-agnostic SPI scaffold in the sanctioned home
+        // com.huawei.ascend.bus.forwarding.runtime.transport.broker. That one subpackage is now
+        // admitted (mirroring how AgentBusForwardingSpiPurityTest confines org.apache.rocketmq
+        // there); every other broker / queue / mailbox / DLQ / replay package stays forbidden.
         Set<String> brokerRuntimePackages = classes.stream()
                 .map(JavaClass::getPackageName)
                 .filter(p -> p.contains(".broker") || p.contains(".queue")
                         || p.contains(".mailbox") || p.contains(".dlq")
                         || p.contains(".replay"))
+                .filter(p -> !p.startsWith("com.huawei.ascend.bus.forwarding.runtime.transport.broker"))
                 .collect(Collectors.toSet());
         assertThat(brokerRuntimePackages)
-                .as("Stage 4 boundary: no broker / queue / mailbox / DLQ / replay runtime package "
-                  + "may exist under com.huawei.ascend.bus yet — ICD-Agent-Bus-Forwarding is "
-                  + "design-level only (broker-agnostic). When Stage 5 admits a broker runtime, "
-                  + "this assertion is the trip-wire that forces an explicit decision.")
+                .as("Stage 4 boundary lifted only for the sanctioned broker adapter home "
+                  + "(runtime.transport.broker — Stage 25 adopted-t4 made the explicit decision "
+                  + "this trip-wire existed to force; Stage 26 landed the broker-agnostic SPI "
+                  + "scaffold there). All other broker / queue / mailbox / DLQ / replay packages "
+                  + "remain forbidden — ICD-Agent-Bus-Forwarding stays design-level broker-agnostic "
+                  + "outside that one adapter subpackage.")
                 .isEmpty();
     }
 
