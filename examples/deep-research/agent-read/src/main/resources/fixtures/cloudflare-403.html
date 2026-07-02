@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <title>Just a moment...</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<body>
+<div id="challenge-form">
+    Checking your browser before accessing the site.<br>
+    This process is automatic. Your browser will redirect shortly.<br>
+    Please enable JavaScript and cookies to continue.
+</div>
+<script>
+    // Cloudflare anti-bot interstitial; body is irrelevant — the prod HTTP
+    // layer returns status 403/429, which ReadUrlExtractor maps to
+    // doc_type=cloudflare_403. The stub reader simulates that 403 directly.
+    (function () { window._cf_chl_opt = {}; })();
+</script>
+</body>
+</html>

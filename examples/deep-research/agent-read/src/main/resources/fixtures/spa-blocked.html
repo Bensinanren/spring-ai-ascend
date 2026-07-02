@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>某厂商控制台 - 单页应用</title>
+    <meta name="description" content="控制台单页应用，内容由前端框架运行时渲染。">
+</head>
+<body>
+<div id="app"></div>
+<script>
+    // SPA bootstrap: real content is rendered at runtime by the JS bundle,
+    // so a server-side fetch (jsoup / readability4j) sees only an empty shell.
+    window.__APP_INITIAL_STATE__ = { user: null, route: "/console" };
+    (function () {
+        var app = document.getElementById("app");
+        app.innerHTML = "<div>正在加载控制台，请稍候……</div>";
+        // ... fetch & render happen client-side; nothing for a static reader to extract.
+    })();
+</script>
+</body>
+</html>
