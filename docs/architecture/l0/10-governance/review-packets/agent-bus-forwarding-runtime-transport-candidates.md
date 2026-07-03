@@ -238,7 +238,7 @@ broker 的反压来自 broker lag（consumer 落后 producer 的 offset 差）/ 
 | 简化备选（低反压需求） | T1 dispatcher-push over sync RPC | 最小落地，填进现有 `ForwardingDeliveryPort`，持久层零改动；反压弱（仅发送方退避），仅适合投递量可控 / receiver 处理稳定的场景。 |
 | 暂不推荐（需解除 §6.2） | T2 / T4（broker） | 反压强但引 MQ + broker 运维 + 需 H2/H3 解除 §6.2；仅在 T3 的 DB-poll 吞吐 / 延迟不满足且团队承担 broker 运维时由 H2/H3 重启评审。 |
 
-**这不是架构裁决**，只是帮助 H2/H3 聚焦；最终 push / pull / MQ 裁决由 H2/H3 在本 review packet 后做。施工智能体在裁决前不得写 transport 生产代码（见 §0 禁止范围、decision §6.2）。
+**这不是架构裁决**，只是帮助 H2/H3 聚焦；最终 push / pull / MQ 裁决由 H2/H3 在本 review packet 后做。施工智能体在裁决前不得写 transport 生产代码（见 §0 禁止范围、decision §6.2）。**T3 落地影响面已深挖**（[`t3-consumer-pull-landing-assessment`](agent-bus-t3-consumer-pull-landing-assessment.md)）：本评审对 T3「低复杂度」的判断在持久层维度成立（claim / lease / `SKIP LOCKED` / RLS 复用度高），但代码深挖发现 T3 落地真障碍在 ① 生产 scheduler 从无到有 + ② 模块依赖方向反转（即 §2.3 标注的「dispatcher 归属转移」的具体代价，本评审未充分展开）；H2/H3 裁决 T3 须同次处理，详见该评估 §6 / §8.2。
 
 ### 7.3 rejection criteria（不可接受条件）
 

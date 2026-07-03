@@ -84,6 +84,8 @@ Stage 7 交付**最小骨架**：领域模型、端口接口、状态机、schem
 
 终态：`ACKED`（成功）、`DLQ`（不可恢复 / 重试耗尽）、`EXPIRED`（超时）。终态不可再迁移。
 
+> **Stage 25 注记（T4 模型 B 方向）**：T4 hybrid（outbox + broker，[`transport-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-transport-decision.md)）下 ack 改为 ack-after-consume（relay produce broker 后 outbox 留 `DISPATCHING` 待反向 ack）。是否新增第 7 态 `AWAITING_ACK`（`DISPATCHING → AWAITING_ACK → ACKED`）是 Stage 27 设计决策；本阶段状态机**零改动**，复用 `DISPATCHING` + 长 lease 表达「已 produce 待 ack」。
+
 ### 4.2 inbox 状态机
 
 | From | Event | To | 触发条件 | 失败码 | 终态 |
@@ -188,9 +190,9 @@ ForwardingStateMachine (runtime, 纯函数)
 - **承载 Stage 4 语义**：outbox/inbox 是 Stage 4 broker-agnostic 转发语义（ack / retry / timeout / DLQ / correlation / backpressure / tenant-aware routing）的运行态承载；本 L2 不修改 Stage 4 语义，只投影为状态机与端口。
 - **不改变 Task ownership**：runtime-to-runtime 消息只携带控制与 `payloadRef`，**不改变远端 Task lifecycle owner**；`agent-bus` 不写 Task execution state（延续 HD4 / 与 registry 边界一致）。
 
-## 10. Stage 8 → Stage 21 已交付 / 后续 deferred
+## 10. Stage 8 → Stage 26 已交付 / 后续 deferred
 
-C3 运行态按 [`decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 分阶段递进落地，截至 Stage 21（190 tests green）：
+C3 运行态按 [`decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 分阶段递进落地，截至 Stage 26（217 tests green；Stage 25 = 投递模型 T4 裁决无生产代码，Stage 26 = broker-agnostic SPI 骨架 + 锁定 RocketMQ 首个 broker 生产代码阶段）：
 
 - **Stage 8**（持久化准备）：record 模型、claim / lease 端口（`claimDue` 取代 `findRetryable`）、dispatcher worker skeleton、抽象 delivery 端口、schema / migration 草案（DDL 草稿，未执行）、in-memory lease harness。
 - **Stage 9**（lease-safe / persistence-ready）：lease-owner guarded mutation（`markAcked` / `scheduleRetry` / `moveToDlq` / `markExpired` 带 `leaseOwner`，`markDispatching` 移除）、lease 生命周期闭环、record 条件不变量（Java 构造器 + DDL CHECK + harness）、failure-code classification（retryable / non-retryable / dedup）、claim / state-update SQL contract。路径 B。
@@ -206,15 +208,21 @@ C3 运行态按 [`decision`](../../../docs/architecture/l0/10-governance/review-
 - **Stage 19**（重投往返生命周期端到端）：`C3ForwardingRetryLifecycleIntegrationTest` 双场景端到端 —— (A) 持续失败重投 3 次→exhausted(`maxAttempts=3`)→DLQ（`attempt_count=3`，`moveToDlq` 不递增）/ (B) 间歇恢复重投 2 次→ACKED（fake port 注入 `[retry,retry,acked]`，`attempt_count=2`，`markAcked` 不递增）；闭合 Stage 18 盲区（claimDue 的 `RETRY_SCHEDULED` 回收子句 `next_attempt_at <= :now` 此前从未端到端触发）；`MutableEpochClock` + 协调多 tick `TickSource` 时间控制无需 scheduler；两 context-boot IT 加 `@Isolated` 修并发 flaky。无生产代码改动。186 tests green。
 - **Stage 20**（lease 过期回收 + 断路器真实链路端到端）：`C3ForwardingLeaseReclaimAndBreakerIntegrationTest` 双场景端到端闭合 Stage 19 留的两个测试盲区 —— (A) **lease 过期回收**（SQL fixture 模拟 worker crash → `claimDue` 的 stuck-holder 子句 `status='DISPATCHING' AND lease_until<=now` 回收 → ACKED，`claimed=1`/`attempt_count=0`/`last_failure_code=null`：回收是 fresh delivery 非 retry）；(B) **断路器全状态机 + lease 回收交织**（`RouteCircuitBreaker(2,122s)` + fake port `[retry,retry,acked]` + 4 ticks `+61s` step > 60s lease：CLOSED→OPEN 连续失败 cf=2 → tick3 OPEN 短路 SKIP 留 DISPATCHING → tick4 stuck-holder 回收 + OPEN→HALF_OPEN 探测恢复→CLOSED，`claimed=4`/`retried=2`/`skipped=1`/`acked=1`/`breaker.stateOf==CLOSED`/`attempt_count=2`）；场景 B 把两条 deferred 路径交织验证——断路器 OPEN 短路正是留行 stuck 的原因，lease 过期回收正是交还给 HALF_OPEN 探测的机制，证明三条 skip 路径与两条回收子句在真实 SQL 上正确组合；时间控制复用 Stage 19（`MutableEpochClock` + 协调多 tick `TickSource`）。无生产代码改动。188 tests green。
 - **Stage 21**（多 worker 并发验证）：`C3ForwardingMultiWorkerConcurrencyIntegrationTest` 双场景端到端闭合 Stage 20 留的两个「单线程验证」盲区 —— (A) **并发 claim 无重复**（M=20 条、N=4 worker 各不同 lease owner 共享 outbox + 原子计数 delivery port，`CountDownLatch` 同时释放各循环 `runOnce` 直到空；断言 delivery 计数 == 20——每条恰好投递一次，SKIP LOCKED 直接证据：若失效输者 `markAcked` 撞 lease guard skip 但 delivery 已多调 → 计数 > 20；全 20 ACKED、聚合 claimed/acked == 20）/ (B) **共享 breaker 并发一致 OPEN**（M=12、N=4 共享 `RouteCircuitBreaker(2, 极大冷却, clock)` + 全 retry delivery；`breaker.stateOf==OPEN`——`synchronized(RouteState)` 防 `consecutiveFailures` lost update / 撕裂转换 + `ConcurrentHashMap` 发布 OPEN 到所有线程——无 worker 抛异常、聚合自洽、无 record ACKED）；场景 B 冷却刻意极大（只驱动 CLOSED→OPEN 验证一致/可见，非复验 HALF_OPEN 探测生命周期——那已 Stage 20 单线程验）；`MutableEpochClock` 冻在 t0 隔离并发状态写。无生产代码改动。190 tests green。
+- **Stage 22**（时间驱动的终态与续约端到端验证）：`C3ForwardingExpiryAndLeaseRenewalIntegrationTest` 双场景端到端闭合 Stages 17-21 后两个时间驱动盲区 —— (A) **EXPIRED 终态**（fake delivery `expired()` → 单 tick `markExpired` 落盘 `EXPIRED`/`delivery_timeout`/lease NULL，2 ticks 聚合 `claimed=1` 证明终态不回收——不在 `claimDue` 候选集）；(B) **lease 续约真实触发**（`MutableEpochClock(t0)` + `DispatchLeasePolicy(renewBefore=50s, extend=60s)` + claim lease 30s → `remaining=30s<50s` 触发 `renewLease(msg, t0+90s)` deliver 前 commit → observing port deliver 时读续约后 `lease_until=t0+90s` 作确凿证据 → ACKED）；关键发现：EXPIRED 是「SQL 正确但触发源缺失」终态（record 不持久化 deadline、deliver 不检查 → 真实 A2A 从不返回 `expired()`），真实触发源 deferred。无生产代码改动。192 tests green。
+- **Stage 23**（payloadRef 端到端传递验证）：`C3ForwardingPayloadRefIntegrationTest` + `A2aForwardingDeliveryPortMockWebServerTest` 扩展端到端闭合 Stages 17-22 的第三个高价值盲区 —— (A) **DATA_BEARING payloadRef outbox 持久化端到端**（DATA_BEARING envelope + observing port deliver 时断言 `record.payloadRef()`（SqlCodec decode）+ live PG `payload_ref` 列（raw JDBC）均等于 enqueue 值 round-trip 确凿证据 + ACK 后列存活 → 单 tick ACKED）；(B) **payloadRef → A2A metadata 传输边界**（`deliver_carries_payload_ref` 断言 body 含 `payloadRef` / `deliver_omits_payload_ref` 断言 CONTROL_ONLY 省略，两分支对称即 transport 边界 §6.2 data-reference 契约）；范围修正 Stage 22 预期——agent-bus 是无状态引用路由层（透传 payloadRef opaque String，从不持有/存储/解析载荷正文），两传递点都不 boot runtime；关键发现：payloadRef 持久化完整（vs Stage 22 EXPIRED 触发源缺失）、`PAYLOAD_REF_INVALID` 失败码有 enum 无触发点 deferred、payloadPolicy 未持久化到 record（by design）。无生产代码改动。195 tests green。
+
+- **Stage 24**（RLS 接线闭合跨租户纵深防御，**有生产代码改动**）：adapter 首次引入事务管理 `TransactionTemplate`，`withTenant(tenantId, Supplier)` helper 事务内 `set_config('app.tenant_id', :tenantId, true)` ≡ SET LOCAL 激活 §7.3 fail-closed RLS（[`forwarding-persistence §7.3`](forwarding-persistence.md)），闭合 Stage 12「armed but not wired」；双构造器向后兼容、不加 FORCE/WITH CHECK、V1 零改。200 tests green。
+- **Stage 25**（投递模型最终裁决，**无生产代码**）：T4 hybrid（outbox + broker），`adopted-t4` —— 保留 outbox/inbox + relay produce broker + receiver pull 消费（pull = 反压内核）；解除 [`decision §6.1`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 第 1 项引 broker（圈 `transport.broker`）、守 §6.2 精神（第①项不反向定义 + 第②③④⑤项不变）；broker 选型 deferred Stage 26 PoC（倾向 RocketMQ）；T1 push PoC 保留共存；模型 B（ack-after-consume）方向。完整论证见 [`transport-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-transport-decision.md)。200 tests green（无 Java 改动）。
+- **Stage 26**（broker-agnostic SPI 骨架 + 锁定 RocketMQ，**首个 broker 生产代码阶段**）：`transport.broker` 子包 8 生产文件（纯 Java 不引 broker client）—— `BrokerForwardingRelayPort`（relay 形态 `produce(ForwardingOutboxRecord)→BrokerProduceOutcome`，**独立 SPI 非 `ForwardingDeliveryPort` 子类型**，因 broker produce 是 fire-and-forget 非终态；routeHandle 经 `ForwardingEndpointResolver` 映射 topic HD4 opaque 不读 value()）/ `BrokerForwardingConsumerPort`（receiver 形态 `poll`/`commit`/`reject`，模型 B ack-after-consume）/ `BrokerOutboundMessage`（body=routing descriptor only §6.2②，绝不载 payload body/token stream/Task state）/ `BrokerInboundMessage`（不暴露 offset/topic/partition；consumerServiceId poll 时填入）/ `BrokerProduceOutcome` / `BrokerMessageHeaders` / `BrokerClientProperties`（产品无关，不绑 RocketMQ 类型）/ `package-info`；in-memory 替身 `InMemoryBroker`（test）+ `BrokerForwardingPortsContractTest`（16 契约）验证治理不变量（payloadRef-in-header / routeHandle opaque / 跨租户 reject / consumer-group 隔离 / 至少一次 redelivery）；**产品锁定 RocketMQ**（用户裁决），真实实例 PoC deferred 部署环境（Docker 死路 + 无自部署实例，in-memory 替身同 Stage 12 embedded-postgres / Stage 15 MockWebServer 哲学）；ArchUnit 三处豁免（`SpiPurityTest` rocketmq 圈 `transport.broker` / §6.2 文本扫描排除 / Stage 4 broker-agnostic trip-wire 解除）；§6.2 不变。217 tests green。
 
 后续 deferred：
 
-- 真实 broker / queue / replay store 物理实现；push vs pull / 是否引 MQ 的最终投递模型裁决（H2/H3；选 T2 / T4 需解除 §6.2 引 MQ）。
+- **Stage 25-26 已裁决并落地**（见 [`transport-decision`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-transport-decision.md)）：投递模型 = T4 hybrid（outbox + broker），解除 [`decision §6.1`](../../../docs/architecture/l0/10-governance/review-packets/agent-bus-forwarding-runtime-decision.md) 第 1 项引 broker（圈 `transport.broker`）、守 §6.2 精神；Stage 26 已落地 broker-agnostic SPI 骨架 + 锁定 RocketMQ（真实实例 PoC deferred 部署环境）；broker 物理接线 / relay adapter / receiver consumer / `AWAITING_ACK` 状态机扩展 deferred Stage 27-30；T1 push PoC 保留共存。
 - registry 集成的 resolver 生产实现（Stage 15 用 `MapEndpointResolver` 替身）。
 - 连接池治理 / 熔断参数调优 / breaker 状态持久化。
 - polling cadence；并发 worker 分片（多 worker 并发 claim 无重复已 Stage 21 验证，分片策略仍 deferred）；backpressure 参数（队列阈值、降速策略、tenant quota）。
-- `ForwardingDispatchLoop` 接真实 scheduler。
-- ordering / fairness 的具体实现（per-tenant / per-route 局部 ordering 是运行态选择）。
+- `ForwardingDispatchLoop` 接真实 scheduler（T4 下 MQ client 自带 consumer loop 解决 receiver 侧，relay 侧 claim 循环驱动仍需，Stage 28 解除 §6.1 第 3 项）。
+- ordering / fairness 的具体实现（per-tenant / per-route 局部 ordering 是运行态选择；T4 outbox+broker 双层 ordering 是主要工程负担，Stage 27/29 建立因果关系）。
 
 ## 11. DoD 自检
 
@@ -222,4 +230,4 @@ C3 运行态按 [`decision`](../../../docs/architecture/l0/10-governance/review-
 - ✓ 所有状态迁移都有触发条件、终态和失败码（§4）。
 - ✓ 幂等键、租户隔离、失败语义精确化（§5 / §6 / §7）。
 - ✓ 组件边界与 Stage 7 代码骨架子集对应（§3 注）。
-- ✓ 不引入 broker / MQ 依赖；不改 Task ownership；不绕 routeHandle；不放 payload body（§2 非目标 + decision §4/§6）。
+- ✓ broker 圈进 `transport.broker` 子包（Stage 25 解除 §6.1 第 1 项引 broker、守 §6.2 精神，Stage 26 落地）；不改 Task ownership；不绕 routeHandle；不放 payload body（§2 非目标 + decision §4/§6）。

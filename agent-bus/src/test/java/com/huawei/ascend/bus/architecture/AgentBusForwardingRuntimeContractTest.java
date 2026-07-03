@@ -6,6 +6,8 @@ import com.huawei.ascend.bus.forwarding.runtime.ForwardingDispatcherWorker;
 import com.huawei.ascend.bus.forwarding.runtime.ForwardingRetryPolicy;
 import com.huawei.ascend.bus.forwarding.runtime.ForwardingStateMachine;
 import com.huawei.ascend.bus.forwarding.runtime.RouteCircuitBreaker;
+import com.huawei.ascend.bus.forwarding.runtime.persistence.jdbc.JdbcForwardingInbox;
+import com.huawei.ascend.bus.forwarding.runtime.persistence.jdbc.JdbcForwardingOutbox;
 import com.huawei.ascend.bus.forwarding.spi.ForwardingDeliveryPort;
 import com.huawei.ascend.bus.forwarding.spi.ForwardingDeliveryResult;
 import com.huawei.ascend.bus.forwarding.spi.ForwardingEnvelope;
@@ -25,12 +27,17 @@ import com.huawei.ascend.bus.forwarding.test.InMemoryForwardingInbox;
 import com.huawei.ascend.bus.forwarding.test.InMemoryForwardingOutbox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.datasource.AbstractDataSource;
+import org.springframework.transaction.PlatformTransactionManager;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.RecordComponent;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -342,7 +349,10 @@ class AgentBusForwardingRuntimeContractTest {
                   + "confinement is enforced by AgentBusForwardingSpiPurityTest, not this scan. "
                   + "Stage 15 likewise excludes runtime.transport.a2a — that adapter parses the "
                   + "remote A2A wire format (Task / TaskStatus) to map a remote Task lifecycle onto "
-                  + "ForwardingDeliveryResult; it never stores Task state on the outbox record.")
+                  + "ForwardingDeliveryResult; it never stores Task state on the outbox record. "
+                  + "Stage 26 likewise excludes runtime.transport.broker — that adapter is the "
+                  + "sanctioned home for a concrete broker client (Stage 25 adopted-t4); it carries "
+                  + "only broker-agnostic routing metadata, never a payload body / Task state.")
                 .allSatisfy(src -> assertThat(src)
                         .doesNotContain("payloadBody", "payload_body")
                         .doesNotContain("TaskExecutionState", "TaskExecution", "TaskStatus")
@@ -719,7 +729,9 @@ class AgentBusForwardingRuntimeContractTest {
                   + "MQ client (decision §6.2 — always forbidden). JDBC is licensed only for the "
                   + "persistence.jdbc adapter (Stage 12); package-level confinement is enforced "
                   + "by AgentBusForwardingSpiPurityTest. Stage 15 excludes runtime.transport.a2a "
-                  + "(A2A wire-format parser; never stores Task state on the record).")
+                  + "(A2A wire-format parser; never stores Task state on the record). Stage 26 "
+                  + "excludes runtime.transport.broker (concrete broker client home, Stage 25 "
+                  + "adopted-t4; broker-agnostic routing metadata only).")
                 .allSatisfy(src -> assertThat(src)
                         .doesNotContain("TaskExecutionState", "TaskExecution", "TaskStatus")
                         .doesNotContain("org.apache.kafka", "com.rabbitmq",
@@ -1445,6 +1457,84 @@ class AgentBusForwardingRuntimeContractTest {
         assertThat(breaker.stateOf(route)).isEqualTo(RouteCircuitBreaker.State.CLOSED);
     }
 
+    // ===== Stage 24 — RLS tenant-context wiring (transactional adapter) =====
+    //
+    // Stage 12 armed the §7.3 RLS defence-in-depth in the V1 migration (ENABLE ROW
+    // LEVEL SECURITY + CREATE POLICY ... USING (tenant_id = current_setting(
+    // 'app.tenant_id', true)), fail-closed) but no production code ever set
+    // app.tenant_id, so the policy never activated — the application-layer
+    // WHERE tenant_id = :tenantId was the sole tenant-isolation defence. Stage 24
+    // wires it: each JDBC adapter method now runs inside a short transaction that
+    // sets the transaction-scoped app.tenant_id (set_config('app.tenant_id',
+    // :tenantId, true) ≡ SET LOCAL) before the business SQL.
+
+    /**
+     * Stage 24: the JDBC adapters are the §7.3 RLS wiring point. Structural contract —
+     * both adapters carry a {@code TransactionTemplate} field (every port method runs
+     * inside a short transaction) and expose the legacy {@code (DataSource)} constructor
+     * alongside the full {@code (DataSource, PlatformTransactionManager)} one (Stage 24).
+     * The wiring string + {@code withTenant} helper live in the production sources so a
+     * future edit cannot silently unwire the tenant context. Behavioural proof — the
+     * {@code set_config('app.tenant_id', ...)} actually executing under a restricted
+     * (RLS-bound) role so RLS binds it — is in
+     * {@code C3ForwardingRlsWiringIntegrationTest} (MI24-005); this contract pins the
+     * wiring <em>shape</em>.
+     */
+    @Test
+    void forwarding_runtime_jdbc_adapters_wire_rls_tenant_context() {
+        assertThat(fieldNames(JdbcForwardingOutbox.class))
+                .as("JdbcForwardingOutbox holds a TransactionTemplate (per-method transaction)")
+                .contains("txTemplate");
+        assertThat(fieldNames(JdbcForwardingInbox.class))
+                .as("JdbcForwardingInbox holds a TransactionTemplate (per-method transaction)")
+                .contains("txTemplate");
+
+        List<List<String>> outboxCtors = constructorParamNames(JdbcForwardingOutbox.class);
+        assertThat(outboxCtors)
+                .as("legacy (DataSource) constructor retained for backward compatibility")
+                .contains(List.of("DataSource"));
+        assertThat(outboxCtors)
+                .as("full (DataSource, PlatformTransactionManager) constructor (Stage 24)")
+                .contains(List.of("DataSource", "PlatformTransactionManager"));
+        assertThat(constructorParamNames(JdbcForwardingInbox.class))
+                .contains(List.of("DataSource"),
+                          List.of("DataSource", "PlatformTransactionManager"));
+
+        assertThat(forwardingSources)
+                .as("production adapter sources set app.tenant_id via set_config + a "
+                  + "withTenant helper (the RLS wiring)")
+                .anySatisfy(src -> assertThat(src)
+                        .contains("set_config('app.tenant_id'", "withTenant"));
+    }
+
+    /**
+     * Stage 24 backward compatibility: {@code new JdbcForwardingOutbox(dataSource)} /
+     * {@code new JdbcForwardingInbox(dataSource)} still construct (each delegates to the
+     * full constructor with a {@code DataSourceTransactionManager}) without a Spring
+     * container — every existing IT and test fixture that does {@code new Jdbc…(ds)}
+     * keeps working. The {@code AbstractDataSource} stub never yields a connection; the
+     * constructors only store the {@link DataSource} ({@code JdbcTemplate} /
+     * {@code DataSourceTransactionManager} do not open a connection at construction time),
+     * so the noop cannot trip here. It <em>would</em> trip if a future edit made the
+     * constructor eager — itself a worth-failing change.
+     */
+    @Test
+    void forwarding_runtime_legacy_datasource_constructor_is_backward_compatible() {
+        DataSource noop = new AbstractDataSource() {
+            @Override
+            public Connection getConnection() {
+                throw new UnsupportedOperationException("noop DataSource");
+            }
+
+            @Override
+            public Connection getConnection(String username, String password) {
+                throw new UnsupportedOperationException("noop DataSource");
+            }
+        };
+        assertThat(new JdbcForwardingOutbox(noop)).isNotNull();
+        assertThat(new JdbcForwardingInbox(noop)).isNotNull();
+    }
+
     // ===== helpers =====
 
     private static ForwardingEnvelope envelope(String messageIdValue, String tenantId) {
@@ -1467,6 +1557,22 @@ class AgentBusForwardingRuntimeContractTest {
                 .collect(Collectors.toSet());
     }
 
+    /** Field names declared on a type (Stage 24 contract: TransactionTemplate wiring). */
+    private static Set<String> fieldNames(Class<?> type) {
+        return Arrays.stream(type.getDeclaredFields())
+                .map(Field::getName)
+                .collect(Collectors.toSet());
+    }
+
+    /** Declared-constructor parameter type names, one list per constructor (Stage 24). */
+    private static List<List<String>> constructorParamNames(Class<?> type) {
+        return Arrays.stream(type.getDeclaredConstructors())
+                .map(c -> Arrays.stream(c.getParameterTypes())
+                        .map(Class::getSimpleName)
+                        .collect(Collectors.toList()))
+                .collect(Collectors.toList());
+    }
+
     private static List<String> readForwardingProductionSources() throws IOException {
         Path root = Path.of("src/main/java/com/huawei/ascend/bus/forwarding");
         // Stage 15: the A2A transport adapter (runtime/transport/a2a) parses the
@@ -1479,9 +1585,18 @@ class AgentBusForwardingRuntimeContractTest {
         // (and how JDBC is confined to persistence.jdbc, Stage 12).
         Path a2aTransportAdapter =
                 Path.of("src/main/java/com/huawei/ascend/bus/forwarding/runtime/transport/a2a");
+        // Stage 26: the broker transport adapter (runtime/transport/broker) is the sanctioned
+        // home for a concrete broker client (Stage 25 adopted-t4 lifted decision §6.1 item 1).
+        // Excluded from this §6.2 text scan, mirroring how the A2A adapter is excluded above
+        // and how AgentBusForwardingSpiPurityTest confines org.apache.rocketmq to that subpackage.
+        // §6.2 ②③④⑤ still hold for the forwarding core (the broker message body is a routing
+        // descriptor only; payloadRef rides as a header; no Task state; cross-tenant rejected).
+        Path brokerTransportAdapter =
+                Path.of("src/main/java/com/huawei/ascend/bus/forwarding/runtime/transport/broker");
         try (Stream<Path> walk = Files.walk(root)) {
             return walk.filter(p -> p.toString().endsWith(".java"))
                     .filter(p -> !p.startsWith(a2aTransportAdapter))
+                    .filter(p -> !p.startsWith(brokerTransportAdapter))
                     .map(AgentBusForwardingRuntimeContractTest::readStringUnchecked)
                     .toList();
         }
