@@ -16,14 +16,25 @@ spi_packages:
   - com.huawei.ascend.bus.spi.s2c        # S2cCallbackTransport + S2cCallbackEnvelope + S2cCallbackResponse per ADR-0088 (relocated from agent-runtime-core); rc27: + ReflectionEnvelopeRouter per ADR-0102
   - com.huawei.ascend.bus.spi.federation # rc27 fix (rc22-3): FederationGateway per ADR-0101 Mode B Business-Centric deployment
   - com.huawei.ascend.bus.spi.engine     # EnginePort + neutral execution model (ExecutorDefinition / RunContext / SuspendSignal / Checkpointer / Orchestrator / RunMode / TraceContext) relocated from agent-core per ADR-0158 (transport-agnostic engine boundary)
+  - com.huawei.ascend.bus.spi.registry   # AgentDiscoveryService dual-method contract (Method A rich DTO + Method B minimal DTO) + resolveRouteHandle + AgentCardDto + RouteResolution + TenantContext + TenantIsolationViolationException + AgentCard per ADR-0160 (Stage 4 Registry SPI Runtime Promotion) — pure Java, no Spring/JDBC/Jackson/Consul (AgentBusRegistrySpiPurityTest)
 # Stage 12 (decision §4 permit): real persistence licensed -Spring JDBC adapter +
 # Flyway migration + Postgres driver. Confined to package
 # com.huawei.ascend.bus.forwarding.runtime.persistence.jdbc by ArchUnit
 # (AgentBusForwardingSpiPurityTest). §6.2 still forbids concrete broker / MQ,
 # Task state, cross-tenant fallback, payload body. Stage 7-11 kept this list
 # empty (path B); Stage 12 breaks path B.
+#
+# ADR-0160 decision 7 (ESC-2(b) option B): spring-boot-starter-web at provided
+# scope — agent-bus is a library jar (no @SpringBootApplication, KF-1); the
+# runtime consumer (agent-runtime/LocalA2aRuntimeHost) ships starter-web, so
+# provided scope makes @RestController / @RequestMapping / @Scheduled / @Service
+# visible at compile time without bundling. Confined to
+# com.huawei.ascend.bus.registry.runtime.{api,discovery,health} by
+# AgentBusRegistryJdbcPurityTest (S5). KF-4 "无需新增依赖" assumption retired.
 allowed_dependencies:
   - org.springframework.boot:spring-boot-starter-jdbc
+  - org.springframework.boot:spring-boot-starter-web    # provided scope — ADR-0160 decision 7 (ESC-2(b) option B)
+  - io.micrometer:micrometer-core                       # provided scope — ADR-0160 decision 7 (Counter/Timer APIs for RegistryObservabilityConfig)
   - org.flywaydb:flyway-core
   - org.flywaydb:flyway-database-postgresql
   - org.postgresql:postgresql

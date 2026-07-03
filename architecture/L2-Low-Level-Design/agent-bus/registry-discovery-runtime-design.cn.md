@@ -460,6 +460,26 @@ sequenceDiagram
 
 > route handle 的 opaque 解封发生在 forwarding 层（`ForwardingEndpointResolver`，Stage 15 默认 `MapEndpointResolver`，生产由本设计的 registry 替换），与 `ICD-Agent-Bus-Forwarding` 「envelope 通过 `routeHandle` 消费 Stage 3 discovery result，不直接暴露物理 endpoint」一致。
 
+### 3.5 实施偏离回更（step-7 reconcile）
+
+> 本节由 step-7 reconcile 在 W4 收尾时回更，登记 §3.2 / §3.3.1 / §3.3.2 / §9.2 / §11 原始设计与 S1-S5 落地实现之间的 9 项偏离。每项给出：原设计位置、实施偏离、落地文件、原因。原始设计代码块保留作为设计意图记录，下方代码块以 ⚠️ 标注的为准。
+
+| # | 原设计（§） | 实施偏离 | 落地文件 | 原因 |
+|---|---|---|---|---|
+| D-1 | §3.3.1 `PgMvpDiscoveryServiceImpl` 直接注入 `JdbcTemplate` | 改为 port/adapter：注入 `AgentRegistryRepository` port，调 `searchByIntent` / `searchByCapability` / `findEndpoint` | `agent-bus/src/main/java/com/huawei/ascend/bus/registry/runtime/discovery/PgMvpDiscoveryServiceImpl.java` + `persistence/jdbc/AgentRegistryRepository.java` | ADR-0160 决策 4 — JDBC 限 `persistence.jdbc` 子包；discovery 层不得直接 import `java.sql` / `JdbcTemplate`。`AgentBusRegistryJdbcPurityTest` 守卫 |
+| D-2 | §3.3.1 discovery SQL `WHERE status = 'ONLINE'` | 放宽为 `WHERE status IN ('ONLINE','DEGRADED')` | `AgentRegistryRepository.searchByIntent` / `searchByCapability`（V2 migration 注释明示） | HD3-004 — DEGRADED 仍可见但 health 字段显式标注；探活失败标 DEGRADED 不立即移出可见集，超 15s 窗口才移除 |
+| D-3 | §3.3.2 `RouteHandleCodec` 被 forwarding 层直接调用 | 改为 `AgentDiscoveryService.resolveRouteHandle(routeHandle, tenantId)` SPI 方法；`RouteHandleCodec` 降为 `registry.runtime.discovery` 包内部工具类 | `spi/registry/AgentDiscoveryService.java`（resolveRouteHandle 方法） + `runtime/discovery/RouteHandleCodec.java`（package-private） | ADR-0160 决策 5 — route handle 解封是 SPI 契约，forwarding 层依赖 SPI 不依赖 codec 实现；codec 格式可演进（`v1:` 前缀）不破跨模块消费方 |
+| D-4 | §3.3.2 `MvpRegistryController` / `MvpHealthProbeScheduler` 直接注入 `JdbcTemplate` | 改为调 `AgentRegistryRepository` port：controller 调 `upsert` / `delete`，scheduler 调 `scanDueForProbe` / `updateStatus` | `runtime/api/MvpRegistryController.java` + `runtime/health/MvpHealthProbeScheduler.java` | 同 D-1，ADR-0160 决策 4 — `api` / `health` 子包禁 JDBC import |
+| D-5 | §11 `@EnableScheduling` 落 `agent-bus` 主类 | 改为独立 `RegistrySchedulingConfig @Configuration`（KF-1） | `runtime/RegistrySchedulingConfig.java` | KF-1 — `agent-bus` 是 library jar，无 `@SpringBootApplication` 主类；独立 `@Configuration` 由 runtime consumer（`agent-runtime` `LocalA2aRuntimeHost`）component scan 拾取 |
+| D-6 | §3.2 GIN 索引 `USING GIN (tenant_id, capability, search_tsv)` | 拆分为 `GIN(search_tsv)` + `BTREE(tenant_id, capability)` 两个索引 | `V2__create_agent_registry_mvp.sql`（`idx_agent_registry_mvp_search_tsv` + `idx_agent_registry_mvp_tenant_capability`） | PostgreSQL GIN 无 varchar 默认 operator class；planner 通过 BitmapAnd 合并两个索引 |
+| D-7 | §3.3.2 `TenantFilter` + `TenantFilterRegistration` 拦截器 populate `TenantContext` | 弃用 `TenantFilter`；改用三层隔离：(1) 应用层 `WHERE tenant_id=?` 显式参数 (2) PG RLS policy `agent_registry_mvp_tenant_isolation` (3) `ThreadLocalTenantContext.bindForScope` 为后台调度路径设置 `app.tenant_id` session var | `runtime/tenant/ThreadLocalTenantContext.java` + `V2__create_agent_registry_mvp.sql`（RLS policy） + 所有 Repository 方法 tenantId 显式参数 | ESC-2 design pivot — Servlet filter 在 library jar 不可靠（KF-1 同因），且 RLS 提供纵深防御；ADR-0160 决策 6 |
+| D-8 | §9.2 audit 11 字段 + micrometer 直接散落 controller/scheduler | 集中到 `RegistryObservabilityConfig` 单文件 facade：SLF4J `registry.audit` logger（11 字段结构化日志）+ Micrometer `Counter` / `Timer`（op + outcome 标签） | `runtime/RegistryObservabilityConfig.java` | 单文件 facade 避免 audit-without-metric 漂移；`micrometer-core` provided scope 由 runtime consumer 提供；ADR-0160 决策 7 |
+| D-9 | §3.3.2 controller/scheduler 直接 `new RestClient()` | controller/scheduler 注入共享 `RestClient` bean（由 `RegistryObservabilityConfig` 或 Spring Boot autoconfig 提供） | `runtime/api/MvpRegistryController.java` + `runtime/health/MvpHealthProbeScheduler.java` | 共享 bean 便于统一连接池/超时配置；与 §9.2 可观测性挂钩 |
+
+> **ADR-0160 决策 6/7 联动**：D-7（tenant 隔离三层）+ D-8（micrometer-core provided scope）+ `agent-bus/pom.xml` 加 `spring-boot-starter-web (provided)` 是 ESC-2(b) 选项 B 边界演进的三件套，已落地并经 `AgentBusRegistryJdbcPurityTest` 守卫。H2/H3 阶段进入 Consul 引入时再统一审核跨边界影响（用户裁决：step-7 接受现状）。
+
+> **`module-metadata.yaml allowed_dependencies` 同步**：`spring-boot-starter-web` + `micrometer-core` 已在 `agent-bus/module-metadata.yaml` 声明（provided scope），`forbidden_dependencies` 维持不变。
+
 ## 4. 阶段二：生产演进期（Consul + PGVector）
 
 ### 4.1 核心思路

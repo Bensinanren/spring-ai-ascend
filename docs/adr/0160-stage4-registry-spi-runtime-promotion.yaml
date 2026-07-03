@@ -1,6 +1,6 @@
 id: ADR-0160
 title: "Stage 4 Registry SPI Runtime Promotion — trip-wire evolution + dual-method discovery contract + forward-compatible route handle"
-status: proposed
+status: accepted
 date: 2026-07-02
 level: L1
 view: process
@@ -148,6 +148,67 @@ decision: |
        mismatch → `tenant_isolation_violation` (400). HD3-006 preserved: the
        Orchestrator (business logic) never sees `RouteResolution`; only the
        forwarding delivery infrastructure does.
+
+    6. TENANT ISOLATION STRATEGY (ESC-2 design pivot — three-layer defense).
+       The original design doc §3.3.2 sketched a `TenantFilter` +
+       `TenantFilterRegistrationBean` that populated `TenantContext` from the
+       `X-Tenant-Id` request header at Servlet entry. Implementation
+       discovered that `agent-bus` ships only `spring-boot-starter-jdbc`
+       (Stage 12), which does NOT transit `spring-web` / `jakarta.servlet-api`
+       to compile scope — the Filter path would require either moving the
+       controller to `agent-runtime` or adding `spring-boot-starter-web` to
+       `agent-bus`. Per decision 4, `@RestController` / `@RequestMapping` /
+       `@Scheduled` already need `spring-web` in `api` / `discovery` /
+       `health`, so the consistent choice is to add
+       `spring-boot-starter-web` at `provided` scope to `agent-bus/pom.xml`
+       (KF-4 assumption retired; `module-metadata.yaml` `allowed_dependencies`
+       evolved in lockstep). `TenantFilter` + `TenantFilterRegistrationBean`
+       are NOT implemented; tenant isolation is enforced by three
+       complementary layers, in order of precedence:
+         1. Explicit `tenantId` parameter — every SPI method and every
+            controller endpoint takes `tenantId` as a mandatory parameter;
+            there is no implicit "current tenant" fallback for HTTP-entry
+            calls. The controller reads `tenantId` from the request path /
+            request param / body field and passes it down explicitly.
+         2. Application-layer `WHERE tenant_id = :tenantId` — every
+            `AgentRegistryRepository` SQL statement is scoped by tenant
+            (Rule R-C.c hard isolation); cross-tenant queries never reach
+            the result set.
+         3. PostgreSQL RLS policy — defence-in-depth: every repository
+            method runs inside a short transaction that sets the
+            transaction-scoped `app.tenant_id` (mirrors
+            `JdbcForwardingOutbox` Stage 24 wiring), so a restricted
+            connection is filtered by tenant even if the application-layer
+            `WHERE` is accidentally dropped.
+       `ThreadLocalTenantContext` is retained as the `TenantContext` SPI
+       implementation, but its `current()` is consulted ONLY by background
+       scheduling paths (the health-probe scheduler binds tenant scope via
+       `bindForScope` per row it scans) — NOT by HTTP-entry calls. The
+       `PgMvpDiscoveryServiceImpl` `TenantContext.current()` cross-check is
+       optional: when a tenant is bound, mismatch raises
+       `TenantIsolationViolationException`; when unbound (HTTP entry passes
+       `tenantId` explicitly), the check is skipped. Phase 2 may reintroduce
+       a `TenantFilter`-equivalent (e.g. reactor context) without changing
+       the SPI or the controller signatures.
+
+    7. SPRING-WEB PROVIDED SCOPE (ESC-2(b) option B).
+       `agent-bus/pom.xml` adds `spring-boot-starter-web` at `provided`
+       scope. Rationale: `agent-bus` is a library jar (no
+       `@SpringBootApplication` — KF-1); the runtime consumer
+       (`agent-runtime/LocalA2aRuntimeHost`) already ships
+       `spring-boot-starter-web`, so `provided` makes the Spring Web
+       annotations visible at compile time without bundling the dependency
+       in the library jar. `module-metadata.yaml` `allowed_dependencies`
+       gains `org.springframework.boot:spring-boot-starter-web` with a note
+       that it is `provided`-scoped and confined to
+       `com.huawei.ascend.bus.registry.runtime.{api,discovery,health}`
+       (ArchUnit-guarded in S5 `AgentBusRegistryJdbcPurityTest` extension).
+       `io.micrometer:micrometer-core` is added at `provided` scope for the
+       same reason — `spring-boot-starter-web` (provided) only transitively
+       brings `micrometer-observation` / `micrometer-commons`; the
+       `Counter` / `Timer` APIs used by `RegistryObservabilityConfig` live
+       in `micrometer-core`. Runtime consumer (agent-runtime via
+       `spring-boot-starter-actuator`) ships `micrometer-core`.
 
 consequences: |
   Positive

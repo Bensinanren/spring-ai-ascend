@@ -42,6 +42,36 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-jdbc</artifactId>
     </dependency>
+    <!--
+      ADR-0160 decision 7 (ESC-2(b) option B): spring-boot-starter-web at
+      provided scope. agent-bus is a library jar (no @SpringBootApplication,
+      KF-1); the runtime consumer (agent-runtime/LocalA2aRuntimeHost) ships
+      starter-web, so provided makes @RestController / @RequestMapping /
+      @Scheduled / @Service / @Configuration visible at compile time without
+      bundling the dependency in the library jar. Confined to
+      com.huawei.ascend.bus.registry.runtime.{api,discovery,health} by
+      AgentBusRegistryJdbcPurityTest (S5). KF-4 "无需新增依赖" assumption
+      retired — see ADR-0160 §tenant-isolation-strategy.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!--
+      ADR-0160 decision 7 (ESC-2(b) option B): micrometer-core at provided
+      scope. spring-boot-starter-web (provided) only transitively brings
+      micrometer-observation + micrometer-commons; the Counter / Timer APIs
+      used by RegistryObservabilityConfig live in micrometer-core. Runtime
+      consumer (agent-runtime via spring-boot-starter-actuator) ships
+      micrometer-core, so provided scope avoids bundling. Same confinement
+      rationale as spring-boot-starter-web.
+    -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-core</artifactId>
+      <scope>provided</scope>
+    </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
