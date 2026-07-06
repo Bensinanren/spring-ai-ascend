@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   <li><b>resolve</b> — {@code resolveRouteHandle} returns the physical
  *       endpoint for the opaque handle from discover.</li>
  *   <li><b>probe → DEGRADED</b> — {@link MvpHealthProbeScheduler#probeOnlineAgents}
- *       issues {@code GET {endpoint}/health/agent-status}; a 5xx response
+ *       issues {@code GET {endpoint}/health}; a 5xx response
  *       triggers {@code updateStatus(..., "DEGRADED", false)}.</li>
  *   <li><b>DEGRADED visibility</b> — discovery SQL
  *       {@code status IN ('ONLINE','DEGRADED')} keeps the row visible with
@@ -119,7 +119,7 @@ class AgentRegistryEndToEndIntegrationTest {
 
         // 1. register
         AgentCard card = sampleCard(tenant, agent, agentEndpoint);
-        ResponseEntity<Void> reg = controller.register(card);
+        ResponseEntity<Void> reg = controller.register(card, null, null);
         assertThat(reg.getStatusCode().is2xxSuccessful()).isTrue();
 
         // 2. discover A — rich DTO. userQuery=null = weight-only ranking per
@@ -176,7 +176,7 @@ class AgentRegistryEndToEndIntegrationTest {
                 .isEmpty();
 
         // 8. deregister
-        ResponseEntity<Void> dereg = controller.deregister(tenant, agent);
+        ResponseEntity<Void> dereg = controller.deregister(tenant, agent, null, null);
         assertThat(dereg.getStatusCode().is2xxSuccessful()).isTrue();
 
         // 9. discovery returns empty after deregister
@@ -197,7 +197,7 @@ class AgentRegistryEndToEndIntegrationTest {
         String agentEndpoint = agentServer.url("/").toString().replaceAll("/$", "");
 
         // Register an agent under tenant-A.
-        controller.register(sampleCard("tenant-A", "agent-x", agentEndpoint));
+        controller.register(sampleCard("tenant-A", "agent-x", agentEndpoint), null, null);
 
         // tenant-B discovery must not see tenant-A's row.
         List<AgentCardDto> crossTenant = discovery.discoverBestAgents(
@@ -206,11 +206,46 @@ class AgentRegistryEndToEndIntegrationTest {
                 .as("HD3-003: cross-tenant discovery must return empty (application-layer WHERE)")
                 .isEmpty();
 
-        // Build a handle encoded for tenant-A; tenant-B caller must be rejected.
-        String handle = com.huawei.ascend.bus.registry.runtime.discovery.RouteHandleCodec.encode(
-                "tenant-A", "agent-x", "rk://svc/default", "1.0.0");
+        // Obtain a real handle via the SPI (tenant-A discovery returns the row
+        // registered above). RouteHandleCodec is package-private to
+        // registry.runtime.discovery (PR #389 #5) — callers outside that
+        // package MUST go through the SPI to obtain handles, never by direct
+        // encode, so the codec's encoding format can evolve without breaking
+        // cross-module consumers.
+        List<AgentCardDto> aResults = discovery.discoverBestAgents(
+                "tenant-A", null, null, 5);
+        assertThat(aResults).hasSize(1);
+        String handle = aResults.get(0).getRouteHandle();
+
+        // tenant-B caller must be rejected when trying to resolve tenant-A's handle.
         assertThatThrownBy(() -> discovery.resolveRouteHandle(handle, "tenant-B"))
                 .isInstanceOf(com.huawei.ascend.bus.spi.registry.TenantIsolationViolationException.class);
+    }
+
+    // ---- #9: websearch_to_tsquery keyword-style recall -------------------
+
+    /**
+     * PR #389 #9: a userQuery with a different word order from the indexed
+     * keywords MUST still match (keyword-style OR semantics). Under the old
+     * {@code phraseto_tsquery} this returned 0 results because phrase
+     * adjacency was required.
+     */
+    @Test
+    void discover_with_reordered_user_query_still_matches_via_websearch_tsquery() throws Exception {
+        String agentEndpoint = agentServer.url("/").toString().replaceAll("/$", "");
+        // capability_keywords = "billing invoice" (weight A source).
+        controller.register(sampleCard("tenant-tsquery", "agent-tsquery", agentEndpoint), null, null);
+
+        // userQuery with reordered words — must still match under
+        // websearch_to_tsquery (would NOT match under phraseto_tsquery).
+        List<AgentCardDto> results = discovery.discoverBestAgents(
+                "tenant-tsquery", "invoice billing", null, 5);
+        assertThat(results)
+                .as("PR #389 #9: websearch_to_tsquery matches keywords regardless "
+                    + "of order (was: phraseto_tsquery required adjacency → 0 results)")
+                .hasSize(1);
+        assertThat(results.get(0).getRouteHandle()).isNotBlank();
+        assertThat(results.get(0).getAgentName()).isEqualTo("财务助手");
     }
 
     // ---- helpers ---------------------------------------------------------

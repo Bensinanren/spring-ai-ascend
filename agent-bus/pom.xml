@@ -43,34 +43,34 @@
       <artifactId>spring-boot-starter-jdbc</artifactId>
     </dependency>
     <!--
-      ADR-0160 decision 7 (ESC-2(b) option B): spring-boot-starter-web at
-      provided scope. agent-bus is a library jar (no @SpringBootApplication,
-      KF-1); the runtime consumer (agent-runtime/LocalA2aRuntimeHost) ships
-      starter-web, so provided makes @RestController / @RequestMapping /
-      @Scheduled / @Service / @Configuration visible at compile time without
-      bundling the dependency in the library jar. Confined to
+      ADR-0160 decision 7 (ESC-2(b) option B), revised per PR #389 review
+      issue #6: spring-boot-starter-web at compile scope. agent-bus now ships
+      its own @SpringBootApplication (AgentBusApplication) — the previously
+      documented "library jar" positioning (KF-1) was a stage-1 scaffolding
+      assumption that did not survive the stage-4 runtime promotion. The
+      registry controller, probe scheduler, and observability facade are
+      first-class runtime components. Compile scope bundles starter-web in
+      the agent-bus jar so it can boot standalone. Confined to
       com.huawei.ascend.bus.registry.runtime.{api,discovery,health} by
-      AgentBusRegistryJdbcPurityTest (S5). KF-4 "无需新增依赖" assumption
-      retired — see ADR-0160 §tenant-isolation-strategy.
+      AgentBusRegistryJdbcPurityTest (S5).
     -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
-      <scope>provided</scope>
     </dependency>
     <!--
-      ADR-0160 decision 7 (ESC-2(b) option B): micrometer-core at provided
-      scope. spring-boot-starter-web (provided) only transitively brings
-      micrometer-observation + micrometer-commons; the Counter / Timer APIs
-      used by RegistryObservabilityConfig live in micrometer-core. Runtime
-      consumer (agent-runtime via spring-boot-starter-actuator) ships
-      micrometer-core, so provided scope avoids bundling. Same confinement
+      ADR-0160 decision 7 (ESC-2(b) option B), revised per PR #389 review
+      issue #6: micrometer-core at compile scope. spring-boot-starter-web
+      only transitively brings micrometer-observation + micrometer-commons;
+      the Counter / Timer APIs used by RegistryObservabilityConfig live in
+      micrometer-core. Compile scope (was: provided) because agent-bus now
+      boots standalone and must bundle micrometer-core for the observability
+      facade to work without a separate actuator dependency. Same confinement
       rationale as spring-boot-starter-web.
     -->
     <dependency>
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-core</artifactId>
-      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>

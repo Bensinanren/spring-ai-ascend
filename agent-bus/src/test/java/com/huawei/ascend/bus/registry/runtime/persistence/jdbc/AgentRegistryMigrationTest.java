@@ -4,6 +4,7 @@ import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -28,7 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li><b>RB1-S3</b> — {@code search_tsv} GENERATED column + GIN index
  *       exist (Method A/B tsvector ranking).</li>
  *   <li><b>RB1-S4</b> — partial index on {@code last_heartbeat WHERE
- *       status='ONLINE'} exists (HD3-004 lease/TTL scan path).</li>
+ *       status IN ('ONLINE','DEGRADED')} exists (HD3-004 lease/TTL scan
+ *       path; PR #389 #4 widened from ONLINE-only to also cover DEGRADED
+ *       so recovered agents can be re-probed and restored to ONLINE).</li>
  *   <li><b>RB1-S5</b> — {@code CHECK status IN ('ONLINE','DEGRADED',
  *       'DRAINING','OFFLINE')} constraint rejects invalid lifecycle values.</li>
  *   <li><b>RB1-S6</b> — Row-Level Security policy
@@ -59,6 +62,19 @@ class AgentRegistryMigrationTest {
     static void tearDown() throws Exception {
         if (pg != null) {
             pg.close();
+        }
+    }
+
+    @BeforeEach
+    void cleanTable() {
+        // PR #389 review issue: tests share one EmbeddedPostgres instance
+        // across cases; without a clean-table guard, rows inserted by one
+        // case (e.g. RB1-S7 RLS visibility) leak into the next case's
+        // assertions. The original tenant-prefix isolation worked for
+        // read-only assertions but is fragile for any future write-and-count
+        // case. DELETE is cheap and unambiguous.
+        if (jdbc != null) {
+            jdbc.execute("DELETE FROM agent_registry_mvp");
         }
     }
 
@@ -122,10 +138,10 @@ class AgentRegistryMigrationTest {
         assertThat(count).isEqualTo(1);
     }
 
-    // ---- RB1-S4: partial index on last_heartbeat WHERE status='ONLINE' ----
+    // ---- RB1-S4: partial index on last_heartbeat WHERE status IN ('ONLINE','DEGRADED') ----
 
     @Test
-    void partial_index_on_last_heartbeat_for_online_rows_exists() {
+    void partial_index_on_last_heartbeat_for_online_and_degraded_rows_exists() {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM pg_indexes "
                 + "WHERE tablename = 'agent_registry_mvp' AND indexname = ?",
@@ -133,9 +149,9 @@ class AgentRegistryMigrationTest {
         assertThat(count).isEqualTo(1);
 
         // pg_get_expr renders the partial-index predicate back to SQL text.
-        // PostgreSQL may normalise 'ONLINE' to 'ONLINE'::text, so we just
-        // check the value appears. Filter by the specific index name to
-        // avoid matching the other two non-unique indexes on this table.
+        // PR #389 #4: the partial index now covers both ONLINE and DEGRADED
+        // rows so the probe scheduler can re-probe DEGRADED agents and
+        // restore them to ONLINE on recovery.
         String predicate = jdbc.queryForObject(
                 "SELECT pg_get_expr(i.indpred, i.indrelid) FROM pg_index i "
                 + "JOIN pg_class c ON c.oid = i.indrelid "
@@ -143,8 +159,10 @@ class AgentRegistryMigrationTest {
                 + "WHERE c.relname = 'agent_registry_mvp' AND ci.relname = ?",
                 String.class, "ix_agent_registry_mvp_heartbeat_due");
         assertThat(predicate)
-                .as("HD3-004: partial index must scope to status = 'ONLINE'")
-                .contains("'ONLINE'");
+                .as("HD3-004 + PR #389 #4: partial index must scope to "
+                    + "status IN ('ONLINE','DEGRADED')")
+                .contains("'ONLINE'")
+                .contains("'DEGRADED'");
     }
 
     // ---- RB1-S5: CHECK on status lifecycle values ------------------------

@@ -7,19 +7,18 @@ import java.util.Objects;
 /**
  * ThreadLocal-backed implementation of {@link TenantContext} (HD3-003).
  *
- * <p>Populated by {@link TenantFilter} from the {@code X-Tenant-Id} request
- * header at request entry, cleared in the filter's {@code finally} block so
- * no cross-request leak occurs (thread pools reuse threads). Background
- * scheduling paths without a request scope (e.g. the health-probe scheduler)
- * explicitly call {@link #bindForScope(String, Runnable)} /
- * {@link #bindForScope(String, java.util.function.Supplier)} to scope tenant
- * state on the worker thread, then clear on completion.
+ * <p>ESC-2 design pivot (ADR-0160 decision 6): the deprecated
+ * {@code TenantFilter} request-header approach was dropped — HTTP-entry
+ * call sites pass {@code tenantId} explicitly and leave the context unbound.
+ * Background scheduling paths (e.g. the health-probe scheduler) bind tenant
+ * scope explicitly via {@link #bindForScope(String, Runnable)} /
+ * {@link #bindForScope(String, java.util.function.Supplier)} for the
+ * duration of a unit of work, then clear on completion so no cross-call
+ * leak occurs (thread pools reuse threads).
  *
- * <p>Authority: ADR-0160 + HD3-003. Pure Java — no Spring / Servlet / JDBC
- * imports. The filter that populates this context lives in the same package
- * and depends on the Servlet API; this class itself does not, so
- * non-HTTP-entry callers (schedulers, async handlers) can use it without
- * pulling Servlet onto the classpath.
+ * <p>Authority: ADR-0160 + HD3-003 + ESC-2 design pivot. Pure Java — no
+ * Spring / Servlet / JDBC imports. Non-HTTP-entry callers (schedulers,
+ * async handlers) can use it without pulling Servlet onto the classpath.
  *
  * <p>Phase-2 swap path: a reactor-context-backed implementation may replace
  * this class without touching the {@link TenantContext} port or any caller.
@@ -61,10 +60,9 @@ public final class ThreadLocalTenantContext implements TenantContext {
     }
 
     /**
-     * Set the current thread's tenant. Called by {@link TenantFilter} on
-     * request entry; also called by {@link #bindForScope}. Package-private
-     * so the filter (same package) can call it but external callers cannot
-     * bypass the filter's lifecycle.
+     * Set the current thread's tenant. Called by {@link #bindForScope};
+     * package-private so external callers cannot bypass the
+     * {@code bindForScope} lifecycle.
      */
     static void set(String tenantId) {
         if (tenantId == null || tenantId.isBlank()) {
@@ -74,9 +72,8 @@ public final class ThreadLocalTenantContext implements TenantContext {
     }
 
     /**
-     * Clear the current thread's tenant. Called by {@link TenantFilter}'s
-     * {@code finally} block; also called by {@link #bindForScope}.
-     * Package-private for the same reason as {@link #set}.
+     * Clear the current thread's tenant. Called by {@link #bindForScope}'s
+     * finally block; package-private for the same reason as {@link #set}.
      */
     static void clear() {
         CURRENT.remove();

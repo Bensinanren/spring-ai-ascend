@@ -123,6 +123,30 @@ class AgentBusRegistryJdbcPurityTest {
                 .check(REGISTRY_RUNTIME);
     }
 
+    /**
+     * PR #389 review issue (test gap): the JDBC adapter uses
+     * {@code TransactionTemplate} / {@code DataSourceTransactionManager} for
+     * Stage 24 RLS wiring (set_config('app.tenant_id', ...) inside a short
+     * transaction). {@code org.springframework.transaction..} must therefore
+     * be allowed inside the JDBC adapter but confined there — the
+     * {@code api} / {@code discovery} / {@code health} / {@code tenant}
+     * subpackages must not leak transaction-management types onto their
+     * imports.
+     */
+    @Test
+    void spring_transaction_confined_to_persistence_adapter() {
+        noClasses().that().resideInAPackage("com.huawei.ascend.bus.registry..")
+                .and().resideOutsideOfPackage(JDBC_ADAPTER)
+                .should().dependOnClassesThat().resideInAPackage("org.springframework.transaction..")
+                .because("Spring transaction (TransactionTemplate / PlatformTransactionManager) "
+                       + "lives only in registry.runtime.persistence.jdbc.. (Stage 24 RLS wiring "
+                       + "via set_config('app.tenant_id', ...) inside a short transaction). PR #389 "
+                       + "review issue: the original purity test banned org.springframework.jdbc.. "
+                       + "but missed org.springframework.transaction.. — the adapter had already "
+                       + "pulled in TransactionTemplate, the gate just did not say so.")
+                .check(REGISTRY_RUNTIME);
+    }
+
     // ---- 2. Consul forbidden across the entire registry runtime -----------
 
     @Test

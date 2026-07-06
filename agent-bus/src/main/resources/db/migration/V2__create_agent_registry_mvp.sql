@@ -71,14 +71,16 @@ CREATE INDEX idx_agent_registry_mvp_search_tsv
 CREATE INDEX idx_agent_registry_mvp_tenant_capability
     ON agent_registry_mvp (tenant_id, capability);
 
--- Health probe lease/TTL scan: only ONLINE rows are due for re-probe.
--- HD3-004 lease_expired path: an ONLINE row whose last_heartbeat falls outside
--- the visibility window is filtered out by the discovery SQL WHERE clause
+-- Health probe lease/TTL scan: ONLINE rows are due for re-probe, and DEGRADED
+-- rows are also due so a recovered agent can be restored to ONLINE (PR #389
+-- review issue #4 — otherwise DEGRADED is an unrecoverable terminal state).
+-- HD3-004 lease_expired path: a row whose last_heartbeat falls outside the
+-- visibility window is filtered out by the discovery SQL WHERE clause
 -- (status IN ('ONLINE','DEGRADED') AND last_heartbeat >= NOW() - INTERVAL '15 seconds');
 -- the scheduler additionally downgrades long-stale ONLINE rows to DEGRADED.
 CREATE INDEX ix_agent_registry_mvp_heartbeat_due
     ON agent_registry_mvp (last_heartbeat)
-    WHERE status = 'ONLINE';
+    WHERE status IN ('ONLINE', 'DEGRADED');
 
 -- ===== Row-Level Security (defence-in-depth tenant isolation, mirroring V1) =====
 -- Applied after table creation. current_setting('app.tenant_id', true) returns

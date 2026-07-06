@@ -191,24 +191,26 @@ decision: |
        a `TenantFilter`-equivalent (e.g. reactor context) without changing
        the SPI or the controller signatures.
 
-    7. SPRING-WEB PROVIDED SCOPE (ESC-2(b) option B).
-       `agent-bus/pom.xml` adds `spring-boot-starter-web` at `provided`
-       scope. Rationale: `agent-bus` is a library jar (no
-       `@SpringBootApplication` — KF-1); the runtime consumer
-       (`agent-runtime/LocalA2aRuntimeHost`) already ships
-       `spring-boot-starter-web`, so `provided` makes the Spring Web
-       annotations visible at compile time without bundling the dependency
-       in the library jar. `module-metadata.yaml` `allowed_dependencies`
-       gains `org.springframework.boot:spring-boot-starter-web` with a note
-       that it is `provided`-scoped and confined to
+    7. SPRING-WEB COMPILE SCOPE (ESC-2(b) option B, revised per PR #389 #6).
+       `agent-bus/pom.xml` declares `spring-boot-starter-web` at compile
+       scope. Rationale: `agent-bus` is a runnable Spring Boot application
+       (PR #389 review issue #6 — it ships its own
+       `@SpringBootApplication` entry class, `AgentBusApplication`); the
+       previously documented "library jar" positioning (KF-1) was a stage-1
+       scaffolding assumption that did not survive the stage-4 runtime
+       promotion. The registry controller, probe scheduler, and
+       observability facade are first-class runtime components, so
+       agent-bus bundles starter-web directly. `module-metadata.yaml`
+       `allowed_dependencies` gains
+       `org.springframework.boot:spring-boot-starter-web` with a note that
+       it is `compile`-scoped and confined to
        `com.huawei.ascend.bus.registry.runtime.{api,discovery,health}`
        (ArchUnit-guarded in S5 `AgentBusRegistryJdbcPurityTest` extension).
-       `io.micrometer:micrometer-core` is added at `provided` scope for the
-       same reason — `spring-boot-starter-web` (provided) only transitively
-       brings `micrometer-observation` / `micrometer-commons`; the
-       `Counter` / `Timer` APIs used by `RegistryObservabilityConfig` live
-       in `micrometer-core`. Runtime consumer (agent-runtime via
-       `spring-boot-starter-actuator`) ships `micrometer-core`.
+       `io.micrometer:micrometer-core` is added at compile scope for the
+       same reason — `spring-boot-starter-web` only transitively brings
+       `micrometer-observation` / `micrometer-commons`; the `Counter` /
+       `Timer` APIs used by `RegistryObservabilityConfig` live in
+       `micrometer-core`, which agent-bus now bundles directly.
 
 consequences: |
   Positive

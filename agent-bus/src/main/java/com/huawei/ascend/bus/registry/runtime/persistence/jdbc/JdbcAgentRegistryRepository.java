@@ -24,12 +24,19 @@ import java.util.function.Supplier;
  * <ul>
  *   <li><b>upsert</b> — {@code INSERT ... ON CONFLICT (tenant_id, agent_id)
  *       DO UPDATE SET ...} ; an agent restart overwrites the prior entry and
- *       resets {@code status = 'ONLINE'} + {@code last_heartbeat = NOW()}.</li>
+ *       resets {@code status = 'ONLINE'} + {@code last_heartbeat = NOW()},
+ *       EXCEPT when the prior status is {@code DRAINING} (operator-initiated
+ *       graceful drain) — DRAINING is preserved so a restart during drain
+ *       does not re-route traffic to the agent (PR #389 review issue #7).</li>
  *   <li><b>delete</b> — {@code DELETE WHERE tenant_id = :tenantId AND
  *       agent_id = :agentId}; returns affected-row count &gt; 0.</li>
- *   <li><b>scanDueForProbe</b> — {@code SELECT ... WHERE status = 'ONLINE' AND
- *       last_heartbeat < :staleBefore ORDER BY last_heartbeat ASC LIMIT :limit}.
- *       HD3-004 lease/TTL scan path.</li>
+ *   <li><b>scanDueForProbe</b> — {@code SELECT ... WHERE status IN ('ONLINE','DEGRADED')
+ *       AND last_heartbeat < :staleBefore ORDER BY last_heartbeat ASC LIMIT :limit}.
+ *       HD3-004 lease/TTL scan path. DEGRADED rows are included so a recovered
+ *       agent can be re-probed and restored to ONLINE (PR #389 review issue #4).
+ *       Runs unscoped (no {@code withTenant} wrap) — REQUIRES an owner-role
+ *       connection; under a restricted role the RLS policy filters everything
+ *       (PR #389 review issue #3, see Pr389RlsAndRecoveryFeedbackLoopTest).</li>
  *   <li><b>updateStatus</b> — {@code UPDATE ... SET status = :newStatus [,
  *       last_heartbeat = NOW()] WHERE tenant_id AND agent_id}; the scheduler
  *       uses {@code refreshHeartbeat=false} when downgrading (5xx → DEGRADED)
@@ -38,12 +45,15 @@ import java.util.function.Supplier;
  *       {@code status IN ('ONLINE','DEGRADED')} AND
  *       {@code last_heartbeat >= NOW() - INTERVAL '15 seconds'} (HD3-004
  *       visibility window) AND optional {@code contract_version} exact match
- *       AND optional {@code search_tsv @@ phraseto_tsquery} ranking; ordered
- *       by ts_rank DESC, weight DESC when {@code userQuery} is non-null, else
- *       weight DESC only. The {@code status IN ('ONLINE','DEGRADED')}
+ *       AND optional {@code search_tsv @@ websearch_to_tsquery} ranking;
+ *       ordered by ts_rank DESC, weight DESC when {@code userQuery} is
+ *       non-null, else weight DESC only. The {@code status IN ('ONLINE','DEGRADED')}
  *       divergence from the design doc's {@code WHERE status = 'ONLINE'} is
  *       per PRD FR-4/FR-5 (HD3-004 alignment: DEGRADED targets stay
- *       discoverable but marked).</li>
+ *       discoverable but marked). PR #389 review issue #9: switched from
+ *       {@code phraseto_tsquery} (requires token adjacency) to
+ *       {@code websearch_to_tsquery} (keyword-style) to match the L2 design
+ *       §3.3.1 "关键词分词检索" intent.</li>
  *   <li><b>findEndpoint</b> — {@code SELECT endpoint_url, route_key,
  *       contract_version WHERE tenant_id AND agent_id}; used by
  *       {@code AgentDiscoveryService.resolveRouteHandle} after the codec has
@@ -132,7 +142,13 @@ public final class JdbcAgentRegistryRepository implements AgentRegistryRepositor
                 + "weight = EXCLUDED.weight, "
                 + "region = EXCLUDED.region, "
                 + "tool_schemas = EXCLUDED.tool_schemas, "
-                + "status = 'ONLINE', "
+                // PR #389 #7: preserve DRAINING (operator-initiated graceful
+                // drain) across re-registration; an agent restart must not
+                // pull a draining entry back to ONLINE and re-route traffic
+                // to it. ONLINE / DEGRADED / OFFLINE all reset to ONLINE
+                // (agent restart semantics).
+                + "status = CASE WHEN agent_registry_mvp.status = 'DRAINING' "
+                + "THEN 'DRAINING' ELSE 'ONLINE' END, "
                 + "last_heartbeat = CURRENT_TIMESTAMP";
         withTenant(card.getTenantId(), () -> {
             MapSqlParameterSource params = new MapSqlParameterSource()
@@ -177,14 +193,24 @@ public final class JdbcAgentRegistryRepository implements AgentRegistryRepositor
             throw new IllegalArgumentException("limit must be > 0");
         }
         // HD3-004 lease/TTL scan: ONLINE rows whose heartbeat is older than
-        // the stale threshold (caller passes NOW() - probe-interval). The
-        // scheduler scopes by tenant via withTenant before issuing this query
-        // — but the scan is tenant-agnostic here so the scheduler can sweep
-        // all tenants in one call. To respect Stage 24 RLS wiring per-tenant,
-        // the scheduler wraps each row's downstream probe in its own tenant
-        // transaction; this scan itself runs unscoped (RLS bypassed by owner).
+        // the stale threshold (caller passes NOW() - probe-interval), PLUS
+        // DEGRADED rows so a recovered agent can be re-probed and restored
+        // to ONLINE (PR #389 review issue #4 — without this, DEGRADED is an
+        // unrecoverable terminal state until the 15-second visibility window
+        // evicts the row or a fresh upsert re-registers it; flappy networks
+        // make that pathological). The scheduler scopes by tenant via
+        // withTenant before issuing this query — but the scan is
+        // tenant-agnostic here so the scheduler can sweep all tenants in one
+        // call. To respect Stage 24 RLS wiring per-tenant, the scheduler
+        // wraps each row's downstream probe in its own tenant transaction;
+        // this scan itself runs unscoped and REQUIRES an owner-role
+        // connection (RLS bypassed by owner). Under a restricted role
+        // (app_role_rls), the scan returns empty because the adapter never
+        // sets app.tenant_id for this call — see
+        // Pr389RlsAndRecoveryFeedbackLoopTest for the contract test that
+        // documents this deployment requirement.
         String sql = "SELECT tenant_id, agent_id, endpoint_url FROM " + TABLE
-                + " WHERE status = 'ONLINE' AND last_heartbeat < :staleBefore"
+                + " WHERE status IN ('ONLINE','DEGRADED') AND last_heartbeat < :staleBefore"
                 + " ORDER BY last_heartbeat ASC LIMIT :limit";
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("staleBefore", new java.sql.Timestamp(staleBeforeMillis))
@@ -301,10 +327,20 @@ public final class JdbcAgentRegistryRepository implements AgentRegistryRepositor
 
     /**
      * Append the optional {@code contract_version = :contractVersion} filter
-     * and the optional {@code search_tsv @@ phraseto_tsquery} filter + rank
-     * ordering to the discovery SQL builder. When {@code userQuery} is
+     * and the optional {@code search_tsv @@ websearch_to_tsquery} filter +
+     * rank ordering to the discovery SQL builder. When {@code userQuery} is
      * non-null, ts_rank is computed and the ORDER BY ranks by relevance
      * first; when null, the ORDER BY is weight-only.
+     *
+     * <p>PR #389 review issue #9: switched from {@code phraseto_tsquery}
+     * (requires token adjacency — phrase match) to {@code websearch_to_tsquery}
+     * (keyword-style: tokens are OR'd, quoted phrases supported, no
+     * adjacency requirement). The L2 design §3.3.1 specifies "关键词分词检索"
+     * (keyword tokenization search) for stage 1, which {@code phraseto_tsquery}
+     * did not implement — a query like "理财 产品" (different word order
+     * from the indexed "产品 理财") returned 0 results under
+     * {@code phraseto_tsquery} but matches under
+     * {@code websearch_to_tsquery}.
      */
     private void appendVersionAndRankFilters(StringBuilder sql, MapSqlParameterSource params,
                                              String contractVersion, String userQuery) {
@@ -313,8 +349,8 @@ public final class JdbcAgentRegistryRepository implements AgentRegistryRepositor
             params.addValue("contractVersion", contractVersion);
         }
         if (userQuery != null) {
-            sql.append(" AND search_tsv @@ phraseto_tsquery('simple', :userQuery)");
-            sql.append(" ORDER BY ts_rank(search_tsv, phraseto_tsquery('simple', :userQuery)) DESC, weight DESC");
+            sql.append(" AND search_tsv @@ websearch_to_tsquery('simple', :userQuery)");
+            sql.append(" ORDER BY ts_rank(search_tsv, websearch_to_tsquery('simple', :userQuery)) DESC, weight DESC");
             params.addValue("userQuery", userQuery);
         } else {
             sql.append(" ORDER BY weight DESC");

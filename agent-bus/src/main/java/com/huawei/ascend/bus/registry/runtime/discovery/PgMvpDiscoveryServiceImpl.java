@@ -66,17 +66,20 @@ public class PgMvpDiscoveryServiceImpl implements AgentDiscoveryService {
                                                  String userQuery,
                                                  String contractVersion,
                                                  int topK) {
-        verifyTenant(tenantId);
         String traceId = UUID.randomUUID().toString();
         MDC.put("traceId", traceId);
         long start = System.nanoTime();
         String outcome = "success";
         try {
+            verifyTenant(tenantId);
             List<RegistryRow> rows = repository.searchByIntent(tenantId, userQuery, contractVersion, topK);
             List<AgentCardDto> dtos = rows.stream()
                     .map(row -> toRichDto(tenantId, row))
                     .toList();
             return dtos;
+        } catch (TenantIsolationViolationException ex) {
+            outcome = "tenant_isolation_violation";
+            throw ex;
         } catch (RuntimeException ex) {
             outcome = "error";
             throw ex;
@@ -94,19 +97,22 @@ public class PgMvpDiscoveryServiceImpl implements AgentDiscoveryService {
                                                  String userQuery,
                                                  String contractVersion,
                                                  int topK) {
-        verifyTenant(tenantId);
         String traceId = UUID.randomUUID().toString();
         MDC.put("traceId", traceId);
         long start = System.nanoTime();
         String outcome = "success";
         int resultCount = -1;
         try {
+            verifyTenant(tenantId);
             List<RegistryRow> rows = repository.searchByCapability(
                     tenantId, capability, userQuery, contractVersion, topK);
             resultCount = rows.size();
             return rows.stream()
                     .map(row -> toMinimalDto(tenantId, row))
                     .toList();
+        } catch (TenantIsolationViolationException ex) {
+            outcome = "tenant_isolation_violation";
+            throw ex;
         } catch (RuntimeException ex) {
             outcome = "error";
             throw ex;
@@ -120,16 +126,23 @@ public class PgMvpDiscoveryServiceImpl implements AgentDiscoveryService {
 
     @Override
     public RouteResolution resolveRouteHandle(String routeHandle, String tenantId) {
-        RouteHandleCodec.DecodedHandle decoded = RouteHandleCodec.decode(routeHandle);
-        if (!decoded.tenantId().equals(tenantId)) {
-            throw new TenantIsolationViolationException(decoded.tenantId(), tenantId);
-        }
-        verifyTenant(tenantId);
         String traceId = UUID.randomUUID().toString();
         MDC.put("traceId", traceId);
         long start = System.nanoTime();
         String outcome = "success";
         try {
+            RouteHandleCodec.DecodedHandle decoded;
+            try {
+                decoded = RouteHandleCodec.decode(routeHandle);
+            } catch (IllegalArgumentException ex) {
+                outcome = "malformed_handle";
+                throw ex;
+            }
+            if (!decoded.tenantId().equals(tenantId)) {
+                outcome = "tenant_isolation_violation";
+                throw new TenantIsolationViolationException(decoded.tenantId(), tenantId);
+            }
+            verifyTenant(tenantId);
             Optional<EndpointEntry> endpoint = repository.findEndpoint(tenantId, decoded.agentId());
             if (endpoint.isEmpty()) {
                 outcome = "entry_not_found";
@@ -139,7 +152,9 @@ public class PgMvpDiscoveryServiceImpl implements AgentDiscoveryService {
             EndpointEntry ep = endpoint.get();
             return new RouteResolution(ep.endpointUrl(), ep.routeKey(), ep.contractVersion());
         } catch (RuntimeException ex) {
-            if ("entry_not_found".equals(outcome)) {
+            if ("entry_not_found".equals(outcome)
+                    || "malformed_handle".equals(outcome)
+                    || "tenant_isolation_violation".equals(outcome)) {
                 // already set; keep outcome
             } else {
                 outcome = "error";

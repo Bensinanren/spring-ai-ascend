@@ -39,7 +39,12 @@ public interface AgentRegistryRepository {
      * Upsert (insert or replace) a registered agent card. On conflict
      * {@code (tenant_id, agent_id)} the existing row is overwritten and the
      * status reset to {@code ONLINE} with a fresh {@code last_heartbeat}
-     * (the agent re-registers on restart).
+     * (the agent re-registers on restart). The exception is
+     * {@code DRAINING}: an entry that the operator has marked
+     * {@code DRAINING} (graceful drain in progress) is preserved across
+     * re-registration, so an agent restart during drain does not pull the
+     * entry back to {@code ONLINE} and re-route traffic to it (PR #389
+     * review issue #7).
      *
      * @param card standard agent card from the {@code POST /register} body
      */
@@ -81,11 +86,16 @@ public interface AgentRegistryRepository {
      * {@code status IN ('ONLINE','DEGRADED')} AND
      * {@code last_heartbeat >= NOW() - INTERVAL '15 seconds'} (HD3-004
      * visibility window) AND optional {@code contract_version = :contractVersion}
-     * AND (when {@code userQuery} is non-null) {@code search_tsv @@ phraseto_tsquery}.
+     * AND (when {@code userQuery} is non-null)
+     * {@code search_tsv @@ websearch_to_tsquery} (PR #389 review issue #9:
+     * keyword-style OR, no adjacency requirement).
      * Ordered by ts_rank DESC, weight DESC.
      *
      * @param userQuery        natural-language intent; {@code null} = weight-only
-     *                         ranking (no tsvector filter)
+     *                         ranking (no tsvector filter). Non-null is
+     *                         tokenised via {@code websearch_to_tsquery}
+     *                         (PR #389 review issue #9: keyword-style OR,
+     *                         no adjacency requirement).
      * @param contractVersion  version filter; {@code null} = no filter,
      *                         non-null = exact match
      * @param topK             upper bound on returned candidates
@@ -151,7 +161,7 @@ public interface AgentRegistryRepository {
 
     /**
      * Probe target for the health-probe scheduler — only the fields the
-     * scheduler needs to issue an HTTP {@code GET {endpoint_url}/health/agent-status}.
+     * scheduler needs to issue an HTTP {@code GET {endpoint_url}/health}.
      */
     record ProbeTarget(String tenantId, String agentId, String endpointUrl) {
     }

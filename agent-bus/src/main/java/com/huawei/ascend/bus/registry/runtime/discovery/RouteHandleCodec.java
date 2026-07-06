@@ -58,7 +58,7 @@ import java.util.Base64;
  *
  * <p>Authority: ADR-0160 decision 3 + HD3-006 (opaque route handle).
  */
-public final class RouteHandleCodec {
+final class RouteHandleCodec {
 
     /**
      * Phase-2 prefix marker. MVP encode never produces this prefix; MVP
@@ -84,7 +84,7 @@ public final class RouteHandleCodec {
      * @param contractVersion contract version the agent pinned at registration
      * @return opaque route handle; never {@code null}
      */
-    public static String encode(String tenantId, String agentId, String routeKey, String contractVersion) {
+    static String encode(String tenantId, String agentId, String routeKey, String contractVersion) {
         requireNonBlank(tenantId, "tenantId");
         requireNonBlank(agentId, "agentId");
         requireNonBlank(routeKey, "routeKey");
@@ -115,7 +115,7 @@ public final class RouteHandleCodec {
      * @throws IllegalArgumentException if the handle is malformed (bad base64,
      *         bad JSON, missing fields, unknown prefix)
      */
-    public static DecodedHandle decode(String handle) {
+    static DecodedHandle decode(String handle) {
         requireNonBlank(handle, "handle");
         String payload = stripPrefix(handle);
         JsonNode node = parseJson(payload);
@@ -176,6 +176,6 @@ public final class RouteHandleCodec {
      * the forwarding layer's {@code resolveRouteHandle} never needs them in
      * MVP (it routes via the repository's {@code findEndpoint} lookup).
      */
-    public record DecodedHandle(String tenantId, String agentId, String routeKey, String contractVersion) {
+    record DecodedHandle(String tenantId, String agentId, String routeKey, String contractVersion) {
     }
 }

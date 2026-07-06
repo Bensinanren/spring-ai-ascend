@@ -140,6 +140,31 @@ public interface AgentDiscoveryService {
      * @return opaque route handle + health + version；不携带 Task execution state（HD3-006）
      */
     List<AgentCardDto> discoverBestAgents(String tenantId, String userQuery, int topK);
+
+    /**
+     * Method B — capability-scoped discovery (ADR-0160 decision 2). The
+     * resolved DTO is the minimal 5-field routing view; business definition
+     * fields (agentName / agentType / systemProfile / toolSchemas) are null.
+     *
+     * @param tenantId        强制 tenant 维度
+     * @param capability      能力过滤（精确匹配）
+     * @param userQuery       自然语言意图；null = 仅按 weight 排序
+     * @param contractVersion 合同版本过滤；null = 不过滤
+     * @param topK            返回候选数上限
+     */
+    List<AgentCardDto> discoverBestAgents(String tenantId, String capability, String userQuery,
+                                          String contractVersion, int topK);
+
+    /**
+     * Resolve the physical endpoint for an opaque route handle (ADR-0160
+     * decision 5). The forwarding layer uses this instead of decoding the
+     * handle itself, so the codec format can evolve (v1: prefix in phase 2)
+     * without breaking cross-module consumers. Tenant mismatch (decoded
+     * tenant vs caller tenant) raises TenantIsolationViolationException;
+     * malformed handle raises IllegalArgumentException; non-existent entry
+     * raises NoSuchElementException.
+     */
+    RouteResolution resolveRouteHandle(String routeHandle, String tenantId);
 }
 ```
 
@@ -149,7 +174,7 @@ public interface AgentDiscoveryService {
 
 ### 3.1 核心思路
 
-不引入 Consul、不引入 PGVector 扩展。用一张 PostgreSQL 表同时承载「静态资产」与「简易健康状态」，用 `tsvector` + GIN 索引做基于关键词的 SQL 检索。Agent 服务启动时 Push 一次注册（提交 Agent Card），之后由**控制面调度器周期 Pull 探活** Agent 服务的 `/health/agent-status` 端点，把探活结果回写 PG 的 `status` / `last_heartbeat` 字段。该模式与阶段二 Consul 的 Pull 探活方向一致，迁移时无需反转心跳流向。
+不引入 Consul、不引入 PGVector 扩展。用一张 PostgreSQL 表同时承载「静态资产」与「简易健康状态」，用 `tsvector` + GIN 索引做基于关键词的 SQL 检索。Agent 服务启动时 Push 一次注册（提交 Agent Card），之后由**控制面调度器周期 Pull 探活** Agent 服务的 `/health` 端点，把探活结果回写 PG 的 `status` / `last_heartbeat` 字段。该模式与阶段二 Consul 的 Pull 探活方向一致，迁移时无需反转心跳流向。
 
 > 与样例的差异：样例 MVP 即用 PGVector，且样例采用 Agent 服务 Push 心跳。本设计按需求把 MVP 检索降级为纯 SQL（tsvector 全文检索），并把心跳改为注册中心主动 Pull 探活——既避免 MVP 阶段引入 pgvector 扩展依赖，又使两阶段心跳模式统一，降低迁移摩擦。
 
@@ -208,6 +233,8 @@ migration 文件落在 `agent-bus/src/main/resources/db/migration/V2__create_age
 
 #### 3.3.1 检索实现 `PgMvpDiscoveryServiceImpl`
 
+> ⚠️ **LOCKSTEP — 以实现为准（D-1 / D-4 / D-7 / D-9 + PR #389 #1/#6/#8/#9）**：以下原代码块保留作为设计意图记录，但 `JdbcTemplate` 已下沉到 `JdbcAgentRegistryRepository`（port/adapter 重构，D-1/D-4）；`tenantContext.current()` 改为可选检查（D-7 / ADR-0160 decision 6）；`phraseto_tsquery` 改为 `websearch_to_tsquery`（PR #389 #9）；安全失败路径接入审计（PR #389 #1）。落地实现见 `runtime/discovery/PgMvpDiscoveryServiceImpl.java` + `persistence/jdbc/JdbcAgentRegistryRepository.java`，§3.5 reconcile 表登记全部偏离。
+
 ```java
 package com.huawei.ascend.bus.registry.runtime.discovery;
 
@@ -230,9 +257,15 @@ public class PgMvpDiscoveryServiceImpl implements AgentDiscoveryService {
 
     @Override
     public List<AgentCardDto> discoverBestAgents(String tenantId, String userQuery, int topK) {
-        // HD3-003：调用方 tenant 上下文必须与 query tenantId 一致
-        if (!tenantId.equals(tenantContext.current())) {
-            throw new TenantIsolationViolationException(tenantId, tenantContext.current());
+        // HD3-003 / ADR-0160 decision 6：tenantContext 上下文检查是可选的 —
+        // 当 tenant 已 bind（后台调度路径通过 bindForScope）时，mismatch 抛
+        // TenantIsolationViolationException；当 unbound（HTTP 入口显式传
+        // tenantId）时跳过检查，以显式参数为准。原始设计 §3.3.1 无条件
+        // current() 抛异常的语义已废弃（D-7 / ESC-2 design pivot），实现
+        // 以 PgMvpDiscoveryServiceImpl.verifyTenant 为准。
+        String bound = tenantContext.current();
+        if (bound != null && !bound.equals(tenantId)) {
+            throw new TenantIsolationViolationException(tenantId, bound);
         }
 
         // 两阶段合成一条 SQL：ts_rank 加权排名 + 15s 探活可见性窗口硬过滤 + tenant/capability 过滤
@@ -279,6 +312,8 @@ public class PgMvpDiscoveryServiceImpl implements AgentDiscoveryService {
 > `endpoint_url` 不进入 `AgentCardDto`——对齐 HD3-006「调用方不直接操作物理 endpoint」。物理 endpoint 的解析由 forwarding 层（`ForwardingEndpointResolver`，Stage 15 已留端口）消费 route handle 完成，与 `ICD-Agent-Bus-Forwarding` 一致。
 
 #### 3.3.2 注册控制器 `MvpRegistryController` 与探活调度器 `MvpHealthProbeScheduler`
+
+> ⚠️ **LOCKSTEP — 以实现为准（D-4 / D-7 / D-9 + PR #389 #1/#2/#6/#7/#8）**：以下原代码块保留作为设计意图记录，但 `JdbcTemplate` 已下沉到 `JdbcAgentRegistryRepository`（D-4）；`TenantFilter` 弃用，三层隔离（D-7 / ADR-0160 decision 6）；`RestClient` 在 scheduler 构造时建带超时实例（D-9 / PR #389 #2）；deregister 路径变量替代 query param（PR #389 #7/Nit）；trace ID 读取入站 `traceparent`/`X-Trace-Id`（PR #389 #8）；agent-bus 现 SpringBoot app，controller 留在 agent-bus（PR #389 #6）。落地实现见 `runtime/api/MvpRegistryController.java` + `runtime/health/MvpHealthProbeScheduler.java`，§3.5 reconcile 表登记全部偏离。
 
 ```java
 package com.huawei.ascend.bus.registry.runtime.api;
@@ -331,7 +366,7 @@ public class MvpRegistryController {
 }
 ```
 
-> 不再提供 `PUT /api/registry/heartbeat`：阶段一即采用注册中心主动 Pull 探活，Agent 服务无需实现心跳 Push 逻辑，契约面更窄。Agent 服务只需暴露一个 HTTP `GET /health/agent-status` 端点供控制面探活（与阶段二 Consul 探活端点共用，迁移零改动）。
+> 不再提供 `PUT /api/registry/heartbeat`：阶段一即采用注册中心主动 Pull 探活，Agent 服务无需实现心跳 Push 逻辑，契约面更窄。Agent 服务只需暴露一个 HTTP `GET /health` 端点供控制面探活（与阶段二 Consul 探活端点共用，迁移零改动）。
 
 ```java
 package com.huawei.ascend.bus.registry.runtime.health;
@@ -348,7 +383,7 @@ import java.util.Map;
 
 /**
  * 阶段一注册中心主动 Pull 探活调度器。
- * 周期扫描 ONLINE entry，HTTP 探活 endpoint_url + '/health/agent-status'，
+ * 周期扫描 ONLINE entry，HTTP 探活 endpoint_url + '/health'，
  * 把探活结果回写 PG 的 status / last_heartbeat 字段。
  *
  * 与阶段二 Consul agent 的 Pull 探活方向一致，迁移时仅需把探活执行方
@@ -375,7 +410,7 @@ public class MvpHealthProbeScheduler {
         for (Map<String, Object> row : rows) {
             String tenantId = (String) row.get("tenant_id");
             String agentId  = (String) row.get("agent_id");
-            String url      = row.get("endpoint_url") + "/health/agent-status";
+            String url      = row.get("endpoint_url") + "/health";
             try {
                 httpClient.get().uri(url).retrieve().toBodilessEntity();
                 jdbcTemplate.update("""
@@ -419,7 +454,7 @@ sequenceDiagram
         SCHED->>PG: SELECT tenant_id, agent_id, endpoint_url<br/>WHERE status='ONLINE' AND last_heartbeat < NOW()-5s
         PG-->>SCHED: 待探活 entry 列表
         loop 每个待探活 entry
-            SCHED->>SA: GET http://endpoint_url/health/agent-status
+            SCHED->>SA: GET http://endpoint_url/health
             alt 200 UP
                 SCHED->>PG: UPDATE last_heartbeat=NOW(), status='ONLINE'
             else 5xx / 超时
@@ -474,7 +509,7 @@ sequenceDiagram
 | D-6 | §3.2 GIN 索引 `USING GIN (tenant_id, capability, search_tsv)` | 拆分为 `GIN(search_tsv)` + `BTREE(tenant_id, capability)` 两个索引 | `V2__create_agent_registry_mvp.sql`（`idx_agent_registry_mvp_search_tsv` + `idx_agent_registry_mvp_tenant_capability`） | PostgreSQL GIN 无 varchar 默认 operator class；planner 通过 BitmapAnd 合并两个索引 |
 | D-7 | §3.3.2 `TenantFilter` + `TenantFilterRegistration` 拦截器 populate `TenantContext` | 弃用 `TenantFilter`；改用三层隔离：(1) 应用层 `WHERE tenant_id=?` 显式参数 (2) PG RLS policy `agent_registry_mvp_tenant_isolation` (3) `ThreadLocalTenantContext.bindForScope` 为后台调度路径设置 `app.tenant_id` session var | `runtime/tenant/ThreadLocalTenantContext.java` + `V2__create_agent_registry_mvp.sql`（RLS policy） + 所有 Repository 方法 tenantId 显式参数 | ESC-2 design pivot — Servlet filter 在 library jar 不可靠（KF-1 同因），且 RLS 提供纵深防御；ADR-0160 决策 6 |
 | D-8 | §9.2 audit 11 字段 + micrometer 直接散落 controller/scheduler | 集中到 `RegistryObservabilityConfig` 单文件 facade：SLF4J `registry.audit` logger（11 字段结构化日志）+ Micrometer `Counter` / `Timer`（op + outcome 标签） | `runtime/RegistryObservabilityConfig.java` | 单文件 facade 避免 audit-without-metric 漂移；`micrometer-core` provided scope 由 runtime consumer 提供；ADR-0160 决策 7 |
-| D-9 | §3.3.2 controller/scheduler 直接 `new RestClient()` | controller/scheduler 注入共享 `RestClient` bean（由 `RegistryObservabilityConfig` 或 Spring Boot autoconfig 提供） | `runtime/api/MvpRegistryController.java` + `runtime/health/MvpHealthProbeScheduler.java` | 共享 bean 便于统一连接池/超时配置；与 §9.2 可观测性挂钩 |
+| D-9 | §3.3.2 controller/scheduler 直接 `new RestClient()` | controller 不直接持 HTTP client（register/deregister 不发外部 HTTP）；scheduler 在构造时通过 `RestClient.builder().requestFactory(SimpleClientHttpRequestFactory).build()` 创建带显式 connect/read 超时（默认 2s）的实例（PR #389 review issue #2） | `runtime/health/MvpHealthProbeScheduler.java` | 显式超时配置：挂住的 endpoint 不会阻塞 probe 线程；原始 D-9 设想的"共享 bean"未落地——MVP 单 scheduler 实例无需共享，超时配置是更直接的修复 |
 
 > **ADR-0160 决策 6/7 联动**：D-7（tenant 隔离三层）+ D-8（micrometer-core provided scope）+ `agent-bus/pom.xml` 加 `spring-boot-starter-web (provided)` 是 ESC-2(b) 选项 B 边界演进的三件套，已落地并经 `AgentBusRegistryJdbcPurityTest` 守卫。H2/H3 阶段进入 Consul 引入时再统一审核跨边界影响（用户裁决：step-7 接受现状）。
 
@@ -484,7 +519,7 @@ sequenceDiagram
 
 ### 4.1 核心思路
 
-引入独立 Consul 集群承担高频健康探活（仍是 Pull 模式，与阶段一方向一致），把探活写流量从 PG 剥离到 Consul。PG 启用 pgvector 扩展，把检索从关键词 tsvector 升级为向量语义检索。阶段一的控制面 `MvpHealthProbeScheduler` 退场，由 Consul agent 取代探活执行方；`AgentDiscoveryService` 实现类通过 `@Primary` 切换。Agent 服务的 `/health/agent-status` 端点无需任何改动——阶段一供控制面调度器探活，阶段二供 Consul agent 探活，URL 与返回契约完全一致。
+引入独立 Consul 集群承担高频健康探活（仍是 Pull 模式，与阶段一方向一致），把探活写流量从 PG 剥离到 Consul。PG 启用 pgvector 扩展，把检索从关键词 tsvector 升级为向量语义检索。阶段一的控制面 `MvpHealthProbeScheduler` 退场，由 Consul agent 取代探活执行方；`AgentDiscoveryService` 实现类通过 `@Primary` 切换。Agent 服务的 `/health` 端点无需任何改动——阶段一供控制面调度器探活，阶段二供 Consul agent 探活，URL 与返回契约完全一致。
 
 ### 4.2 物理拓扑与表重构
 
@@ -537,7 +572,7 @@ CREATE INDEX idx_agent_card_vector_prod_tenant
 
 ### 4.3 Agent 服务侧改造（Python 示例）
 
-Agent 服务**无需删除任何心跳定时器**（阶段一本就没有），仅在启动时追加 Consul 注册。`/health/agent-status` 端点在阶段一已存在（供控制面调度器探活），阶段二直接复用（供 Consul agent 探活），URL 与响应契约完全一致。业务代码（接收自然语言、执行工具）零改动。
+Agent 服务**无需删除任何心跳定时器**（阶段一本就没有），仅在启动时追加 Consul 注册。`/health` 端点在阶段一已存在（供控制面调度器探活），阶段二直接复用（供 Consul agent 探活），URL 与响应契约完全一致。业务代码（接收自然语言、执行工具）零改动。
 
 ```python
 import consul
@@ -557,7 +592,7 @@ def prod_register():
         port=8000,
         # Consul Pull 模式：10s 探活，5s 超时，500/超时即判节点下线
         check=consul.Check.http(
-            url="http://192.168.1.50:8000/health/agent-status",
+            url="http://192.168.1.50:8000/health",
             interval="10s", timeout="5s"
         )
     )
@@ -567,7 +602,7 @@ def prod_register():
         json={...}   # 与 MVP 阶段一致的 Agent Card JSON
     )
 
-@app.get("/health/agent-status")
+@app.get("/health")
 def health_check():
     # 阶段一供控制面 MvpHealthProbeScheduler 探活；
     # 阶段二供 Consul agent 探活。端点 URL 与响应契约两阶段一致。
@@ -611,8 +646,10 @@ public class ConsulProductionDiscoveryServiceImpl implements AgentDiscoveryServi
 
     @Override
     public List<AgentCardDto> discoverBestAgents(String tenantId, String userQuery, int topK) {
-        if (!tenantId.equals(tenantContext.current())) {
-            throw new TenantIsolationViolationException(tenantId, tenantContext.current());
+        // 同 §3.3.1：tenantContext 上下文检查是可选的（ADR-0160 decision 6）。
+        String bound = tenantContext.current();
+        if (bound != null && !bound.equals(tenantId)) {
+            throw new TenantIsolationViolationException(tenantId, bound);
         }
 
         // ---- STAGE 1：PGVector 语义粗筛（PostgreSQL）----
@@ -685,7 +722,7 @@ sequenceDiagram
 
     Note over CON,SA: 探活流量由 Consul Pull（与阶段一方向一致，不再写 PG）
     loop 每 10 秒
-        CON->>SA: GET http://.../health/agent-status
+        CON->>SA: GET http://.../health
         SA-->>CON: 200 UP (或 500 = 节点下线)
     end
 
@@ -738,7 +775,7 @@ sequenceDiagram
 |---|---|---|
 | S1 | PG 启用 pgvector 扩展；建 `agent_card_prod` + `agent_card_vector_prod`；写迁移脚本把 `agent_registry_mvp` 静态字段搬入 `agent_card_prod` 并生成 embedding | 仅 DB，控制面 / Agent 服务无感 |
 | S2 | 控制面引入 `spring-cloud-starter-consul-discovery`，新增 `ConsulProductionDiscoveryServiceImpl`（不带 `@Primary`） | 仅新增类，不切换流量 |
-| S3 | Agent 服务灰度升级：追加 Consul 注册（`/health/agent-status` 端点已存在，无需新增），保留控制面 Pull 探活双跑，验证 Consul `passing` 与 PG `last_heartbeat` 一致 | Agent 服务启动逻辑改，业务零改 |
+| S3 | Agent 服务灰度升级：追加 Consul 注册（`/health` 端点已存在，无需新增），保留控制面 Pull 探活双跑，验证 Consul `passing` 与 PG `last_heartbeat` 一致 | Agent 服务启动逻辑改，业务零改 |
 | S4 | 控制面把 `@Primary` 从 `PgMvpDiscoveryServiceImpl` 迁到 `ConsulProductionDiscoveryServiceImpl`；停用 `MvpHealthProbeScheduler`（探活执行方切换到 Consul agent） | Orchestrator 零改动（依赖注入切换） |
 | S5 | Agent 服务仅保留 Consul 注册 + 控制面 `/api/registry/register`；无需删除心跳定时器（阶段一本就没有） | Agent 服务无改动 |
 | S6 | 删除 `agent_registry_mvp` 表、`PgMvpDiscoveryServiceImpl` 与 `MvpHealthProbeScheduler` | 清理 |
@@ -782,7 +819,7 @@ sequenceDiagram
 |---|---|---|---|---|
 | 1 | 注册表是否持久化 | PostgreSQL `agent_registry_mvp` 表（durable） | PostgreSQL `agent_card_prod` + `agent_card_vector_prod` + Consul service catalog | **已答** |
 | 2 | 注册信息由谁写入，谁可以删除 | Agent 服务经 `POST /api/registry/register` 写入、`DELETE /api/registry/deregister` 删除；控制面 `MvpHealthProbeScheduler` 只写 `status`/`last_heartbeat` | Agent 服务经同一 register/deregister 接口写 PG；Consul catalog 由 Agent 服务经 Consul agent 注册/deregister | **部分**——写入/删除主体明确，凭证/权限边界 deferred（见 §7.2） |
-| 3 | health/readiness 由 push/pull/lease 表达 | **Pull**：控制面调度器 5s 间隔 HTTP 探活 `/health/agent-status`；lease 由 `last_heartbeat` 15s 可见性窗口表达 | **Pull**：Consul agent 10s 探活 + 5s 超时；lease 由 Consul `passing` 状态表达 | **已答** |
+| 3 | health/readiness 由 push/pull/lease 表达 | **Pull**：控制面调度器 5s 间隔 HTTP 探活 `/health`；lease 由 `last_heartbeat` 15s 可见性窗口表达 | **Pull**：Consul agent 10s 探活 + 5s 超时；lease 由 Consul `passing` 状态表达 | **已答** |
 | 4 | tenant 隔离如何保证 | `(tenant_id, agent_id)` 联合主键 + discovery 强制 `tenantId == caller tenant context` 校验，不一致抛 `tenant_isolation_violation`；禁止跨 tenant fallback | 同左——PG 联合主键 + tenant 校验不变；Consul service name 不携带 tenant，tenant 隔离仍由 PG 侧保证 | **已答** |
 | 5 | service/capability 版本兼容如何表达 | Agent Card 携带 `contractVersion`/`capabilityVersion`；discovery 返回带 version 的 route handle；mismatch 返回 `version_unavailable` | 同左 | **部分**——version 字段与 mismatch 行为已答，downgrade 策略 deferred（见 §10 O-5） |
 | 6 | region/deployment plane 是否参与路由选择 | Agent Card 携带 `region` 字段入库，但 **discovery SQL 当前不做 region 过滤/偏好**，仅作为 selectionHint 元数据返回 | 同左；region 路由策略 deferred | **deferred**——见 §7.3 |

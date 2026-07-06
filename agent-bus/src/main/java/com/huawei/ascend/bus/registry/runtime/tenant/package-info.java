@@ -13,9 +13,11 @@
  * that read {@code X-Tenant-Id} from the request header and populated the
  * {@link ThreadLocal} on every request entry. That approach requires
  * {@code jakarta.servlet-api} + {@code spring-web} on the agent-bus compile
- * classpath, but agent-bus is a library jar whose only Spring starter is
- * {@code spring-boot-starter-jdbc} (which does not transitively bring either
- * artifact into compile scope). Per user decision (ESC-2), the
+ * classpath, but agent-bus's tenant subpackage must stay pure Java so
+ * background schedulers / async handlers can use
+ * {@code ThreadLocalTenantContext} without pulling Spring Web onto the
+ * classpath (the rest of agent-bus ships {@code spring-boot-starter-web} at
+ * compile scope per PR #389 review issue #6). Per user decision (ESC-2), the
  * {@code TenantFilter} + {@code TenantFilterRegistration} classes are
  * dropped from this REQ; tenant isolation is instead enforced by passing
  * {@code tenantId} as an explicit parameter through every SPI call:

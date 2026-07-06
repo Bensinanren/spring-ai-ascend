@@ -24,17 +24,19 @@ spi_packages:
 # Task state, cross-tenant fallback, payload body. Stage 7-11 kept this list
 # empty (path B); Stage 12 breaks path B.
 #
-# ADR-0160 decision 7 (ESC-2(b) option B): spring-boot-starter-web at provided
-# scope — agent-bus is a library jar (no @SpringBootApplication, KF-1); the
-# runtime consumer (agent-runtime/LocalA2aRuntimeHost) ships starter-web, so
-# provided scope makes @RestController / @RequestMapping / @Scheduled / @Service
-# visible at compile time without bundling. Confined to
-# com.huawei.ascend.bus.registry.runtime.{api,discovery,health} by
-# AgentBusRegistryJdbcPurityTest (S5). KF-4 "无需新增依赖" assumption retired.
+# ADR-0160 decision 7 (ESC-2(b) option B), revised per PR #389 review issue #6:
+# spring-boot-starter-web at compile scope — agent-bus now ships its own
+# @SpringBootApplication (AgentBusApplication); the previously documented
+# "library jar" positioning (KF-1) was a stage-1 scaffolding assumption that
+# did not survive the stage-4 runtime promotion. The registry controller,
+# probe scheduler, and observability facade are first-class runtime
+# components, so agent-bus bundles starter-web + micrometer-core and boots
+# standalone. Confined to com.huawei.ascend.bus.registry.runtime.{api,discovery,health}
+# by AgentBusRegistryJdbcPurityTest (S5).
 allowed_dependencies:
   - org.springframework.boot:spring-boot-starter-jdbc
-  - org.springframework.boot:spring-boot-starter-web    # provided scope — ADR-0160 decision 7 (ESC-2(b) option B)
-  - io.micrometer:micrometer-core                       # provided scope — ADR-0160 decision 7 (Counter/Timer APIs for RegistryObservabilityConfig)
+  - org.springframework.boot:spring-boot-starter-web    # compile scope — ADR-0160 decision 7 revised (PR #389 #6)
+  - io.micrometer:micrometer-core                       # compile scope — ADR-0160 decision 7 revised (PR #389 #6)
   - org.flywaydb:flyway-core
   - org.flywaydb:flyway-database-postgresql
   - org.postgresql:postgresql

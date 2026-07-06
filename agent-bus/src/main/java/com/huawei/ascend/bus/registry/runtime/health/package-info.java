@@ -7,7 +7,7 @@
  * {@code agent-bus.registry.mvp.probe-interval-ms}), calling
  * {@link com.huawei.ascend.bus.registry.runtime.persistence.jdbc.AgentRegistryRepository#scanDueForProbe}
  * to find {@code ONLINE} entries whose {@code last_heartbeat} is stale,
- * HTTP-probing each target's {@code /health/agent-status} endpoint via
+ * HTTP-probing each target's {@code /health} endpoint via
  * Spring {@code RestClient}. 2xx → reaffirm {@code ONLINE} + refresh
  * heartbeat; 5xx / connect exception → downgrade to {@code DEGRADED}. The
  * 15-second visibility window in the discovery SQL eventually filters out
