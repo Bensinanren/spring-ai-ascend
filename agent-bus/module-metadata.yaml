@@ -16,14 +16,27 @@ spi_packages:
   - com.huawei.ascend.bus.spi.s2c        # S2cCallbackTransport + S2cCallbackEnvelope + S2cCallbackResponse per ADR-0088 (relocated from agent-runtime-core); rc27: + ReflectionEnvelopeRouter per ADR-0102
   - com.huawei.ascend.bus.spi.federation # rc27 fix (rc22-3): FederationGateway per ADR-0101 Mode B Business-Centric deployment
   - com.huawei.ascend.bus.spi.engine     # EnginePort + neutral execution model (ExecutorDefinition / RunContext / SuspendSignal / Checkpointer / Orchestrator / RunMode / TraceContext) relocated from agent-core per ADR-0158 (transport-agnostic engine boundary)
+  - com.huawei.ascend.bus.spi.registry   # AgentDiscoveryService dual-method contract (Method A rich DTO + Method B minimal DTO) + resolveRouteHandle + AgentCardDto + RouteResolution + TenantContext + TenantIsolationViolationException + AgentCard per ADR-0160 (Stage 4 Registry SPI Runtime Promotion) — pure Java, no Spring/JDBC/Jackson/Consul (AgentBusRegistrySpiPurityTest)
 # Stage 12 (decision §4 permit): real persistence licensed -Spring JDBC adapter +
 # Flyway migration + Postgres driver. Confined to package
 # com.huawei.ascend.bus.forwarding.runtime.persistence.jdbc by ArchUnit
 # (AgentBusForwardingSpiPurityTest). §6.2 still forbids concrete broker / MQ,
 # Task state, cross-tenant fallback, payload body. Stage 7-11 kept this list
 # empty (path B); Stage 12 breaks path B.
+#
+# ADR-0160 decision 7 (ESC-2(b) option B), revised per PR #389 review issue #6:
+# spring-boot-starter-web at compile scope — agent-bus now ships its own
+# @SpringBootApplication (AgentBusApplication); the previously documented
+# "library jar" positioning (KF-1) was a stage-1 scaffolding assumption that
+# did not survive the stage-4 runtime promotion. The registry controller,
+# probe scheduler, and observability facade are first-class runtime
+# components, so agent-bus bundles starter-web + micrometer-core and boots
+# standalone. Confined to com.huawei.ascend.bus.registry.runtime.{api,discovery,health}
+# by AgentBusRegistryJdbcPurityTest (S5).
 allowed_dependencies:
   - org.springframework.boot:spring-boot-starter-jdbc
+  - org.springframework.boot:spring-boot-starter-web    # compile scope — ADR-0160 decision 7 revised (PR #389 #6)
+  - io.micrometer:micrometer-core                       # compile scope — ADR-0160 decision 7 revised (PR #389 #6)
   - org.flywaydb:flyway-core
   - org.flywaydb:flyway-database-postgresql
   - org.postgresql:postgresql

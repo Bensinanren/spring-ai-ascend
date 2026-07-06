@@ -3,6 +3,7 @@ package com.huawei.ascend.bus.architecture;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -15,23 +16,36 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Design-level contract harness for {@code ICD-Agent-Registry-Discovery}
- * (Stage 3, slices 1-3).
+ * (Stage 4, after slices 1-5 landed).
  *
- * <p>The registry/discovery surface is contract-only in Stage 3 — there is no
- * runtime registry class, no broker binding, no Task-state ownership change.
- * This harness pins the design invariants the ICD encodes, so a future edit
- * that silently weakens them (dropping the tenantId requirement, leaking Task
- * state into discovery results, admitting a runtime registry class) fails the
- * build.
+ * <p>Two layers of invariants are pinned here:
+ * <ol>
+ *   <li><b>ICD document assertions</b> — read the ICD and the L1 README as
+ *       plain text and anchor on stable phrases (HD3-001..006). A future edit
+ *       that silently weakens the ICD (dropping the tenantId requirement,
+ *       leaking Task state into discovery results) fails the build.</li>
+ *   <li><b>Runtime promotion assertions</b> — ArchUnit checks that the
+ *       {@code com.huawei.ascend.bus.spi.registry} package now <em>exists</em>
+ *       as the runtime-promoted SPI surface (HD3-007 stage-4 lift), and that
+ *       the runtime implementation package
+ *       {@code com.huawei.ascend.bus.registry.runtime..} stays free of
+ *       {@code TenantFilter} (ESC-2 design pivot — tenant isolation by
+ *       explicit parameter + WHERE + RLS, no Servlet filter).</li>
+ * </ol>
  *
  * <p>Authority: {@code docs/architecture/l0/05-contracts/human-readable/
- * ICD-agent-registry-discovery.md} (HD3-001..007); Stage 3 boundary.
+ * ICD-agent-registry-discovery.md} (HD3-001..007);
+ * {@code docs/adr/0160-stage4-registry-spi-runtime-promotion.yaml}.
  *
- * <p>The document assertions read the ICD and the L1 README as plain text and
- * anchor on stable phrases. The Stage 3 boundary assertion uses ArchUnit to
- * prove no production package under {@code com.huawei.ascend.bus.spi} is named
- * {@code registry} or {@code discovery} — the trip-wire that forces an explicit
- * decision when Stage 4 admits a registry SPI (HD3-007).
+ * <p><b>Trip-wire evolution (RB3)</b>: the Stage 3 trip-wire method (the
+ * assertion that no runtime registry production class may exist under
+ * {@code com.huawei.ascend.bus.spi}) has been deleted — Stage 4 admitted
+ * the registry SPI per HD3-007, so the Stage 3 "no runtime registry class"
+ * boundary is no longer the correct invariant. The post-edit gate rule
+ * {@code req-2026-003-trip-wire-removed} (regex-check, invert) prevents
+ * re-introduction of that method by name. The runtime-promotion assertions
+ * below replace the trip-wire: they assert the SPI package <em>exists</em>
+ * and the runtime implementation <em>is free of TenantFilter</em>.
  */
 class AgentBusRegistryDiscoveryDesignContractTest {
 
@@ -131,24 +145,92 @@ class AgentBusRegistryDiscoveryDesignContractTest {
                 .contains("禁止跨 tenant fallback");
     }
 
-    // ---- ICD contract test 7: no runtime registry in Stage 3 (ArchUnit) --
+    // ---- Stage 4 runtime promotion (replaces Stage 3 trip-wire) -----------
+    // HD3-007: Stage 4 admits the registry SPI. The old Stage 3 trip-wire
+    // (the "no runtime registry production class" assertion) is deleted; the
+    // post-edit gate rule req-2026-003-trip-wire-removed prevents
+    // re-introduction. The assertions below pin the new Stage 4 invariant:
+    // the SPI package exists, the runtime implementation exists, and the
+    // runtime implementation is free of TenantFilter (ESC-2 design pivot).
 
     @Test
-    void no_runtime_registry_production_class_added_in_stage3() {
-        JavaClasses classes = new ClassFileImporter().importPackages("com.huawei.ascend.bus.spi");
+    void spi_registry_package_exists_as_runtime_promoted_surface() {
+        JavaClasses classes = new ClassFileImporter()
+                .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .importPackages("com.huawei.ascend.bus.spi.registry");
         assertThat(classes)
-                .as("sanity — ArchUnit must import agent-bus SPI classes from the test classpath")
+                .as("Stage 4 lift (HD3-007): com.huawei.ascend.bus.spi.registry must exist as "
+                  + "the runtime-promoted SPI surface (replaces Stage 3 trip-wire).")
                 .isNotEmpty();
 
-        Set<String> registryDiscoveryPackages = classes.stream()
-                .map(JavaClass::getPackageName)
-                .filter(p -> p.contains(".registry") || p.contains(".discovery"))
+        Set<String> spiClassNames = classes.stream()
+                .map(JavaClass::getSimpleName)
                 .collect(Collectors.toSet());
-        assertThat(registryDiscoveryPackages)
-                .as("Stage 3 boundary (HD3-007): no runtime registry/discovery production package "
-                  + "may exist under com.huawei.ascend.bus.spi yet — ICD-Agent-Registry-Discovery "
-                  + "is design-level only. When Stage 4 admits a registry SPI, this assertion is "
-                  + "the trip-wire that forces an explicit decision.")
+        assertThat(spiClassNames)
+                .as("Stage 4 SPI surface must expose the dual-method discovery contract + "
+                  + "tenant isolation port + opaque route handle resolution target.")
+                .contains("AgentDiscoveryService", "AgentCardDto", "TenantContext",
+                        "TenantIsolationViolationException", "RouteResolution", "AgentCard",
+                        "Nullable");
+    }
+
+    @Test
+    void runtime_registry_implementation_exists() {
+        JavaClasses classes = new ClassFileImporter()
+                .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .importPackages("com.huawei.ascend.bus.registry.runtime");
+        assertThat(classes)
+                .as("Stage 4 runtime implementation must exist (slices S2/S4 shipped)")
+                .isNotEmpty();
+
+        Set<String> implClassNames = classes.stream()
+                .map(JavaClass::getSimpleName)
+                .collect(Collectors.toSet());
+        assertThat(implClassNames)
+                .as("Stage 4 runtime must ship the MVP discovery impl, the JDBC adapter, "
+                  + "the controller, the health-probe scheduler, and the route-handle codec.")
+                .contains("PgMvpDiscoveryServiceImpl", "JdbcAgentRegistryRepository",
+                        "MvpRegistryController", "MvpHealthProbeScheduler",
+                        "RouteHandleCodec", "ThreadLocalTenantContext",
+                        "RegistryObservabilityConfig", "RegistrySchedulingConfig");
+    }
+
+    @Test
+    void runtime_registry_is_free_of_tenant_filter() {
+        JavaClasses classes = new ClassFileImporter()
+                .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .importPackages("com.huawei.ascend.bus.registry");
+        Set<String> classNames = classes.stream()
+                .map(JavaClass::getSimpleName)
+                .collect(Collectors.toSet());
+        assertThat(classNames)
+                .as("ESC-2 design pivot (ADR-0160 decision 6): TenantFilter / "
+                  + "TenantFilterRegistration must NOT exist in the registry runtime. "
+                  + "Tenant isolation is enforced by explicit tenantId parameter + "
+                  + "WHERE clause + RLS, not by a Servlet filter.")
+                .doesNotContain("TenantFilter", "TenantFilterRegistration");
+    }
+
+    @Test
+    void runtime_registry_is_free_of_jakarta_servlet() {
+        JavaClasses classes = new ClassFileImporter()
+                .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .importPackages("com.huawei.ascend.bus.registry");
+        assertThat(classes)
+                .as("ESC-2 design pivot: no Servlet API in the registry runtime — tenant "
+                  + "isolation has no filter entry point. MvpRegistryController uses Spring "
+                  + "Web annotations (@RestController) but never jakarta.servlet.*.")
+                .isNotEmpty();
+        // ArchUnit-based noClassDependenciesOn would duplicate
+        // AgentBusRegistryJdbcPurityTest's servlet rule; here we add a
+        // cheaper presence assertion that the registry runtime package does
+        // not declare a class named *Filter or *Servlet.
+        Set<String> filterOrServlet = classes.stream()
+                .map(JavaClass::getSimpleName)
+                .filter(n -> n.endsWith("Filter") || n.endsWith("Servlet"))
+                .collect(Collectors.toSet());
+        assertThat(filterOrServlet)
+                .as("ESC-2 design pivot: no *Filter or *Servlet class in registry runtime")
                 .isEmpty();
     }
 }
