@@ -2,7 +2,7 @@
 version: 0715
 module: agent-runtime
 feature_type: functional
-feature_id: Feat-Func-001
+feature_id: FEAT-001
 status: active
 ---
 
@@ -10,7 +10,7 @@ status: active
 
 ## 1. 特性定位
 
-Feat-Func-001 定义 `agent-runtime` 当前版本作为标准化 Agent 服务端的入口事实：runtime 必须以 A2A JSON-RPC over HTTP 暴露可发现、可调用、可查询、可取消的 Agent 服务面，以 Agent Card 作为能力发现入口，并通过 A2A Task / Message / SSE 语义承载 Agent 执行过程。
+FEAT-001 定义 `agent-runtime` 当前版本作为标准化 Agent 服务端的入口事实：runtime 必须以 A2A JSON-RPC over HTTP 暴露可发现、可调用、可查询、可取消的 Agent 服务面，以 Agent Card 作为能力发现入口，并通过 A2A Task / Message / SSE 语义承载 Agent 执行过程。
 
 本特性解决的问题是：不同调用来源需要以同一套标准服务入口访问 Agent，而不是按调用方拆出多套私有入口。普通 client、其他 agent-runtime、agent-bus forwarding 在进入 `agent-runtime` 时都必须看到同一个标准化 Agent 服务面：发现 Agent、提交消息、接收流式结果、查询 Task、取消 Task、获得一致错误与状态语义。
 
@@ -25,7 +25,7 @@ Feat-Func-001 定义 `agent-runtime` 当前版本作为标准化 Agent 服务端
 - 平台集成方：把 runtime 放到网关、服务发现、租户认证和多 Agent 协作链路中。
 - 测试与验收团队：按本特性定义的外部行为和边界设计黑盒场景。
 
-本特性只定义 `agent-runtime` 作为服务端被调用的 inbound 入口。`agent-runtime` 主动发现并代理发起其他 Agent 调用的 outbound 编排语义由 `Feat-Func-005` 承接；具体 handler、adapter、state、memory、trajectory 的内部设计由对应特性和 L2 文档承接。
+本特性只定义 `agent-runtime` 作为服务端被调用的 inbound 入口。`agent-runtime` 主动发现并代理发起其他 Agent 调用的 outbound 编排语义由 `FEAT-005` 承接；具体 handler、adapter、state、memory、trajectory 的内部设计由对应特性和 L2 文档承接。
 
 ## 2. 当前版本能力要求
 
@@ -95,7 +95,7 @@ Feat-Func-001 定义 `agent-runtime` 当前版本作为标准化 Agent 服务端
 - 普通 client、其他 agent-runtime、agent-bus forwarding 进入 `agent-runtime` 时必须共享同一个 Agent 服务入口事实：Agent Card 发现、`/a2a` JSON-RPC、Task 状态、SSE 事件、错误表面和租户上下文规则。
 - runtime 可以在日志、metadata、trace 或网关层区分调用来源，但不得为不同来源定义互相漂移的执行语义。
 - agent-bus forwarding 是标准入口的调用方之一，不是 `agent-runtime` 内部执行 SPI 的绕行入口。
-- 其他 agent-runtime 调用本 runtime 时，本 runtime 只承担服务端职责；主动发现远端 runtime、安装远程工具和发起 outbound 调用由 `Feat-Func-005` 约束。
+- 其他 agent-runtime 调用本 runtime 时，本 runtime 只承担服务端职责；主动发现远端 runtime、安装远程工具和发起 outbound 调用由 `FEAT-005` 约束。
 
 #### 5.1.1 Agent Card 发现语义
 
@@ -166,7 +166,7 @@ Feat-Func-001 定义 `agent-runtime` 当前版本作为标准化 Agent 服务端
 | Push Notification 实际推送 | 当前版本不承诺主动 webhook 推送；push config CRUD 只是协议配置管理入口。 |
 | 非文本输入语义 | 当前版本不承诺把 file/data parts 转成 Agent 输入；文本输入是主路径。 |
 | 强制中断底层 LLM | `CancelTask` 不承诺能立即打断已经进入模型客户端的阻塞调用。 |
-| outbound 远程 Agent 编排 | 本特性只要求本 runtime 作为服务端发布自己的 Agent Card 并接受调用；远程 Agent 目录、缓存、工具安装、调用发起、结果回灌由 `Feat-Func-005` 承接。 |
+| outbound 远程 Agent 编排 | 本特性只要求本 runtime 作为服务端发布自己的 Agent Card 并接受调用；远程 Agent 目录、缓存、工具安装、调用发起、结果回灌由 `FEAT-005` 承接。 |
 | agent-bus 专用私有入口 | runtime 不承诺为 agent-bus 暴露绕过 A2A Task/SSE/error 表面的私有执行接口。 |
 | 认证授权协议 | A2A auth 扩展、OAuth、签名校验等不在本特性事实要求中。 |
 
@@ -177,10 +177,10 @@ Feat-Func-001 定义 `agent-runtime` 当前版本作为标准化 Agent 服务端
 - 开发指南只能解释如何使用这些事实要求，不得引入与本特性冲突的新 method、endpoint、状态语义或 capability 承诺。
 - 测试必须覆盖三类 S2C 模式：blocking、streaming、async query/cancel，并覆盖 parse error、method not found、invalid request、mid-stream error、tenant header/context、Agent Card discovery。
 - agent-bus 对 runtime 的 forwarding 集成验证必须以标准 A2A 服务入口为边界，不能要求 runtime 增加 agent-bus 专用执行口。
-- Agent Card skills/capabilities 的设计和实现必须与 `Feat-Func-005` 保持一致：skills 是远程工具发现入口，capabilities 是能力声明，不是运行时自动证明。
+- Agent Card skills/capabilities 的设计和实现必须与 `FEAT-005` 保持一致：skills 是远程工具发现入口，capabilities 是能力声明，不是运行时自动证明。
 - 任何对 push notification、gRPC、多 handler 路由、非文本输入或认证能力的新增承诺，都必须先回到本特性或新的 version-scope 特性文档更新事实要求，再进入 L2 和实现。
 - 本特性使用的术语必须保持稳定：A2A、Agent Card、JSON-RPC、SSE、Task、Message、Artifact、Capability、Skill、Tenant、Runtime Readiness。
 
 ## 7. 关联文档
 
-- `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-001-standardized-agent-service-entrypoint.md`
+- `architecture/L2-Low-Level-Design/agent-runtime/FEAT-001-standardized-agent-service-entrypoint.md`
