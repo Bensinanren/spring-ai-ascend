@@ -37,8 +37,8 @@ Runtime Redis 数据源适配把 `agent-runtime` 内部对 Redis 的使用从具
 ### 1.3 设计原则
 
 1. **统一抽象** — 所有 runtime Redis 使用方依赖同一操作接口，不直接依赖具体 Redis 客户端。
-2. **配置选择** — Redis 数据源类型和连接引用由配置驱动，部署切换不要求修改业务代码。
-3. **客户适配外置** — 客户封装 Redis JAR 不进入产品仓库，通过适配实现接入 runtime 抽象。
+2. **统一配置** — 默认 Redis client 和客户自定义 Redis client 读取同一组 `openjiuwen.service.middleware.redis.<ref>` 配置，部署切换不要求修改业务代码。
+3. **Bean 优先扩展** — 客户封装 Redis JAR 不进入产品仓库，开发者通过注册 `RuntimeRedisClient` Bean 覆盖默认 Bean。
 4. **日志可确认且脱敏** — 启动日志能确认当前策略和关键配置，但不输出密码、密文或凭据。
 5. **最小命令面** — 只抽象当前 runtime 消费方需要的 Redis 操作，避免把 Redis 全命令集变成长期兼容负担。
 
@@ -46,12 +46,12 @@ Runtime Redis 数据源适配把 `agent-runtime` 内部对 Redis 的使用从具
 
 | 子特性 | 职责 | 关键抽象 | 状态 |
 |---|---|---|---|
-| Redis 数据源选择 | 根据配置选择原生单机、原生集群或客户适配策略 | Redis datasource properties / strategy | 设计确定 |
+| Redis 配置模型 | 通过 checkpointer 类型和 redis-ref 引用命名 Redis endpoint | `MiddlewareProperties` | 已由 PR 固化 |
 | Runtime Redis 操作接口 | 向 Redis 使用方暴露统一读写、TTL、删除、扫描等命令面 | Runtime Redis client SPI | 设计确定 |
-| 默认原生 Redis 适配 | 在未提供客户适配时接入原生 Redis | Native Redis adapter | 设计确定 |
-| 客户 Redis 适配 | 将客户封装 Redis 组件桥接到统一操作接口 | Customer Redis adapter | 现场适配 |
-| Redis 使用方收敛 | A2A TaskStore、Agent checkpointer 等复用统一 Redis 门面 | Redis-backed runtime consumers | 设计确定 |
-| 启动日志与脱敏 | 输出当前策略和非敏感配置摘要 | Redis datasource diagnostics | 需实现覆盖 |
+| 默认原生 Redis Bean | 未提供自定义 Bean 且启用 Redis checkpointer 时创建默认客户端 | `JedisPooledRuntimeRedisClient` | 已由 PR 固化 |
+| 客户 Redis 适配 Bean | 将客户封装 Redis 组件桥接到统一操作接口 | 自定义 `RuntimeRedisClient` Bean | 现场适配 |
+| Redis 使用方收敛 | A2A TaskStore、Agent checkpointer 等复用统一 Redis 门面 | Redis-backed runtime consumers | 已由 PR 固化 |
+| 启动日志与脱敏 | 输出当前 Redis client Bean、连接引用和非敏感配置摘要 | Redis diagnostics | 需实现覆盖 |
 
 ---
 
@@ -61,15 +61,16 @@ Runtime Redis 数据源适配把 `agent-runtime` 内部对 Redis 的使用从具
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| 配置声明 Redis 数据源类型 | 设计确定 | 配置必须能区分原生单机、原生集群和客户适配模式。 |
-| 命名 Redis 连接引用 | 设计确定 | Redis 使用方通过连接引用复用同一数据源定义。 |
-| Runtime Redis 操作接口 | 设计确定 | 提供 get、set、setex、setnx、del、exists、expire、mget、scan 等当前必要操作。 |
-| 默认原生单机适配 | 设计确定 | 使用产品内置原生 Redis 客户端实现统一操作接口。 |
-| 默认原生集群适配 | 需补齐 | 使用与统一接口一致的集群客户端或集群策略实现。 |
-| 客户封装组件适配 | 设计确定 | 客户 JAR 由现场或客户侧适配为统一操作接口实现。 |
-| A2A Task 存储复用 | 设计确定 | Redis-backed TaskStore 依赖统一接口，不直接创建具体客户端。 |
-| Agent 状态持久化复用 | 设计确定 | Redis checkpointer 配置注入统一接口，不直接创建具体客户端。 |
-| 策略日志 | 需补齐 | 启动时输出数据源类型、连接引用、非敏感连接摘要和适配实现标识。 |
+| Redis checkpointer 开关 | 已由 PR 固化 | `openjiuwen.service.middleware.checkpointer.type=redis` 启用 Redis 型运行时存储。 |
+| 命名 Redis 连接引用 | 已由 PR 固化 | `openjiuwen.service.middleware.checkpointer.redis-ref` 指向 `openjiuwen.service.middleware.redis.<ref>`；默认值为 `default`。 |
+| Redis endpoint 配置 | 已由 PR 固化 | `redis.<ref>` 当前包含 host、port、database、timeout-ms、encrypted-password。 |
+| Runtime Redis 操作接口 | 已由 PR 固化 | 提供 get、set、setex、setnx、del、exists、expire、mget、scanIter 等当前必要操作。 |
+| 默认原生单机适配 | 已由 PR 固化 | 未注册自定义 `RuntimeRedisClient` Bean 时，默认创建 `JedisPooledRuntimeRedisClient`。 |
+| 原生集群接入 | 需补齐实现 | 当前 PR 未新增 cluster nodes 配置或默认集群客户端；集群可先通过统一接入地址或自定义 Bean 承接。 |
+| 客户封装组件适配 | 设计确定 | 客户 JAR 由现场或客户侧实现 `RuntimeRedisClient` Bean，并读取同一 Redis endpoint 配置。 |
+| A2A Task 存储复用 | 已由 PR 固化 | Redis-backed TaskStore 依赖 `RuntimeRedisClient`，不直接创建具体客户端。 |
+| Agent 状态持久化复用 | 已由 PR 固化 | Redis checkpointer 配置把 `RuntimeRedisClient` 注入 agent-core Redis connection map。 |
+| 策略日志 | 需补齐 | 启动时输出当前 `RuntimeRedisClient` Bean 类型、连接引用、非敏感连接摘要和适配实现标识。 |
 | 密码脱敏 | 需补齐 | 日志和错误信息不得输出明文密码、加密密文或 token。 |
 | 内部单机/集群验收 | 需验证 | 内部环境分别搭建原生 Redis 单机和集群并执行读写验证。 |
 | 客户模式内部复现 | 不适用 | 客户 JAR 不能外传，内部只验证扩展点和默认模式。 |
@@ -88,7 +89,7 @@ Runtime Redis 数据源适配把 `agent-runtime` 内部对 Redis 的使用从具
 ### 2.3 行为承诺
 
 - **必须**：Redis 使用方只依赖统一操作接口，不直接依赖具体 Redis 客户端。
-- **必须**：配置选择的数据源策略与启动日志一致。
+- **必须**：当前生效的 `RuntimeRedisClient` Bean、Redis endpoint 配置与启动日志一致。
 - **必须**：配置或适配缺失时给出明确错误，不静默切换到非预期数据源。
 - **必须**：日志中不输出密码、密文或凭据。
 - **允许**：客户适配实现由交付工程或客户工程在外部模块提供。
@@ -119,62 +120,113 @@ Runtime Redis 操作接口
 
 运行时只把 Redis 读写能力暴露为稳定操作接口。单机、集群和客户组件的连接、路由、池化、鉴权、监控接入和资源释放由各自适配层承接。
 
-### 3.2 数据源选择模型
+### 3.2 配置模型
 
-配置模型应包含三类语义：
+当前 PR 已固化的配置入口不是单独的 `datasource.type`，而是通过中间件配置启用 Redis，并通过 `redis-ref` 引用命名 Redis endpoint：
 
 | 配置语义 | 说明 |
 |---|---|
-| 数据源类型 | 指定当前启用 `standalone`、`cluster` 或 `customer` 等 Redis 数据源类型。 |
-| 连接引用 | 指向一个命名 Redis 连接定义，供 checkpointer、TaskStore 等能力复用。 |
-| 连接参数 | host、port、database、timeout、cluster nodes、认证材料引用或客户组件需要的等价参数。 |
+| `openjiuwen.service.middleware.checkpointer.type` | 当前 Redis TaskStore 和 agent-core checkpointer 共用该开关；取值为 `redis` 时启用 Redis 型运行时存储，默认是 `in_memory`。 |
+| `openjiuwen.service.middleware.checkpointer.redis-ref` | 指向 `openjiuwen.service.middleware.redis.<ref>`；未配置时默认使用 `default`。 |
+| `openjiuwen.service.middleware.redis.<ref>.host` | Redis endpoint 主机名。对默认 Bean 是原生 Redis 单机地址；对客户自定义 Bean 可以是客户组件入口、代理地址或统一接入地址。 |
+| `openjiuwen.service.middleware.redis.<ref>.port` | Redis endpoint 端口，默认 6379。 |
+| `openjiuwen.service.middleware.redis.<ref>.database` | Redis database 编号，默认 0。 |
+| `openjiuwen.service.middleware.redis.<ref>.timeout-ms` | 连接和读写超时时间，默认 3000。 |
+| `openjiuwen.service.middleware.redis.<ref>.encrypted-password` | 加密后的 Redis 密码；由 `CredentialDecryptor` 解密后传给默认 Bean 或自定义 Bean。 |
 
-装配顺序遵循以下原则：
+单机和集群不通过额外的 `customer` / `cluster` 类型字段区分。默认 Bean 当前按单机 Redis endpoint 创建 `JedisPooled` 客户端；需要客户封装组件、集群客户端或客户统一接入代理时，开发者注册自定义 `RuntimeRedisClient` Bean，并读取同一 `MiddlewareProperties` 和 `redis-ref` 配置。这样默认实现和客户实现共享配置格式，业务使用方不感知底层是单机、集群还是客户组件。
 
-1. 如果应用显式注册客户或第三方 Runtime Redis 操作接口实现，则使用该实现。
-2. 如果未显式注册实现，则根据配置的数据源类型创建默认原生 Redis 实现。
-3. 如果配置要求 Redis 但无法创建或找到匹配实现，则启动失败或在创建 Redis 使用方时明确失败。
-4. 如果未启用 Redis 型中间件能力，则不强制创建 Redis 数据源。
+当前配置模型尚未定义 cluster nodes 列表。如果后续要求产品默认 Bean 直连原生 Redis 集群，应在 `MiddlewareProperties.RedisEndpoint` 中扩展节点配置，并保持 `RuntimeRedisClient` SPI 和 Redis 使用方不变。
 
 ### 3.3 Runtime Redis 操作接口
 
-统一操作接口承载当前运行时需要的最小 Redis 命令面：
+`RuntimeRedisClient` 定义在 `service/agent-service-spec`，是 Redis 使用方唯一依赖的命令门面。当前 PR 中的方法面如下：
 
-| 操作类型 | 语义 |
-|---|---|
-| 单 key 读取 | 按文本或二进制 key 读取值。 |
-| 单 key 写入 | 写入文本或二进制值。 |
-| TTL 写入 | 写入值并设置过期时间。 |
-| 条件写入 | key 不存在时写入，用于幂等或锁类场景。 |
-| 删除 | 删除一个或多个 key。 |
-| 存在性判断 | 判断 key 是否存在。 |
-| 过期时间刷新 | 为已有 key 设置或刷新 TTL。 |
-| 批量读取 | 按多个 key 读取有序结果。 |
-| 模式扫描 | 按 pattern 扫描 key，用于 Task 列表等低频管理场景。 |
+```java
+public interface RuntimeRedisClient extends AutoCloseable {
+    Object get(String key);
+    byte[] get(byte[] key);
+    String set(String key, String value);
+    String set(String key, byte[] value);
+    String set(byte[] key, byte[] value);
+    String setex(String key, long seconds, String value);
+    String setex(byte[] key, long seconds, byte[] value);
+    long setnx(String key, String value);
+    long setnx(byte[] key, byte[] value);
+    long del(String... keys);
+    long del(byte[]... keys);
+    boolean exists(String key);
+    boolean exists(byte[] key);
+    long expire(String key, long seconds);
+    long expire(byte[] key, long seconds);
+    List<Object> mget(String... keys);
+    List<String> scanIter(String pattern);
+}
+```
+
+该接口承载当前运行时需要的最小 Redis 命令面：
+
+| 操作类型 | SPI 方法 | 语义 |
+|---|---|---|
+| 单 key 读取 | `get` | 按文本或二进制 key 读取值。 |
+| 单 key 写入 | `set` | 写入文本或二进制值。 |
+| TTL 写入 | `setex` | 写入值并设置过期时间。 |
+| 条件写入 | `setnx` | key 不存在时写入，用于幂等或锁类场景。 |
+| 删除 | `del` | 删除一个或多个 key。 |
+| 存在性判断 | `exists` | 判断 key 是否存在。 |
+| 过期时间刷新 | `expire` | 为已有 key 设置或刷新 TTL。 |
+| 批量读取 | `mget` | 按多个文本 key 读取有序结果。 |
+| 模式扫描 | `scanIter` | 按 pattern 扫描 key，用于 Task 列表等低频管理场景。 |
 
 接口实现必须满足线程安全或明确由容器为并发使用提供隔离。客户封装组件如没有某项命令的原生支持，适配层应使用客户组件提供的等价能力实现；无法保证语义一致时应显式失败。
 
-### 3.4 默认原生 Redis 适配
+### 3.4 Bean 装配与默认实现
 
-默认原生 Redis 适配负责：
+`RedisMiddlewareAutoConfiguration` 是当前 Redis client Bean 的装配入口。它具备三个关键条件：
 
-- 根据连接配置创建原生 Redis 客户端。
-- 将原生 Redis 命令映射到统一操作接口。
-- 处理连接超时、database 选择、集群节点和资源释放。
-- 在启动日志中输出策略名称、连接引用和脱敏配置摘要。
+| 条件 | 设计含义 |
+|---|---|
+| `@ConditionalOnClass(JedisPooled.class)` | 默认实现依赖 Jedis pooled client，缺少该类时不创建默认 Bean。 |
+| `@ConditionalOnMissingBean(RuntimeRedisClient.class)` | 开发者提供自定义 `RuntimeRedisClient` Bean 时，默认 Bean 自动让位。 |
+| `@ConditionalOnProperty(prefix = "openjiuwen.service.middleware.checkpointer", name = "type", havingValue = "redis")` | 只有启用 Redis checkpointer 时才创建默认 Redis client Bean。 |
 
-原生单机和原生集群可以有不同底层客户端或连接策略，但它们对 Redis 使用方必须呈现同一操作语义。
+默认 Bean 的创建流程：
 
-### 3.5 客户封装 Redis 适配
+1. 读取 `MiddlewareProperties.getCheckpointer().getRedisRef()`，空值按 `default` 处理。
+2. 通过 `RedisConnectionAssembler.resolveEndpoint(properties, redisRef)` 解析 `openjiuwen.service.middleware.redis.<ref>`。
+3. 通过 `CredentialDecryptor` 解密 `encrypted-password`。
+4. 使用 `RedisJedisClientFactory.createPooled(endpoint, password)` 创建 `JedisPooled`。
+5. 包装为 `JedisPooledRuntimeRedisClient` 暴露给 Redis 使用方。
 
-客户封装 Redis 适配负责：
+`JedisPooledRuntimeRedisClient` 负责把 `RuntimeRedisClient` 方法映射到 Jedis 命令，并实现 `close()` 释放底层 pooled client。它是当前默认原生单机 Redis 实现；它不是客户封装 Redis 组件，也不是原生 Redis 集群默认实现。
 
-- 依赖客户提供的 Redis JAR 或客户侧 SDK。
-- 将客户组件的读写、TTL、删除、扫描等能力映射到 Runtime Redis 操作接口。
+### 3.5 开发者自定义 Redis client
+
+客户封装 Redis、原生 Redis 集群或客户统一接入代理通过自定义 `RuntimeRedisClient` Bean 接入。自定义 Bean 应复用当前中间件配置，而不是引入新的 `datasource.type` 配置。
+
+```java
+@Configuration
+class CustomerRedisClientConfiguration {
+    @Bean
+    RuntimeRedisClient runtimeRedisClient(MiddlewareProperties properties, CredentialDecryptor decryptor) {
+        String redisRef = properties.getCheckpointer().getRedisRef();
+        MiddlewareProperties.RedisEndpoint endpoint =
+            RedisConnectionAssembler.resolveEndpoint(properties, redisRef);
+        String password = decryptor.decrypt(endpoint.getEncryptedPassword());
+        return new CustomerRuntimeRedisClient(endpoint, password);
+    }
+}
+```
+
+自定义实现负责：
+
+- 依赖客户提供的 Redis JAR、原生集群客户端或客户侧 SDK。
+- 读取同一 `openjiuwen.service.middleware.redis.<ref>` 配置，解释 host、port、database、timeout-ms 和 encrypted-password。
+- 将客户组件或集群客户端的读写、TTL、删除、扫描等能力映射到 `RuntimeRedisClient`。
 - 接入客户的连接治理、监控、审计和安全策略。
-- 避免把客户私有类型泄漏到 runtime 公共 SPI 和业务代码中。
+- 避免把客户私有类型泄漏到 `service-spec`、Redis 使用方或业务代码中。
 
-客户 JAR 不进入产品仓库。产品提供的是稳定操作接口、装配优先级、配置选择和默认原生实现；现场或客户侧提供具体客户适配实现。
+客户 JAR 不进入产品仓库。产品提供的是稳定 SPI、统一配置、默认原生单机 Bean 和 Bean 覆盖机制；现场或客户侧提供具体客户适配 Bean。
 
 ### 3.6 Redis 使用方收敛
 
@@ -201,10 +253,11 @@ service/spec/spi/
 service/adapters/common/middleware/
 ├── MiddlewareProperties                  # 中间件与 Redis 数据源配置
 └── redis/
-    ├── RedisMiddlewareAutoConfiguration  # Redis 数据源自动装配
-    ├── NativeRedisRuntimeClient          # 原生 Redis 适配实现
+    ├── RedisMiddlewareAutoConfiguration  # RuntimeRedisClient 默认 Bean 自动装配
+    ├── JedisPooledRuntimeRedisClient     # 默认原生 Redis 单机适配实现
+    ├── RedisJedisClientFactory           # 默认 Jedis client 创建
     ├── RedisConnectionAssembler          # 连接配置解析与摘要构造
-    └── RedisDatasourceDiagnostics        # 启动日志与脱敏诊断
+    └── RedisDatasourceDiagnostics        # 启动日志与脱敏诊断（待补齐）
 
 service/app/controller/a2a/
 └── RedisTaskStore                        # A2A TaskStore 的 Redis 使用方
@@ -223,7 +276,7 @@ agent-service-app ─┐
 adapters-agentcore ┘
         ▲
         │
-adapters-common 提供默认原生 Redis 适配和自动装配
+adapters-common 提供默认 JedisPooled RuntimeRedisClient 和自动装配
         ▲
         │
 客户适配模块提供 Runtime Redis SPI 实现
@@ -243,12 +296,15 @@ adapters-common 提供默认原生 Redis 适配和自动装配
 ```
 应用启动
   │
-  ├─ 绑定 Redis 数据源配置
-  ├─ 查找显式注册的 Runtime Redis 操作接口实现
-  │     ├─ 存在: 使用客户或第三方适配实现
-  │     └─ 不存在: 根据配置创建默认原生 Redis 实现
+  ├─ 绑定 MiddlewareProperties
+  ├─ 判断 checkpointer.type 是否为 redis
+  │     └─ 否: 不创建默认 RuntimeRedisClient
+  ├─ 查找显式注册的 RuntimeRedisClient Bean
+  │     ├─ 存在: 使用客户、集群或第三方适配 Bean
+  │     └─ 不存在: 创建默认 JedisPooledRuntimeRedisClient
+  ├─ 解析 checkpointer.redis-ref 指向的 redis.<ref> endpoint
   ├─ 输出数据源策略日志（脱敏）
-  ├─ 将统一 Redis 操作接口注入 Redis 使用方
+  ├─ 将 RuntimeRedisClient 注入 Redis 使用方
   │     ├─ A2A Task 存储
   │     └─ Agent 状态持久化 / checkpointer
   ▼
@@ -277,10 +333,10 @@ Redis 使用方
 
 | 场景 | 触发条件 | 行为 | 对外结果 |
 |---|---|---|---|
-| 数据源类型不支持 | 配置指定未知 Redis 类型 | 启动失败或 Redis 使用方创建失败 | 明确错误提示支持的类型。 |
+| checkpointer 类型不支持 | 配置指定未知 checkpointer 类型 | 启动失败或 Redis 使用方创建失败 | 明确错误提示支持 `in_memory` 和 `redis`。 |
 | Redis 连接引用缺失 | Redis 型能力启用但找不到连接定义 | 启动失败或 Redis 使用方创建失败 | 明确指出缺失的连接引用。 |
-| 客户适配未注册 | 配置为客户模式但无适配实现 | 启动失败 | 提示需要注册 Runtime Redis 操作接口实现。 |
-| 默认客户端缺依赖 | 配置为原生模式但默认客户端不可用 | 启动失败或跳过默认装配并报错 | 不静默改用其他模式。 |
+| 客户适配未注册 | 现场期望客户组件接管，但未注册自定义 `RuntimeRedisClient` Bean | 默认 Bean 会接管或 Redis 使用方缺 Bean 时报错 | 运维日志必须能看出当前实际 Bean，避免误以为客户组件生效。 |
+| 默认客户端缺依赖 | 启用 Redis 但默认客户端不可用，且没有自定义 Bean | Redis 使用方创建失败 | 不静默改用内存模式。 |
 | 连接失败 | Redis 服务不可达或认证失败 | Redis 使用方初始化或首次操作失败 | 错误日志脱敏，提示连接摘要。 |
 | 命令语义不支持 | 客户组件无法提供某项必要命令 | 适配层显式失败 | 调用方获得可诊断异常。 |
 | 密码配置存在 | 配置包含密码或加密密码 | 日志仅输出密码已配置状态 | 不输出明文或密文。 |
@@ -293,55 +349,51 @@ Redis 使用方
 
 ### 6.1 配置语义示例
 
-以下示例表达配置语义，不限定最终字段名：
+以下示例忠实采用当前 PR 的配置格式。默认原生 Redis client 和开发者自定义 Redis client 都读取这组配置。
 
 ```yaml
 openjiuwen:
   service:
     middleware:
+      checkpointer:
+        type: redis
+        redis-ref: default
       redis:
-        datasource:
-          type: standalone
-          ref: default
         default:
           host: 127.0.0.1
           port: 6379
           database: 0
           timeout-ms: 3000
           encrypted-password: "${REDIS_PASSWORD_ENCRYPTED:}"
-      checkpointer:
-        type: redis
-        redis-ref: default
 ```
 
-客户模式示例：
+如果要切换到另一个命名 Redis endpoint，只修改 `redis-ref` 和对应 `redis.<ref>` 配置：
 
 ```yaml
 openjiuwen:
   service:
     middleware:
-      redis:
-        datasource:
-          type: customer
-          ref: icbc
-        icbc:
-          timeout-ms: 3000
-          encrypted-password: "${ICBC_REDIS_PASSWORD_ENCRYPTED:}"
       checkpointer:
         type: redis
-        redis-ref: icbc
+        redis-ref: cluster
+      redis:
+        cluster:
+          host: redis-cluster-entry.example.com
+          port: 6379
+          database: 0
+          timeout-ms: 3000
+          encrypted-password: "${REDIS_PASSWORD_ENCRYPTED:}"
 ```
 
-客户模式需要同时注册客户适配实现。适配实现可以来自现场交付模块或客户私有模块，产品开源仓库不保存客户 JAR。
+上面的 `cluster` 是命名 endpoint，不是当前 PR 新增的数据源类型字段。默认 Bean 会把该 endpoint 当作 host/port 形式的 Redis 入口创建 `JedisPooled`；如果现场需要原生 Redis 集群客户端或客户封装组件，需要额外注册自定义 `RuntimeRedisClient` Bean，并让该 Bean 读取同一个 `redis-ref` 指向的 endpoint。
 
 ### 6.2 启动日志要求
 
 启动日志应包含：
 
-- Redis datasource type。
 - Redis connection ref。
-- 原生模式下的 host、port、database、timeout 或集群节点摘要。
-- 客户模式下的适配实现标识和客户连接引用。
+- 当前生效的 `RuntimeRedisClient` Bean 类型，例如默认 `JedisPooledRuntimeRedisClient` 或客户自定义实现。
+- host、port、database、timeout。
 - 密码是否配置的布尔摘要。
 
 启动日志不得包含：
@@ -359,9 +411,10 @@ openjiuwen:
 
 | 测试项 | 验证点 |
 |---|---|
-| 数据源类型解析 | 支持单机、集群、客户模式；未知类型报错。 |
-| 默认原生适配装配 | 未注册自定义实现时按配置创建默认实现。 |
-| 客户适配优先级 | 已注册 Runtime Redis 操作接口实现时优先使用该实现。 |
+| checkpointer 类型解析 | 支持 `in_memory` 和 `redis`；未知类型报错。 |
+| Redis endpoint 解析 | `redis-ref` 默认到 `default`，缺失命名 endpoint 时报错。 |
+| 默认原生适配装配 | `checkpointer.type=redis` 且未注册自定义 Bean 时创建 `JedisPooledRuntimeRedisClient`。 |
+| 客户适配优先级 | 已注册 `RuntimeRedisClient` Bean 时默认 Bean backs off。 |
 | Redis 使用方依赖 | TaskStore 和 checkpointer 配置只依赖统一接口。 |
 | 命令映射 | get、set、setex、setnx、del、exists、expire、mget、scan 语义正确。 |
 | 日志脱敏 | 启动日志和错误日志不包含明文密码或加密密文。 |
@@ -370,10 +423,10 @@ openjiuwen:
 
 | 环境 | 验证点 |
 |---|---|
-| 原生 Redis 单机版 | A2A Task 存储和 Agent 状态持久化读写正常。 |
-| 原生 Redis 集群版 | 同一业务代码在集群模式下读写正常。 |
-| 配置切换 | 单机版与集群版之间只改配置即可切换。 |
-| 客户适配替身 | 使用内部 fake / stub 适配实现验证客户模式装配链路。 |
+| 原生 Redis 单机版 | 使用默认 `JedisPooledRuntimeRedisClient` 时，A2A Task 存储和 Agent 状态持久化读写正常。 |
+| 原生 Redis 集群版 | 使用统一接入地址或自定义 `RuntimeRedisClient` Bean 时，同一业务代码读写正常。 |
+| 配置切换 | 单机 endpoint 与集群入口 endpoint 之间只改 `redis-ref` / `redis.<ref>` 配置即可切换。 |
+| 客户适配替身 | 使用内部 fake / stub `RuntimeRedisClient` Bean 验证客户模式装配链路和默认 Bean 让位行为。 |
 
 ### 7.3 验收限制
 
