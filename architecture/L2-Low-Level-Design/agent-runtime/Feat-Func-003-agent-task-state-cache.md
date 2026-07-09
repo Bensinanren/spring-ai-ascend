@@ -9,7 +9,6 @@ dependency:
   - ../../L1-High-Level-Design/agent-runtime/development.md
   - ../../L1-High-Level-Design/agent-runtime/spi-appendix.md
   - ../../../version-scope/FEAT-003-agent-task-state-cache.md
-  - ../../../version-scope/FEAT-004-middleware-memory-and-state.md
 ---
 
 # 智能体任务状态缓存 — 设计文档

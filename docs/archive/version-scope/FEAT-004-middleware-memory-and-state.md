@@ -3,8 +3,11 @@ version: 0715
 module: agent-runtime
 feature_type: functional
 feature_id: FEAT-004
-status: active
+status: deprecated
+archived: 2026-07-09
 ---
+
+> 废弃稿：本文为历史特性文档，已从当前 `version-scope` 移除；当前 Redis 任务状态缓存事实以 `version-scope/FEAT-003-agent-task-state-cache.md` 为准。
 
 # 中间件解耦 Memory & State 特性文档
 
@@ -161,6 +164,6 @@ FEAT-004 定义 `agent-runtime` 当前版本中 Memory 与 State 相关中间件
 
 ## 7. 关联文档
 
-- `architecture/L2-Low-Level-Design/agent-runtime/FEAT-004-middleware-memory-and-state.md`
+- `docs/archive/architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-004-middleware-memory-and-state.md`
 - `version-scope/FEAT-001-standardized-agent-service-entrypoint.md`
 - `version-scope/FEAT-002-heterogeneous-agent-framework-compatibility.md`

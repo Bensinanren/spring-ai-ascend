@@ -3,14 +3,13 @@ version: 0715
 module: agent-runtime
 feature_type: functional
 feature_id: FEAT-003
-status: draft
+status: active
 related_docs:
   - ../architecture/L0-Top-Level-Design/boundaries.md
   - ../architecture/L0-Top-Level-Design/glossary.md
   - ../architecture/L1-High-Level-Design/agent-runtime/README.md
   - ../architecture/L1-High-Level-Design/agent-runtime/development.md
   - ../architecture/L1-High-Level-Design/agent-runtime/spi-appendix.md
-  - ./FEAT-004-middleware-memory-and-state.md
 ---
 
 # 智能体任务状态缓存特性文档
@@ -145,4 +144,3 @@ FEAT-003 定义 `agent-runtime` 使用 Redis 缓存智能体任务状态时的�
 - `architecture/L1-High-Level-Design/agent-runtime/development.md`
 - `architecture/L1-High-Level-Design/agent-runtime/spi-appendix.md`
 - `architecture/L2-Low-Level-Design/agent-runtime/Feat-Func-003-agent-task-state-cache.md`
-- `version-scope/FEAT-004-middleware-memory-and-state.md`
