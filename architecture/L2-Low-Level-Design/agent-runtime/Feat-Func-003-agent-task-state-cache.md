@@ -2,17 +2,17 @@
 level: L2-LLD
 module: agent-runtime
 feature_type: functional
-feature_id: Feat-Func-014
+feature_id: Feat-Func-003
 status: active
 dependency:
   - ../../L1-High-Level-Design/agent-runtime/README.md
   - ../../L1-High-Level-Design/agent-runtime/development.md
   - ../../L1-High-Level-Design/agent-runtime/spi-appendix.md
-  - ../../../version-scope/FEAT-014-runtime-redis-datasource-adaptation.md
+  - ../../../version-scope/FEAT-003-agent-task-state-cache.md
   - ../../../version-scope/FEAT-004-middleware-memory-and-state.md
 ---
 
-# Runtime Redis 数据源适配 — 设计文档
+# 智能体任务状态缓存 — 设计文档
 
 > 目标模块：`agent-runtime` 的 Redis 中间件接入层、A2A Task 存储和 Agent 状态持久化 Redis 使用方
 > 最后更新：2026-07-08
@@ -23,14 +23,14 @@ dependency:
 
 ### 1.1 特性定位
 
-Runtime Redis 数据源适配把 `agent-runtime` 内部对 Redis 的使用从具体客户端实现中解耦出来。A2A Task 存储、Agent 状态持久化和后续 Redis 型中间件能力统一依赖 runtime Redis 操作抽象；原生 Redis 单机版、原生 Redis 集群版和客户封装 Redis 组件分别通过数据源策略或适配实现接入该抽象。
+智能体任务状态缓存把 `agent-runtime` 内部对 Redis 的使用从具体客户端实现中解耦出来。A2A Task 存储、Agent 执行 checkpoints 和后续 Redis 型中间件能力统一依赖 runtime Redis 缓存 SPI；原生 Redis 单机版、原生 Redis 集群版和客户封装 Redis 组件分别通过数据源策略或适配实现接入该抽象，并复用同一连接池和操作接口。
 
 - **解决的问题**：现场需要接入客户自封装 Redis 组件，但当前运行时 Redis 使用方不应直接依赖客户 JAR，也不应分散绑定到 Jedis、Lettuce 或其他具体客户端。
 - **适用场景**：需要将 Redis 资源纳入客户统一管理和监控体系；需要在不同客户环境中通过配置切换 Redis 数据源；需要让 A2A Task 与 Agent 状态持久化复用同一 Redis 接入策略。
 
 ### 1.2 当前事实边界
 
-本文描述 Feat-Func-014 在 `agent-runtime` 中的已接受架构方案。面向调用方的黑盒行为、验收标准和外部边界以 `version-scope/FEAT-014-runtime-redis-datasource-adaptation.md` 为准；模块级 SPI 原则、依赖方向和自动装配边界以 L1 设计及 SPI 附录为准。
+本文描述 Feat-Func-003 在 `agent-runtime` 中的已接受架构方案。面向调用方的黑盒行为、验收标准和外部边界以 `version-scope/FEAT-003-agent-task-state-cache.md` 为准；模块级 SPI 原则、依赖方向和自动装配边界以 L1 设计及 SPI 附录为准。
 
 当前已有待合入实现 PR 以 runtime Redis client SPI 为核心重构方向：Redis 使用方不直接创建原生客户端，而是依赖共享 Redis 操作门面；默认实现可使用原生 Redis 客户端，客户实现可通过适配方式替换。该 PR 尚未覆盖单机/集群完整配置、默认集群客户端和启动策略日志，因此本文以目标态设计为准，用于指导后续 PR 补齐实现。
 
@@ -490,7 +490,7 @@ openjiuwen:
 | 限制 | 影响范围 | 临时方案 |
 |---|---|---|
 | 客户 JAR 不能进入内部仓库 | 内部无法真实复现工行组件行为 | 使用适配替身验证装配链路，客户环境完成真实联调。 |
-| PR 实现尚未覆盖全部需求点 | endpoint type、cluster nodes、默认集群适配、策略日志和验收脚本需要后续 PR 补齐 | 按本文和 FEAT-014 继续补实现与测试。 |
+| PR 实现尚未覆盖全部需求点 | endpoint type、cluster nodes、默认集群适配、策略日志和验收脚本需要后续 PR 补齐 | 按本文和 FEAT-003 继续补实现与测试。 |
 | 统一接口只包含最小命令面 | 新 Redis 使用方可能需要新增命令 | 先评估是否为 runtime 通用需求，再扩展 SPI。 |
 | 不支持运行中热切换 | 修改数据源后需重启应用 | 运维按配置变更流程重启。 |
 | 不包含数据迁移 | 切换 Redis 数据源不会自动迁移旧数据 | 交付方案单独规划迁移或清理。 |

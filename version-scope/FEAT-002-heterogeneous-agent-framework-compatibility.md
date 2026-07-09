@@ -5,14 +5,14 @@ feature_type: functional
 feature_id: FEAT-002
 status: active
 merged_from:
-  - FEAT-003-agent-runtime-core-interface
+  - agent-runtime-core-interface
 ---
 
 # 异构智能体框架兼容特性文档
 
 ## 1. 特性定位
 
-FEAT-002 定义 `agent-runtime` 当前版本接入异构 Agent 框架的事实要求，并承载原 FEAT-003 的核心 SPI 与状态边界事实。runtime 必须通过统一的 Adapter / Handler 抽象接入不同 Agent 实现，使上层标准 Agent 服务入口、Task 生命周期、SSE 输出、错误、取消、租户上下文、状态与轨迹语义不依赖具体底层框架。
+FEAT-002 定义 `agent-runtime` 当前版本接入异构 Agent 框架的事实要求，并承载历史 agent-runtime core interface 提案中的核心 SPI 与状态边界事实。runtime 必须通过统一的 Adapter / Handler 抽象接入不同 Agent 实现，使上层标准 Agent 服务入口、Task 生命周期、SSE 输出、错误、取消、租户上下文、状态与轨迹语义不依赖具体底层框架。
 
 本特性解决的问题是：OpenJiuwen、AgentScope、远端 REST Agent 服务以及自定义 Agent 实现有不同的 API、执行模型、流式协议、错误表面和扩展机制；`agent-runtime` 必须把这些差异约束在 adapter 内部，向 FEAT-001 定义的标准 Agent 服务入口暴露一致的执行语义。
 
