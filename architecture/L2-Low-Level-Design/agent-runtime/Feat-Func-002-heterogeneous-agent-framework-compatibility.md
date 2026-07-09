@@ -288,7 +288,7 @@ AgentRuntimeHandler        AbstractAgentRuntimeHandler   OpenJiuwenAgentRuntimeH
 
 | 边界 | 行为约束 |
 |---|---|
-| 状态缓存归属边界 | Adapter 只传递 runtime state key / task / context 和调用生命周期信号，不读写、不配置、不治理框架 checkpointer/cache payload。runtime 状态缓存由 Feat-Func-004 定义；框架内部快照由框架或智能体开发者自治。 |
+| 状态缓存归属边界 | Adapter 只传递 runtime state key / task / context 和调用生命周期信号，不读写、不配置、不治理框架 checkpointer/cache payload。runtime 任务状态缓存由 Feat-Func-003 定义；框架内部快照由框架或智能体开发者自治。 |
 | 框架扩展机制自治边界 | Adapter 不安装、不编排、不治理框架 hook、rail、tool、skill、middleware、callback。这些机制由智能体框架提供，或由智能体开发者在构建 Agent 时自定义。 |
 | MCP 工具服务边界 | MCP 是工具服务协议，不是异构智能体框架。若框架本身能调用 MCP 服务，该能力由框架或智能体开发者自治。 |
 
