@@ -132,7 +132,7 @@ service/
 | Spring Boot web / autoconfigure | northbound HTTP 接入、本地 host 和自动配置。 |
 | A2A Java SDK server/common/jsonrpc | A2A server request handler、task store、event queue、JSON-RPC wrapper 等协议基底。 |
 | A2A Java SDK client/http/jsonrpc | remote A2A JSON-RPC client transport。 |
-| Redis / Jedis | Redis-backed TaskStore 和 middleware 连接。 |
+| Redis / Jedis | Redis-backed TaskStore、Agent checkpoint cache 桥接和 middleware 连接；Redis-backed 状态缓存受 FEAT-003 TTL 约束。 |
 | AgentCore / openJiuwen 相关依赖 | Agent 框架适配。 |
 
 ### 4.2 Test 依赖
@@ -170,7 +170,7 @@ service/
 | `AgentCardController` | Agent Card well-known endpoint。 |
 | `A2AProtocolAdapter` | A2A message 到 `ServeRequest` 的转换。 |
 | `ChunkMapper` | `QueryChunk` 到 A2A part 的转换。 |
-| `RedisTaskStore` / `WriteThrottlingTaskStore` | TaskStore 扩展。 |
+| `RedisTaskStore` / `WriteThrottlingTaskStore` | TaskStore 扩展；Redis-backed Task 快照写入受 FEAT-003 TTL 约束。 |
 
 Agent Card 由 `AgentCardController` 基于 `A2AProperties` 和服务身份信息生成。
 
@@ -203,12 +203,14 @@ service/agent-service-adapters/agent-service-adapters-agentcore/src/main/resourc
 
 `A2AAutoConfiguration` 负责 A2A server/client 相关装配：
 
-- TaskStore，默认 `InMemoryTaskStore`，可按 middleware 配置切换 Redis-backed store。
+- TaskStore，默认 `InMemoryTaskStore`，可按 middleware 配置切换受 TTL 约束的 Redis-backed store。
 - `MainEventBus`、`QueueManager`、`MainEventBusProcessor`。
 - `PushNotificationConfigStore` 与 no-op `PushNotificationSender`。
 - `A2AProtocolAdapter`、`A2AAgentExecutor`、`RequestHandler`。
 - remote Agent card registry、discovery 和 client。
 - 默认 `A2AEnabledServeOrchestrator`。
+
+FEAT-003 还可为 Agent checkpoint 提供受 TTL 约束的 Redis cache 桥接，但不改变业务 checkpoint 的所有权。当前版本不把事件队列、执行线程池、流取消句柄或临时连接表纳入 Redis-backed 状态缓存范围。
 
 ### 6.4 配置属性分组
 
