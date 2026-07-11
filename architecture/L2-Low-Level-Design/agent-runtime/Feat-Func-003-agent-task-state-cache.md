@@ -68,7 +68,7 @@ dependency:
 |---|---|
 | Redis checkpointer 开关 | `openjiuwen.service.middleware.checkpointer.type=redis` 启用 Redis 型运行时存储。 |
 | 命名 Redis 连接引用 | `openjiuwen.service.middleware.checkpointer.redis-ref` 指向 `openjiuwen.service.middleware.redis.<ref>`；默认值为 `default`。 |
-| 状态缓存 TTL | `openjiuwen.service.middleware.checkpointer.ttl-seconds` 控制 Redis-backed A2A Task 快照和 Agent checkpoints 的过期时间；默认 86400 秒。 |
+| 状态缓存 TTL | `openjiuwen.service.middleware.checkpointer.ttl-seconds` 控制 Redis-backed A2A Task 快照和 Agent checkpoints 的过期时间；默认 7 天（604800 秒）。 |
 | Redis endpoint type | `redis.<ref>.type` 是新增可选配置，取值为 `standalone` 或 `cluster`；默认值为 `standalone`。 |
 | 单机 Redis 配置 | `standalone` endpoint 使用 host、port、database、timeout-ms、encrypted-password。 |
 | 集群 Redis 配置 | `cluster` endpoint 使用 nodes、timeout-ms、encrypted-password；nodes 支持多个 `host:port` seed node；database 不参与 cluster client 创建。 |
@@ -144,7 +144,7 @@ Runtime Redis 操作接口
 |---|---|
 | `openjiuwen.service.middleware.checkpointer.type` | 当前 Redis TaskStore 和 agent-core checkpointer 共用该开关；取值为 `redis` 时启用 Redis 型运行时存储，默认是 `in_memory`。 |
 | `openjiuwen.service.middleware.checkpointer.redis-ref` | 指向 `openjiuwen.service.middleware.redis.<ref>`；未配置时默认使用 `default`。 |
-| `openjiuwen.service.middleware.checkpointer.ttl-seconds` | Redis-backed A2A Task 快照和 Agent checkpoints 的统一 TTL，单位秒，默认 86400。该值必须大于 0；当前版本不提供按使用方拆分 TTL 或复杂 eviction 策略。 |
+| `openjiuwen.service.middleware.checkpointer.ttl-seconds` | Redis-backed A2A Task 快照和 Agent checkpoints 的统一 TTL，单位秒，默认 7 天（604800 秒）。该值必须大于 0；当前版本不提供按使用方拆分 TTL 或复杂 eviction 策略。 |
 | `openjiuwen.service.middleware.redis.<ref>.type` | Redis endpoint 类型。该字段为新增可选配置，取值为 `standalone` 或 `cluster`；默认值为 `standalone`。 |
 | `openjiuwen.service.middleware.redis.<ref>.host` | 单机 Redis 主机名。`standalone` 模式使用该字段；未配置 type 且存在 host/port 时按 `standalone` 兼容解析。 |
 | `openjiuwen.service.middleware.redis.<ref>.port` | 单机 Redis 端口，默认 6379。仅 `standalone` 模式使用该字段。 |
@@ -158,7 +158,7 @@ Runtime Redis 操作接口
 配置兼容规则如下：
 
 - 未配置 `type` 时，按 `standalone` 处理，必须保持现有 host、port、database、timeout-ms、encrypted-password 单机配置继续可用。
-- 未配置 `ttl-seconds` 时，按 86400 秒处理；配置值必须是大于 0 的整数。
+- 未配置 `ttl-seconds` 时，按 7 天（604800 秒）处理；配置值必须是大于 0 的整数。
 - `type=standalone` 时，必须配置 host；port 可缺省为 6379；nodes 不参与单机客户端创建。
 - `type=cluster` 时，必须配置 nodes；host/port 不参与集群客户端创建，避免把单机入口误认为集群节点；database 不参与 cluster client 创建，也不作为失败条件。
 - `type=cluster` 且配置了非 0 database 时，启动诊断日志应输出非敏感 ignored 提示，说明该字段已被忽略。
@@ -392,7 +392,7 @@ openjiuwen:
       checkpointer:
         type: redis
         redis-ref: default
-        ttl-seconds: 86400
+        ttl-seconds: 604800
       redis:
         default:
           type: standalone
@@ -412,7 +412,7 @@ openjiuwen:
       checkpointer:
         type: redis
         redis-ref: cluster
-        ttl-seconds: 86400
+        ttl-seconds: 604800
       redis:
         cluster:
           type: cluster
@@ -436,7 +436,7 @@ openjiuwen:
       checkpointer:
         type: redis
         redis-ref: icbc
-        ttl-seconds: 86400
+        ttl-seconds: 604800
       redis:
         icbc:
           type: cluster
@@ -479,7 +479,7 @@ openjiuwen:
 |---|---|
 | checkpointer 类型解析 | 支持 `in_memory` 和 `redis`；未知类型报错。 |
 | Redis endpoint 解析 | `redis-ref` 默认到 `default`，缺失命名 endpoint 时报错。 |
-| TTL 配置解析 | 未配置 `ttl-seconds` 时默认 86400；配置小于等于 0 或非整数时报错。 |
+| TTL 配置解析 | 未配置 `ttl-seconds` 时默认 7 天（604800 秒）；配置小于等于 0 或非整数时报错。 |
 | endpoint type 解析 | 未配置 type 时兼容为 `standalone`；支持 `standalone` 和 `cluster`；未知 type 报错。 |
 | cluster nodes 校验 | `type=cluster` 时 nodes 必填，至少包含一个 `host:port`。 |
 | cluster database 兼容 | `type=cluster` 且 database 非 0 时启动不失败，database 被忽略，并输出诊断提示。 |
@@ -534,7 +534,7 @@ openjiuwen:
 | 实现项 | 要求 |
 |---|---|
 | 配置扩展 | 在 `MiddlewareProperties.RedisEndpoint` 中提供 `type` 和 `nodes`，并保持现有 host、port、database、timeout-ms、encrypted-password 向后兼容。 |
-| TTL 配置扩展 | 在 `MiddlewareProperties.Checkpointer` 中提供 `ttl-seconds`，默认 86400，并保持未配置时兼容。 |
+| TTL 配置扩展 | 在 `MiddlewareProperties.Checkpointer` 中提供 `ttl-seconds`，默认 7 天（604800 秒），并保持未配置时兼容。 |
 | 配置校验 | `type` 仅允许 `standalone` 和 `cluster`；未配置时默认为 `standalone`；`ttl-seconds` 必须大于 0；`cluster` 模式下 nodes 必填且至少一个 `host:port`；database 不作为失败条件。 |
 | 默认单机 client | 将 host、port、database、timeout-ms、encrypted-password 映射为线程安全的 `RuntimeRedisClient`。 |
 | 默认集群 client | 新增默认 Redis Cluster client，将 nodes、timeout-ms、encrypted-password 映射为同一 `RuntimeRedisClient` 方法面，忽略 database。 |
