@@ -56,7 +56,7 @@ ServeRequest
 |---|---|---|
 | Session | runtime 会话域 | 作为用户连续交互的关联范围，用于绑定 Task 与调用身份 |
 | Task | runtime 任务域 | 作为 task-owning 的状态单元，承载提交、执行、完成、中断、失败、取消等生命周期 |
-| Agent checkpoint | 具体 Agent 框架或外部状态能力 | Runtime 只传递内部执行上下文；FEAT-003 可提供 Redis cache 桥接，但不解释或接管业务 Agent checkpoint 语义 |
+| Agent checkpoint | 具体 Agent 框架或外部状态能力 | Runtime 只传递内部执行上下文；FEAT-003 可提供受 TTL 约束的 Redis cache 桥接，但不解释或接管业务 Agent checkpoint 语义 |
 | 中间件服务状态 | 中间件服务自身 | Runtime 通过 engine 层代理调用，不接管服务内部状态 |
 
 Session 与 Task 是 runtime 自己的执行状态边界；Agent checkpoint 与中间件服务状态是被执行能力或被代理能力的内部状态边界。二者不能混写。
@@ -154,7 +154,7 @@ Redis-backed TaskStore
 - 将状态读写与 Agent 执行逻辑隔离。
 - 支撑同步查询等控制路径读取一致的 Task 状态。
 
-该层只管理 runtime 自身的 Task/Session 状态，不解释或接管业务 Agent checkpoint，也不接管中间件服务内部状态。FEAT-003 Redis-backed TaskStore 只改变 Task 状态的物理存储实现，不改变该逻辑边界。
+该层只管理 runtime 自身的 Task/Session 状态，不解释或接管业务 Agent checkpoint，也不接管中间件服务内部状态。FEAT-003 Redis-backed TaskStore 只改变 Task 状态的物理存储实现，并可为 Agent checkpoint 提供受 TTL 约束的 Redis cache 桥接，不改变该逻辑边界。
 
 ### 3.4 internal-event-queue：I/O 与执行的异步隔离
 
@@ -257,7 +257,7 @@ Agent checkpoint
 └── Business-specific execution state
 ```
 
-`agent-runtime` 对 runtime state 负责。FEAT-003 可以把 runtime Task 状态写入 Redis-backed TaskStore；对 Agent checkpoint，runtime 只提供执行上下文和 Redis cache 桥接接缝，不解释业务 checkpoint payload。Agent checkpoint 的存储、恢复和一致性由具体 Agent 框架或外部状态服务承担。
+`agent-runtime` 对 runtime state 负责。FEAT-003 可以把 runtime Task 状态写入 Redis-backed TaskStore；对 Agent checkpoint，runtime 只提供执行上下文和受 TTL 约束的 Redis cache 桥接接缝，不解释业务 checkpoint payload。Agent checkpoint 的存储、恢复和一致性由具体 Agent 框架或外部状态服务承担。
 
 ## 5. 逻辑依赖方向
 
@@ -302,7 +302,7 @@ session-task-manager
 runtime Task/Session state
 ```
 
-状态存储实现可以是默认 InMemory，也可以是 FEAT-003 Redis-backed TaskStore；状态推进入口仍集中在 runtime 控制面。Engine 层不直接拥有 Task 状态机。Agent 框架不直接写 runtime Task 状态。外部请求也不绕过 task-centric-control 修改 Task 生命周期。
+状态存储实现可以是默认 InMemory，也可以是受 TTL 约束的 FEAT-003 Redis-backed TaskStore；Redis key schema 不作为外部稳定契约。状态推进入口仍集中在 runtime 控制面。Engine 层不直接拥有 Task 状态机。Agent 框架不直接写 runtime Task 状态。外部请求也不绕过 task-centric-control 修改 Task 生命周期。
 
 ### 5.4 Service / Runtime / Bus 模块边界
 

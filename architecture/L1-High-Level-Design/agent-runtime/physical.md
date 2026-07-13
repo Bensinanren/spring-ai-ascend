@@ -190,7 +190,7 @@ A2A Client
 |---|---|
 | Agent 框架依赖 | 由对应 `AgentHandler` 适配器加载和调用。 |
 | 远端 A2A Agent | 通过 runtime 侧目录和 outbound A2A 调用支撑能力访问。 |
-| Redis | FEAT-003 可选依赖，通过 Redis-backed TaskStore 承接 runtime Task 状态缓存。 |
+| Redis | FEAT-003 可选依赖，承接 runtime Task 状态缓存和 Agent checkpoint cache 桥接；Redis-backed 缓存生命周期受统一 TTL 配置约束。 |
 | `agent-bus` / 下游 service | 通过中立接口或 host 装配边界交互，不把下游服务状态写入 runtime TaskStore。 |
 | 模型、工具、记忆等服务 | 由具体 Agent 框架、适配器或宿主应用负责连接和治理。 |
 
@@ -198,19 +198,19 @@ A2A Client
 
 ### 4.1 当前状态存储形态
 
-当前 active runtime 默认使用 A2A SDK 的 InMemory 组件保存 Task、事件队列和事件发布状态。启用 FEAT-003 后，Task 状态可以通过 Redis-backed TaskStore 写入 Redis；事件队列和事件发布状态仍保持进程内形态。
+当前 active runtime 默认使用 A2A SDK 的 InMemory 组件保存 Task、事件队列和事件发布状态。启用 FEAT-003 后，Task 状态与 Agent checkpoint cache 可以写入 Redis，并按 FEAT-003 TTL 配置过期；事件队列、事件发布状态、流取消句柄和临时连接表仍保持进程内形态。
 
 | 状态组件 | 物理位置 | 说明 |
 |---|---|---|
 | `InMemoryTaskStore` | 宿主 JVM 内存 | 保存 Task metadata、messages、status 等 runtime Task 状态。 |
-| Redis-backed TaskStore | Redis | 可选替代 `InMemoryTaskStore`，保存 runtime Task 状态缓存。 |
+| Redis-backed TaskStore | Redis | 可选替代 `InMemoryTaskStore`，保存 runtime Task 状态缓存，缓存生命周期受 TTL 约束。 |
 | `InMemoryQueueManager` | 宿主 JVM 内存 | 保存 Task 事件队列和 SSE 消费所需事件。 |
 | `MainEventBus` | 宿主 JVM 内存 | 连接事件发布者与消费者。 |
-| Agent checkpoint cache | 默认不由 runtime 持久化 | 业务 checkpoint 语义仍归属具体 Agent 框架或外部状态能力。 |
+| Agent checkpoint cache | 默认不由 runtime 持久化；FEAT-003 可桥接 Redis | 业务 checkpoint 语义仍归属具体 Agent 框架或外部状态能力，runtime 只提供受 TTL 约束的缓存桥。 |
 
 ### 4.2 TaskStore / QueueManager / EventBus 归属
 
-TaskStore、QueueManager 和 EventBus 属于 runtime 的任务生命周期基础设施。TaskStore 保存 runtime 层 Task 状态，物理实现可以是默认 InMemory 或 FEAT-003 Redis-backed；QueueManager 和 EventBus 保存事件状态，仍是进程内组件。它们不保存业务应用数据库状态，也不替代 Agent 框架自己的 checkpoint。
+TaskStore、QueueManager 和 EventBus 属于 runtime 的任务生命周期基础设施。TaskStore 保存 runtime 层 Task 状态，物理实现可以是默认 InMemory 或 FEAT-003 Redis-backed；QueueManager 和 EventBus 保存事件状态，仍是进程内组件。它们不保存业务应用数据库状态，也不替代 Agent 框架自己的 checkpoint。FEAT-003 不把流取消句柄、临时连接表或其他进程内运行态迁入 Redis。
 
 ```text
 Runtime Task state
@@ -269,7 +269,7 @@ A2A SDK storage abstractions
 | 组件 | 内存占用特征 | 说明 |
 |---|---|---|
 | `InMemoryTaskStore` | Task 对象 × 活跃 Task 数 | 每个 Task 包括 metadata、messages、status 等。 |
-| Redis-backed TaskStore | Redis key/value 占用与连接池资源 | 取决于活跃 Task 数、Task 快照大小、TTL 和 Redis endpoint 拓扑。 |
+| Redis-backed TaskStore | Redis key/value 占用与连接池资源 | 取决于活跃 Task 数、Task 快照大小、TTL 和 Redis endpoint 拓扑；key schema 和 value 序列化格式不是外部稳定契约。 |
 | `InMemoryQueueManager` | 待处理事件数 × 事件大小 | 取决于并发 Task 数、消息速率和 SSE 消费速度。 |
 | `MainEventBus` | 消费者注册和事件分发结构 | 通常相对 Task 与事件队列更小。 |
 | Agent 框架适配器 | 框架自身对象和执行上下文 | 由具体 handler、模型客户端、工具客户端和框架运行时决定。 |
@@ -304,7 +304,7 @@ close runtime
 
 ### 6.1 单实例状态约束
 
-当前 active runtime 的 Task 和事件状态默认存在单个宿主 JVM 内存中，因此同一个 Task 的查询和继续执行语义依赖该宿主进程仍然存活。启用 Redis-backed TaskStore 后，同一个 Redis 数据源上的 Task 查询可以读取已写入的 Task 状态，但事件队列和在途执行仍依赖原宿主进程。
+当前 active runtime 的 Task 和事件状态默认存在单个宿主 JVM 内存中，因此同一个 Task 的查询和继续执行语义依赖该宿主进程仍然存活。启用 Redis-backed TaskStore 后，同一个 Redis 数据源上的 Task 查询可以读取 TTL 内已写入的 Task 状态，但事件队列、流取消句柄和在途执行仍依赖原宿主进程。
 
 如果部署多个宿主实例，默认情况下每个实例拥有各自独立的 InMemory TaskStore、QueueManager 和 EventBus。启用 Redis-backed TaskStore 时，多个实例可以共享 Task 状态存储，但仍需要由外部负载均衡或上层治理处理在途执行、SSE 连接和事件流的实例亲和性。
 
