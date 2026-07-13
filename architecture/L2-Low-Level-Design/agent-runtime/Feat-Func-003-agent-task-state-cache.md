@@ -97,6 +97,7 @@ dependency:
 | 运行时故障自动降级 | Redis 运行中断后的业务迁移属于系统工程和部署容灾问题 | 由整体部署、流量切换和 Redis 高可用方案承接 |
 | 多租户动态数据源路由 | 当前需求不是按请求动态路由多 Redis | 单实例使用当前生效数据源策略 |
 | 多租户 key 隔离 | 当前版本不做多租户特性，不定义 tenant 维度 key namespace | 多租户隔离需求由独立特性定义 |
+| 跨逻辑 runtime keyspace 自动隔离 | SDK 不定义稳定的逻辑 runtime namespace，也不基于 `spring.application.name` 自动增加 key 前缀 | 开发者和部署方通过独立 endpoint、standalone 独立 database、由客户 Redis 适配器或接入代理统一增加 namespace，或其他等价方式隔离完整 keyspace |
 | 复杂链路安全配置 | 当前版本支持密码认证和日志脱敏，不定义 TLS、证书或私有认证配置模型 | 由客户自定义 `RuntimeRedisClient` 或后续安全需求扩展 |
 | 使用方级 Redis endpoint 拆分 | 当前版本 TaskStore 和 checkpointer 共用 `checkpointer.redis-ref` | 后续如需按能力拆分 Redis endpoint，再扩展配置模型 |
 | Redis key schema 外部契约 | key pattern 和 value 序列化格式是 runtime 内部实现细节 | 运维不依赖具体格式做业务逻辑；迁移由 runtime 或交付方案处理 |
@@ -268,7 +269,13 @@ Redis-backed 运行时能力通过统一接口获取 Redis 能力：
 
 当前版本不把进程内运行态注册表、流取消句柄、临时连接表或其他非核心持久化对象纳入 Redis-backed 使用方范围。
 
-Task 存储和 checkpointer 可以有各自的数据结构和 key 前缀，但当前版本使用同一个 `ttl-seconds` 控制状态缓存生命周期，不提供按使用方拆分的 Redis endpoint 或复杂 eviction 策略。Redis key schema 和 value 序列化格式属于 runtime 内部实现细节，不作为外部稳定契约。
+Task 存储和 checkpointer 可以有各自的数据结构和 key 前缀，但当前版本使用同一个 `ttl-seconds` 控制状态缓存生命周期，不提供按使用方拆分的 Redis endpoint 或复杂 eviction 策略。key 的责任边界如下：
+
+- Redis-backed A2A TaskStore 的 key schema 和 value 序列化格式由 runtime 内部实现管理，不作为外部稳定契约。
+- Agent checkpoint 及其他业务 key 的名称、前缀和结构由开发者定义；SDK 不写死开发者业务 key 的前缀。
+- SDK 不为不同逻辑 runtime 自动生成 Redis key namespace，也不基于 `spring.application.name` 或其他 runtime 标识自动增加前缀。
+- 不同逻辑 runtime 使用同一 Redis 服务时，开发者和部署方必须通过独立 endpoint、standalone 独立 database、由客户 Redis 适配器或接入代理统一增加 namespace，或其他等价方式保证完整 keyspace 隔离，避免 key 覆盖、`scanIter` 扫描串扰和运维归属不清。
+- 同一逻辑 runtime 的多个部署副本可以按业务需要共享同一 keyspace；该场景不等同于不同逻辑 runtime 之间的隔离。
 
 ---
 
@@ -359,6 +366,8 @@ Redis 使用方
 
 上层使用方不判断当前是单机、集群还是客户组件；差异在适配层内闭合。
 
+如果多个不同逻辑 runtime 指向同一 Redis 服务，SDK 不会自动修改 TaskStore 或开发者业务 key。开发者和部署方必须在接入前完成 keyspace 隔离；未隔离时，当前版本不保证 Task 快照或 checkpoint 不被跨 runtime 覆盖，也不保证 pattern 扫描只返回当前 runtime 的 key。
+
 ### 5.3 错误、降级和诊断
 
 | 场景 | 触发条件 | 行为 | 对外结果 |
@@ -448,6 +457,8 @@ openjiuwen:
 ```
 
 客户配置中的 `type` 仍只表达 Redis 拓扑语义，不能写成 `customer`。客户组件的选择由 Spring Bean 装配决定。
+
+以上配置只选择 Redis endpoint，不提供跨逻辑 runtime 的自动 key namespace。不同逻辑 runtime 共用同一 Redis 服务时，应使用独立 endpoint、standalone 独立 database、由客户 Redis 适配器或接入代理统一增加 namespace，或其他等价方式隔离完整 keyspace。Agent checkpoint 等业务 key 继续由开发者定义，SDK 不要求固定前缀。
 
 ### 6.2 启动日志要求
 
