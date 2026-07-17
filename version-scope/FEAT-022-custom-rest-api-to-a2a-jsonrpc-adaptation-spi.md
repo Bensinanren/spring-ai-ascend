@@ -43,8 +43,8 @@ FEAT-022 定义 `agent-runtime` 面向平台集成方的**自定义 REST API 协
 | -------------------------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | SPI 接口定义                   | MUST   | 新增     | **平台**在 `agent-service-spec` 模块定义 `RestApiProtocolAdapter` 和 `RestApiResponseEnvelope` 两个 SPI 接口（含方法签名，见 §3.1），在 `agent-service-adapters` 模块提供默认实现。**开发者**实现这两个接口，声明自有 REST API 路径模式、字段映射规则和响应信封格式。                                                                                                                                          |
 | 自定义路径模式注册                  | MUST   | 新增     | **平台**提供路径注册机制，允许通过 YAML 配置或代码方式声明自定义 URL 路径模式（如 `/v1/{project_id}/agents/{agent_id}/conversations/{conversation_id}`）。**开发者**配置路径模式和路径变量名。**平台**在该路径上接收 HTTP 请求，提取路径变量值后交给开发者的 `RestApiProtocolAdapter` 处理。                                                                                                                                 |
-| 路径变量映射                     | MUST   | 新增     | **平台**负责从 URL 中提取路径变量值并传入方法。**开发者**在方法内编写映射逻辑。**兜底**：开发者未显式映射的路径变量，平台自动注入 `metadata[原始变量名]`。**映射什么**：将 URL 路径中的 `{变量名}` 的实际值映射到 `ServeRequest` 的直接字段或 `metadata` 子键。        |
-| Query 参数映射                 | MUST   | 新增     | **平台职责**：从 HTTP 请求中提取 Query 参数并传入 `mapToServeRequest()`。**开发者职责**：在方法内编写 Query 参数名 → 目标字段的映射规则（如 `workspace_id` → `metadata.workspace_id`），映射逻辑与路径变量一致。映射规则属于开发者业务知识，平台不预置默认映射规。**映射什么**：将 URL Query 参数（如 `?workspace_id=xxx&version=2`）映射到 `ServeRequest` 直接字段或 `metadata` 子键。则。                                                             |
+| 路径变量映射                     | MUST   | 新增     | **平台**负责从 URL 中提取路径变量值并传入方法。**开发者**在方法内编写映射逻辑。**兜底**：开发者未显式映射的路径变量，平台自动注入 `metadata[原始变量名]`。**映射什么**：将 URL 路径中的 `{变量名}` 的实际值映射到 `ServeRequest` 的直接字段或 `metadata` 子键。                                                                                                                                                                         |
+| Query 参数映射                 | MUST   | 新增     | **平台职责**：从 HTTP 请求中提取 Query 参数并传入 `mapToServeRequest()`。**开发者职责**：在方法内编写 Query 参数名 → 目标字段的映射规则（如 `workspace_id` → `metadata.workspace_id`），映射逻辑与路径变量一致。映射规则属于开发者业务知识，平台不预置默认映射规。**映射什么**：将 URL Query 参数（如 `?workspace_id=xxx&version=2`）映射到 `ServeRequest` 直接字段或 `metadata` 子键。则。                                                            |
 | Body 字段别名映射                | MUST   | 新增     | **平台职责**：解析 JSON Body 为结构化数据并传入 `mapToServeRequest()`。**开发者职责**：在方法内编写别名映射规则（如 `conversion_id` → `conversationId`、`input` → `message`、`timeout` → `metadata.timeout`）。别名映射规则属于开发者业务知识，平台不预置默认映射规则。`message` 别名（`input`、`query`）通过 `normalizeMessages()` 转为 `messages` 列表。**映射什么**：将外部 JSON Body 的字段名映射为内部 `QueryRequest` 字段名或 `metadata` 子键。 |
 | 同步执行模式                     | MUST   | 现有     | 当请求 `stream=false` 或未声明流式时，**平台**以阻塞模式调用 `ServeOrchestrator.query()`，将返回的 `QueryResponse` 交给开发者的 `RestApiResponseEnvelope.wrapSuccess()` 封装为自定义信封后返回给调用方。**开发者**无需处理执行逻辑，只需实现封装规则。                                                                                                                                                           |
 | 流式执行模式                     | MUST   | 现有     | 当请求 `stream=true` 时，**平台**以 SSE 模式调用 `ServeOrchestrator.streamQuery()`，将每个 `QueryChunk` 交给开发者的 `RestApiResponseEnvelope.wrapChunk()` 封装为自定义 SSE event 后推送给调用方。**开发者**只需实现流式封装规则。                                                                                                                                                             |
@@ -422,9 +422,6 @@ sequenceDiagram
 - L2 设计必须把本特性设计成 `FEAT-001` 的边缘适配层，而不是与 A2A 平级的第二协议核心。
 - SPI 接口必须定义在 `agent-service-spec` 模块，默认实现放在 `agent-service-adapters` 模块，保持 Spring 类型不泄漏到 spec 层。
 - 自定义 REST controller 不得绕过标准 Agent execution chain；实现必须复用或等价映射到 `ServeOrchestrator` / `AgentReadiness` / Task / error / trajectory 语义。
-- 适配层的错误码、HTTP status 和 Body 字段可以面向业务 client 优化，但必须能追溯到标准错误语义。
-- 适配层 SSE stream 可以提供更友好的 event 格式，但事件内容必须能还原到标准 Task/artifact/progress/terminal/error。
-- 文档和示例必须明确：自定义 REST 适配层面向平台集成方；runtime-to-runtime、agent-bus forwarding、未来事件总线不以自定义 REST 适配层为标准入口。
 - SPI 实现必须支持通过 YAML 配置和 Java 代码两种方式声明适配规则。
 - 若未来要让自定义适配层支持 webhook、multipart、二进制文件、批量消息、独立 run resource 或多 Agent 路由，必须先更新本特性事实要求，再进入 L2 和实现。
 
@@ -435,5 +432,4 @@ sequenceDiagram
 - `version-scope/FEAT-006-restful-client-facade.md`
 - `architecture/L2-Low-Level-Design/agent-runtime/FEAT-022-custom-rest-api-to-a2a-jsonrpc-adaptation-spi.md`
 - `agent-runtime/docs/guides/custom-rest-api-adaptation.md`
-
 
